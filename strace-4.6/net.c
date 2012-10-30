@@ -122,6 +122,7 @@
 
 // pgbovine
 extern void CDE_begin_socket_bind_or_connect(struct tcb* tcp);
+extern void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp);
 
 
 static const struct xlat domains[] = {
@@ -1550,7 +1551,7 @@ sys_bind(tcp)
 struct tcb *tcp;
 {
   CDE_begin_socket_bind_or_connect(tcp); // pgbovine
-
+  CDEnet_begin_socket_bind_or_connect(tcp);
   /*
 	if (entering(tcp)) {
 		tprintf("%ld, ", tcp->u_arg[0]);
