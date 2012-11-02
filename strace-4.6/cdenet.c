@@ -27,6 +27,35 @@ CDEnet is currently licensed under GPL v3:
 #include <sys/socket.h>
 #include <sys/un.h>
 
+// TODO: we probably don't need most of these #includes
+#include <sys/select.h>
+#include <sys/user.h> // a user told me that user.h should go after select.h to fix a compile error
+#include <sys/time.h>
+#include <string.h>
+#include <utime.h>
+//#include <sys/ptrace.h>
+//#include <linux/ptrace.h>   /* For constants ORIG_EAX etc */
+//#include <sys/syscall.h>   /* For constants SYS_write etc */
+#include <linux/types.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+//#define _GNU_SOURCE // for vasprintf (now we include _GNU_SOURCE in Makefile)
+#include <stdio.h>
+
+#include <stdlib.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <assert.h>
+#include <sys/mman.h>
+#include <linux/ipc.h>
+#include <linux/shm.h>
+#include <sys/stat.h>
+#include <sys/param.h>
+
+
 #if defined(HAVE_SIN6_SCOPE_ID_LINUX)
 #define in6_addr in6_addr_libc
 #define ipv6_mreq ipv6_mreq_libc
@@ -138,10 +167,42 @@ static const struct xlat af_packet_types[] = {
 #endif /* defined(AF_PACKET) */
 // end of copy from net.c
 
-#include "cdenet.h"
-
+// variables from cde.c
 extern int CDE_exec_mode;
 extern int CDE_block_net_access;
+
+// function from cde.c
+extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
+
+// TODO: read from external file / socket on initialization
+int N_SIN = 1;
+struct sockaddr_in sin_key[1];
+struct sockaddr_in sin_value[1];
+
+void CDEnet_sin_dict_load() { 
+  // TODO: implement by loading from a config file or from a server
+  sin_key[0].sin_family = AF_INET;
+  inet_aton("128.135.250.118", &(sin_key[0].sin_addr)); // gabri ip adress
+  sin_value[0].sin_family = AF_INET;
+  inet_aton("128.135.24.221", &(sin_value[0].sin_addr)); // convert to ankaa ip address
+  // TODO: keep port mapping as well?
+}
+
+// return 1 if converted, 0 if keep intact
+int CDEnet_convert_sin(struct sockaddr_in *sin) { 
+  // TODO: check against a dictionary, alter ip and port, and consider using inet_pton
+  int i;
+  for (i=0; i<N_SIN; i++) {
+    if (sin_key[i].sin_addr.s_addr == sin->sin_addr.s_addr) {
+      printf("Convert %s", inet_ntoa(sin->sin_addr));
+      printf(" to %s\n", inet_ntoa(sin_value[i].sin_addr));
+      sin->sin_addr.s_addr = sin_value[i].sin_addr.s_addr;
+      // TODO: port mapping if implemented in sin_dict_load
+      return 1; // success
+    }
+  }
+  return 0;
+}
 
 void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp) {
 
@@ -150,9 +211,9 @@ void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp) {
   }
   
   // only do this redirection in CDE_exec_mode
-  if (!CDE_exec_mode) {
-    return;
-  }
+//   if (!CDE_exec_mode) {
+//     return;
+//   }
   
   // copied from printsock function of net.c
   long addr = tcp->u_arg[1];
@@ -191,15 +252,24 @@ void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp) {
     return;
   }
   addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
+  
+  tprintf("{sa_family=");
+	printxval(addrfams, addrbuf.sa.sa_family, "AF_???");
+	tprintf(", ");
 
   switch (addrbuf.sa.sa_family) {
   case AF_UNIX:
   	// already handled in cde
     break;
   case AF_INET:
-  	// TODO: replace ip with new ip
-    tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\")",
-      ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
+    // tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\") [BEFORE]",
+    //   ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
+    if (CDEnet_convert_sin(&addrbuf.sin)) {
+      // successfully convert
+      memcpy_to_child(tcp->pid, (char*)addr, addrbuf.pad, addrlen);
+      // tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\") [AFTER]",
+      //         ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
+    }
     break;
 #ifdef HAVE_INET_NTOP
   case AF_INET6:
@@ -279,87 +349,8 @@ void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp) {
       sizeof addrbuf.sa.sa_data);
     break;
   }
-
+  tprintf("}");
+  
   return;
-  // cde stuff not used in here
-  /* AF_FILE is also a synonym for AF_UNIX */
-  if (addrbuf.sa.sa_family == AF_UNIX) {
-    if (addrlen > 2 && addrbuf.sau.sun_path[0]) {
-      //tprintf("path=");
-
-      // addr + sizeof(addrbuf.sau.sun_family) is the location of the real path
-      char* original_path = strcpy_from_child(tcp, addr + sizeof(addrbuf.sau.sun_family));
-      if (original_path) {
-        //printf("original_path='%s'\n", original_path);
-
-        char* redirected_path =
-          redirect_filename_into_cderoot(original_path, tcp->current_dir, tcp);
-
-        // could be null if path is being ignored by cde.options
-        if (redirected_path) {
-          //printf("redirected_path: '%s'\n", redirected_path);
-
-          unsigned long new_pathlen = strlen(redirected_path);
-
-          // alter the socket address field to point to redirected path
-          memcpy_to_child(tcp->pid, (char*)(addr + sizeof(addrbuf.sau.sun_family)),
-                          redirected_path, new_pathlen + 1);
-
-          free(redirected_path);
-
-
-          // remember the 2 extra bytes for the sun_family field!
-          unsigned long new_totallen = new_pathlen + sizeof(addrbuf.sau.sun_family);
-
-          struct user_regs_struct cur_regs;
-          EXITIF(ptrace(PTRACE_GETREGS, tcp->pid, NULL, (long)&cur_regs) < 0);
-
-#if defined (I386)
-          // on i386, things are tricky tricky!
-          // the kernel uses socketcall() as a common entry
-          // point for all socket-related system calls
-          // http://www.kernel.org/doc/man-pages/online/pages/man2/socketcall.2.html
-          //
-          // the ecx register contains a pointer to an array of 3 pointers
-          // (of size 'unsigned long'), which represents the 3 arguments
-          // to the bind/connect syscall.  they are:
-          //   arg[0] - socket number
-          //   arg[1] - pointer to socket address structure
-          //   arg[2] - length of socket address structure
-
-          // we need to alter the length field to new_totallen,
-          // which is VERY IMPORTANT or else the path that the
-          // kernel sees will be truncated!!!
-
-          // we want to override arg[2], which is located at:
-          //   cur_regs.ecx + 2*sizeof(unsigned long)
-          memcpy_to_child(tcp->pid, (char*)(cur_regs.ecx + 2*sizeof(unsigned long)),
-                          (char*)(&new_totallen), sizeof(unsigned long));
-#elif defined(X86_64)
-          // on x86-64, things are much simpler.  the length field is
-          // stored in %rdx (the third argument), so simply override
-          // that register with new_totallen
-          cur_regs.rdx = (long)new_totallen;
-          ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
-#else
-          #error "Unknown architecture (not I386 or X86_64)"
-#endif
-        }
-
-        free(original_path);
-      }
-    }
-  }
-  else {
-    if (CDE_block_net_access) {
-      // blank out the sockaddr argument if you want to block network access
-      //
-      // I think that blocking 'bind' prevents setting up sockets to accept
-      // incoming connections, and blocking 'connect' prevents outgoing
-      // connections.
-      struct sockaddr s;
-      memset(&s, 0, sizeof(s));
-      memcpy_to_child(tcp->pid, (char*)addr, (char*)&s, sizeof(s));
-    }
-  }
 }
+

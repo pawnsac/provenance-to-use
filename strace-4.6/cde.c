@@ -42,6 +42,7 @@ CDE is currently licensed under GPL v3:
 
 #include "cde.h"
 #include "okapi.h"
+#include "cdenet.h"
 #include <dirent.h>
 
 // for CDE_begin_socket_bind_or_connect
@@ -163,7 +164,7 @@ static int ignore_path(char* filename, struct tcb* tcp);
 #define SHARED_PAGE_SIZE (MAXPATHLEN * 4)
 
 static char* redirect_filename_into_cderoot(char* filename, char* child_current_pwd, struct tcb* tcp);
-static void memcpy_to_child(int pid, char* dst_child, char* src, int size);
+void memcpy_to_child(int pid, char* dst_child, char* src, int size);
 
 
 // the true pwd of the cde executable AT THE START of execution
@@ -2675,7 +2676,7 @@ static char* strcpy_from_child(struct tcb* tcp, long addr) {
 
 // adapted from the Goanna project by Spillane et al.
 // dst_in_child is a pointer in the child's address space
-static void memcpy_to_child(int pid, char* dst_child, char* src, int size) {
+void memcpy_to_child(int pid, char* dst_child, char* src, int size) {
   while (size >= sizeof(int)) {
     long w = *((long*)src);
     EXITIF(ptrace(PTRACE_POKEDATA, pid, dst_child, (long)w) < 0);
@@ -3138,6 +3139,8 @@ void CDE_init(char** argv, int optind) {
 
   // do this AFTER creating cde.options
   CDE_init_options();
+  
+  CDEnet_sin_dict_load();
 
 
   if (CDE_exec_mode) {

@@ -22,5 +22,10 @@ clean:
 okapi: strace-4.6/okapi.c strace-4.6/okapi.h
 	gcc -Wall -g -O2 -D_GNU_SOURCE -DOKAPI_STANDALONE strace-4.6/okapi.c -o okapi
 
-test:
-	cd tests/sockets && ./test.sh
+test0:
+	cd tests/sockets && ./test0.sh
+test1:
+	cd tests/sockets && ./test1.sh
+test2:
+	cd tests/sockets && ./test2.sh
+
