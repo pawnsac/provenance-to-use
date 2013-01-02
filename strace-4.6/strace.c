@@ -106,6 +106,8 @@ extern void CDE_clear_options_arrays();
 extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
+extern char CDE_provenance_mode;
+
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
 unsigned int ptrace_setoptions = 0;
@@ -891,9 +893,14 @@ main(int argc, char *argv[])
   
   //quanpt - add network system calls
   //  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
-  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown");
+  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
 	qualify(tmp);
   free(tmp);
+  
+  // quanpt - provenance
+  CDE_provenance_mode = 1;
+  extern FILE* CDE_provenance_logfile;
+  CDE_provenance_logfile = fopen("provenance.log", "w");
 
 	qualify("abbrev=all");
 	qualify("verbose=all");
@@ -1963,6 +1970,9 @@ cleanup()
 	}
 	if (cflag)
 		call_summary(outf);
+	extern FILE* CDE_provenance_logfile;
+	if (CDE_provenance_logfile)
+  	fclose(CDE_provenance_logfile); // quanpt
 }
 
 static void

@@ -253,9 +253,9 @@ static const struct xlat prctl_options[] = {
 // pgbovine 
 extern void CDE_begin_execve(struct tcb* tcp);
 extern void CDE_end_execve(struct tcb* tcp);
-
+#define PGBOVINE_COMMENT
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
-
+extern char CDE_provenance_mode;
  
 static const char *
 unalignctl_string (unsigned int ctl)
@@ -449,6 +449,11 @@ struct tcb *tcp;
 	//tabto(acolumn);
 	//tprintf("= ?");
 	//printtrailer();
+	
+	if (CDE_provenance_mode) {
+    extern FILE* CDE_provenance_logfile;
+    fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
+  }
 
 	tcp_last = NULL; // swipe relevant code taken from printtrailer() to prevent errors
 	return 0;
@@ -1761,7 +1766,6 @@ sys_execve(struct tcb *tcp)
   else {
     CDE_end_execve(tcp);
   }
-  return 0;
 
 #ifdef PGBOVINE_COMMENT // pgbovine
 	if (entering(tcp)) {
@@ -1783,8 +1787,9 @@ sys_execve(struct tcb *tcp)
 			tprintf("]");
 		}
 	}
-	return 0;
+	tprintf("\n");
 #endif // PGBOVINE_COMMENT // pgbovine
+  return 0; 
 }
 
 #if UNIXWARE > 2

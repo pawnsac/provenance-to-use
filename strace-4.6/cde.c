@@ -63,7 +63,7 @@ __asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 depen
 // 1 if we are executing code in a CDE package,
 // 0 for tracing regular execution
 char CDE_exec_mode;
-
+char CDE_provenance_mode = 1; // quanpt
 char CDE_verbose_mode = 0; // -v option
 
 // only valid if !CDE_exec_mode
@@ -149,7 +149,7 @@ char CDE_use_linker_from_package = 1; // ON by default, -l option to turn OFF
 
 // only 1 if we are running cde-exec from OUTSIDE of a cde-root/ directory
 char cde_exec_from_outside_cderoot = 0;
-
+FILE* CDE_provenance_logfile = NULL; // quanpt
 FILE* CDE_copied_files_logfile = NULL;
 
 static char cde_options_initialized = 0; // set to 1 after CDE_init_options() done
@@ -227,7 +227,15 @@ static void CDE_create_toplevel_symlink_dirs(void);
 static void CDE_create_path_symlink_dirs(void);
 static void CDE_load_environment_vars(void);
 
-
+// verbose printf
+void vbprintf(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+	va_end(args);
+	return;
+}
 
 // returns a component within real_pwd that represents the part within
 // cde_pseudo_root_dir
@@ -413,7 +421,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
   if (tcp && tcp->p_ignores) {
     if (strcmp(filename, tcp->p_ignores->process_name) == 0) {
       if (CDE_verbose_mode) {
-        printf("IGNORED '%s' (process=%s)\n", filename, tcp->p_ignores->process_name);
+        vbprintf("IGNORED '%s' (process=%s)\n", filename, tcp->p_ignores->process_name);
       }
       return 1;
     }
@@ -421,7 +429,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
       char* p = tcp->p_ignores->process_ignore_prefix_paths[i];
       if (strncmp(filename, p, strlen(p)) == 0) {
         if (CDE_verbose_mode) {
-          printf("IGNORED '%s' [%s] (process=%s)\n", filename, p, tcp->p_ignores->process_name);
+          vbprintf("IGNORED '%s' [%s] (process=%s)\n", filename, p, tcp->p_ignores->process_name);
         }
         return 1;
       }
@@ -944,7 +952,7 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
   char* ret = create_abspath_within_cderoot(filename_abspath);
 
   if (CDE_verbose_mode) {
-    printf("redirect '%s' => '%s'\n", filename, ret);
+    vbprintf("redirect '%s' => '%s'\n", filename, ret);
   }
 
   free(filename_abspath);
@@ -992,7 +1000,7 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     return;
 
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN %s '%s'\n", tcp->pid, syscall_name, filename);
+    vbprintf("[%d] BEGIN %s '%s'\n", tcp->pid, syscall_name, filename);
   }
 
   if (CDE_exec_mode) {
@@ -1001,12 +1009,34 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     }
   }
   else {
+    if (filename) {
     // pre-emptively copy the given file into cde-root/, silencing warnings for
     // non-existent files.
     // (Note that filename can sometimes be a JUNKY STRING due to weird race
     //  conditions when strace is tracing complex multi-process applications)
-    if (filename) {
       copy_file_into_cde_root(filename, tcp->current_dir);
+      if (CDE_provenance_mode) {
+        // only track open syscalls
+        if ((tcp->u_rval >= 0) &&
+            strcmp(syscall_name, "sys_open") == 0) {
+          char* filename_abspath = canonicalize_path(filename, tcp->current_dir);
+          assert(filename_abspath);
+  
+          // Note: tcp->u_arg[1] is only for open(), not openat()
+          unsigned char open_mode = (tcp->u_arg[1] & 3);
+          if (open_mode == O_RDONLY) {
+            fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
+          }
+          else if (open_mode == O_WRONLY) {
+            fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+          }
+          else if (open_mode == O_RDWR) {
+            fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+          }
+  
+          free(filename_abspath);
+        }
+      }
     }
   }
 
@@ -1036,7 +1066,7 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[1]);
 
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN %s '%s' (dirfd=%u)\n", tcp->pid, syscall_name, filename, (unsigned int)tcp->u_arg[0]);
+    vbprintf("[%d] BEGIN %s '%s' (dirfd=%u)\n", tcp->pid, syscall_name, filename, (unsigned int)tcp->u_arg[0]);
   }
 
   if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
@@ -1255,7 +1285,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   tcp->p_ignores = NULL;
 
   if (CDE_verbose_mode) {
-    printf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
+    vbprintf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
   }
 
   if (CDE_exec_mode) {
@@ -1595,7 +1625,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
       if (CDE_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
-        printf("   new_argv[0]='%s'\n", tmp);
+        vbprintf("   new_argv[0]='%s'\n", tmp);
         if (tmp) free(tmp);
       }
 
@@ -1609,7 +1639,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
           if (CDE_verbose_mode) {
             char* tmp = strcpy_from_child(tcp, (long)*new_argv_i_plus_1);
-            printf("   new_argv[%d]='%s'\n", i+1, tmp);
+            vbprintf("   new_argv[%d]='%s'\n", i+1, tmp);
             if (tmp) free(tmp);
           }
         }
@@ -1619,7 +1649,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
           if (CDE_verbose_mode) {
             char* tmp = strcpy_from_child(tcp, (long)*new_argv_i);
-            printf("   new_argv[%d]='%s'\n", i, tmp);
+            vbprintf("   new_argv[%d]='%s'\n", i, tmp);
             if (tmp) free(tmp);
           }
         }
@@ -1640,7 +1670,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
       if (CDE_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_f);
-        printf("   new_argv[%d]='%s'\n", first_nontoken_index, tmp);
+        vbprintf("   new_argv[%d]='%s'\n", first_nontoken_index, tmp);
         if (tmp) free(tmp);
       }
 
@@ -1672,7 +1702,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
         if (CDE_verbose_mode) {
           char* tmp = strcpy_from_child(tcp, (long)cur_arg);
-          printf("   new_argv[%d]='%s'\n", i+first_nontoken_index, tmp);
+          vbprintf("   new_argv[%d]='%s'\n", i+first_nontoken_index, tmp);
           if (tmp) free(tmp);
         }
 
@@ -1811,7 +1841,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
       if (CDE_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
-        printf("   new_argv[0]='%s'\n", tmp);
+        vbprintf("   new_argv[0]='%s'\n", tmp);
         if (tmp) free(tmp);
       }
 
@@ -1821,7 +1851,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
       if (CDE_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_1);
-        printf("   new_argv[1]='%s'\n", tmp);
+        vbprintf("   new_argv[1]='%s'\n", tmp);
         if (tmp) free(tmp);
       }
 
@@ -1851,7 +1881,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
         if (CDE_verbose_mode) {
           char* tmp = strcpy_from_child(tcp, (long)cur_arg);
-          printf("   new_argv[%d]='%s'\n", i+1, tmp);
+          vbprintf("   new_argv[%d]='%s'\n", i+1, tmp);
           if (tmp) free(tmp);
         }
 
@@ -1968,7 +1998,7 @@ done:
 
 void CDE_end_execve(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] CDE_end_execve\n", tcp->pid);
+    vbprintf("[%d] CDE_end_execve\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -1976,6 +2006,19 @@ void CDE_end_execve(struct tcb* tcp) {
     // segments, so childshm is no longer valid.  we must clear it so
     // that begin_setup_shmat() will be called again
     tcp->childshm = NULL;
+  } else {
+    // return value of 0 means a successful call
+    if (tcp->u_rval == 0) {
+
+      if (CDE_provenance_mode) {
+        char* opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
+        char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
+        assert(filename_abspath);
+        fprintf(CDE_provenance_logfile, "%d %u EXECVE %s\n", (int)time(0), tcp->pid, filename_abspath);
+        free(filename_abspath);
+        free(opened_filename);
+      }
+    }
   }
 }
 
@@ -1984,7 +2027,7 @@ void CDE_begin_file_unlink(struct tcb* tcp) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[0]);
 
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN unlink '%s'\n", tcp->pid, filename);
+    vbprintf("[%d] BEGIN unlink '%s'\n", tcp->pid, filename);
   }
 
   if (CDE_exec_mode) {
@@ -2006,7 +2049,7 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[1]);
 
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN unlinkat '%s'\n", tcp->pid, filename);
+    vbprintf("[%d] BEGIN unlinkat '%s'\n", tcp->pid, filename);
   }
 
   if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
@@ -2029,7 +2072,7 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
 
 void CDE_begin_file_link(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN link\n", tcp->pid);
+    vbprintf("[%d] BEGIN link\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2068,7 +2111,7 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
   char* newpath = strcpy_from_child(tcp, tcp->u_arg[3]);
 
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN linkat(%s, %s)\n", tcp->pid, oldpath, newpath);
+    vbprintf("[%d] BEGIN linkat(%s, %s)\n", tcp->pid, oldpath, newpath);
   }
 
   if (!IS_ABSPATH(oldpath) && tcp->u_arg[0] != AT_FDCWD) {
@@ -2113,7 +2156,7 @@ done:
 
 void CDE_begin_file_symlink(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN symlink\n", tcp->pid);
+    vbprintf("[%d] BEGIN symlink\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2141,7 +2184,7 @@ void CDE_begin_file_symlink(struct tcb* tcp) {
 //   symlinkat(char* oldpath, int newdirfd, char* newpath);
 void CDE_begin_file_symlinkat(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN symlinkat\n", tcp->pid);
+    vbprintf("[%d] BEGIN symlinkat\n", tcp->pid);
   }
 
   char* newpath = strcpy_from_child(tcp, tcp->u_arg[2]);
@@ -2170,7 +2213,7 @@ void CDE_begin_file_symlinkat(struct tcb* tcp) {
 
 void CDE_begin_file_rename(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN rename\n", tcp->pid);
+    vbprintf("[%d] BEGIN rename\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2180,7 +2223,7 @@ void CDE_begin_file_rename(struct tcb* tcp) {
 
 void CDE_end_file_rename(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] END rename\n", tcp->pid);
+    vbprintf("[%d] END rename\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2212,7 +2255,7 @@ void CDE_end_file_rename(struct tcb* tcp) {
 //   renameat(int olddirfd, char* oldpath, int newdirfd, char* newpath);
 void CDE_begin_file_renameat(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN renameat\n", tcp->pid);
+    vbprintf("[%d] BEGIN renameat\n", tcp->pid);
   }
 
   char* oldpath = strcpy_from_child(tcp, tcp->u_arg[1]);
@@ -2242,7 +2285,7 @@ done:
 
 void CDE_end_file_renameat(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] END renameat\n", tcp->pid);
+    vbprintf("[%d] END renameat\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2315,7 +2358,7 @@ void CDE_begin_mkdir(struct tcb* tcp) {
 
 void CDE_end_mkdir(struct tcb* tcp, int input_buffer_arg_index) {
   if (CDE_verbose_mode) {
-    printf("[%d] END mkdir*\n", tcp->pid);
+    vbprintf("[%d] END mkdir*\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2353,7 +2396,7 @@ void CDE_begin_rmdir(struct tcb* tcp) {
 
 void CDE_end_rmdir(struct tcb* tcp, int input_buffer_arg_index) {
   if (CDE_verbose_mode) {
-    printf("[%d] END rmdir*\n", tcp->pid);
+    vbprintf("[%d] END rmdir*\n", tcp->pid);
   }
 
   if (CDE_exec_mode) {
@@ -2852,6 +2895,10 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // inherit from parent since you're executing the same program after
     // forking (at least until you do an exec)
     tcp->p_ignores = tcp->parent->p_ignores;
+    
+    if (CDE_provenance_mode) {
+      fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
+    }
   }
   else {
     // otherwise create fresh fields derived from master (cde) process
@@ -3136,7 +3183,6 @@ void CDE_init(char** argv, int optind) {
     }
   }
 
-
   // do this AFTER creating cde.options
   CDE_init_options();
   
@@ -3282,7 +3328,7 @@ static void _add_to_array_internal(char** my_array, int* p_len, char* p, char* a
 
 
   if (CDE_verbose_mode) {
-    printf("%s[%d] = '%s'\n", array_name, *p_len, my_array[*p_len]);
+    vbprintf("%s[%d] = '%s'\n", array_name, *p_len, my_array[*p_len]);
   }
 
   (*p_len)++;
@@ -3648,7 +3694,7 @@ static void CDE_load_environment_vars() {
     }
     else {
       if (CDE_verbose_mode) {
-        printf("ignored envvar '%s' => '%s'\n", name, val);
+        vbprintf("ignored envvar '%s' => '%s'\n", name, val);
       }
     }
 
@@ -3670,7 +3716,7 @@ static void CDE_load_environment_vars() {
 // and connect() into cde-root sandbox
 void CDE_begin_socket_bind_or_connect(struct tcb *tcp) {
   if (CDE_verbose_mode) {
-    printf("[%d] BEGIN socket bind/connect\n", tcp->pid);
+    vbprintf("[%d] BEGIN socket bind/connect\n", tcp->pid);
   }
 
   // only do this redirection in CDE_exec_mode
