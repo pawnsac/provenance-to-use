@@ -898,7 +898,7 @@ main(int argc, char *argv[])
   free(tmp);
   
   // quanpt - provenance
-  CDE_provenance_mode = 1;
+  CDE_provenance_mode = !CDE_exec_mode;
   extern FILE* CDE_provenance_logfile;
   CDE_provenance_logfile = fopen("provenance.log", "w");
 

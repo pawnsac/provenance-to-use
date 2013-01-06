@@ -438,7 +438,7 @@ static char path[MAXPATHLEN + 1];
  * If `len' < 0, treat `instr' as a NUL-terminated string
  * and quote at most (`size' - 1) bytes.
  */
-static int
+int
 string_quote(const char *instr, char *outstr, int len, int size)
 {
 	const unsigned char *ustr = (const unsigned char *) instr;

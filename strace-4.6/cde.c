@@ -43,6 +43,7 @@ CDE is currently licensed under GPL v3:
 #include "cde.h"
 #include "okapi.h"
 #include "cdenet.h"
+#include "provenance.h"
 #include <dirent.h>
 
 // for CDE_begin_socket_bind_or_connect
@@ -63,7 +64,7 @@ __asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 depen
 // 1 if we are executing code in a CDE package,
 // 0 for tracing regular execution
 char CDE_exec_mode;
-char CDE_provenance_mode = 1; // quanpt
+extern char CDE_provenance_mode; // quanpt
 char CDE_verbose_mode = 0; // -v option
 
 // only valid if !CDE_exec_mode
@@ -149,7 +150,7 @@ char CDE_use_linker_from_package = 1; // ON by default, -l option to turn OFF
 
 // only 1 if we are running cde-exec from OUTSIDE of a cde-root/ directory
 char cde_exec_from_outside_cderoot = 0;
-FILE* CDE_provenance_logfile = NULL; // quanpt
+extern FILE* CDE_provenance_logfile; // quanpt
 FILE* CDE_copied_files_logfile = NULL;
 
 static char cde_options_initialized = 0; // set to 1 after CDE_init_options() done
@@ -158,7 +159,7 @@ static void begin_setup_shmat(struct tcb* tcp);
 static void* find_free_addr(int pid, int exec, unsigned long size);
 
 static char* strcpy_from_child(struct tcb* tcp, long addr);
-static char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
+char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 static int ignore_path(char* filename, struct tcb* tcp);
 
 #define SHARED_PAGE_SIZE (MAXPATHLEN * 4)
@@ -1287,6 +1288,10 @@ void CDE_begin_execve(struct tcb* tcp) {
   if (CDE_verbose_mode) {
     vbprintf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
   }
+  
+  if (CDE_provenance_mode) {
+    printexecprov(tcp);
+  }
 
   if (CDE_exec_mode) {
     // if we're purposely ignoring a path to an executable (e.g.,
@@ -2006,19 +2011,6 @@ void CDE_end_execve(struct tcb* tcp) {
     // segments, so childshm is no longer valid.  we must clear it so
     // that begin_setup_shmat() will be called again
     tcp->childshm = NULL;
-  } else {
-    // return value of 0 means a successful call
-    if (tcp->u_rval == 0) {
-
-      if (CDE_provenance_mode) {
-        char* opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
-        char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
-        assert(filename_abspath);
-        fprintf(CDE_provenance_logfile, "%d %u EXECVE %s\n", (int)time(0), tcp->pid, filename_abspath);
-        free(filename_abspath);
-        free(opened_filename);
-      }
-    }
   }
 }
 
@@ -2700,7 +2692,7 @@ void strcpy_redirected_cderoot(char* dst, char* src) {
 }
 
 // malloc a new string from child, and return NULL on failure
-static char* strcpy_from_child_or_null(struct tcb* tcp, long addr) {
+char* strcpy_from_child_or_null(struct tcb* tcp, long addr) {
   char path[MAXPATHLEN];
   if (umovestr(tcp, addr, sizeof path, path) < 0) {
     return NULL;
@@ -2896,9 +2888,10 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // forking (at least until you do an exec)
     tcp->p_ignores = tcp->parent->p_ignores;
     
-    if (CDE_provenance_mode) {
-      fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
-    }
+//     to think: this is called on startup_attach, startup_child (trace.c), internal_fork, handle_new_child (process)
+//     if (CDE_provenance_mode) {
+//       fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
+//     }
   }
   else {
     // otherwise create fresh fields derived from master (cde) process

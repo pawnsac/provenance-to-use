@@ -253,7 +253,6 @@ static const struct xlat prctl_options[] = {
 // pgbovine 
 extern void CDE_begin_execve(struct tcb* tcp);
 extern void CDE_end_execve(struct tcb* tcp);
-#define PGBOVINE_COMMENT
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern char CDE_provenance_mode;
  

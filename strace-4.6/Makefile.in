@@ -69,7 +69,7 @@ am_strace_OBJECTS = strace.$(OBJEXT) syscall.$(OBJEXT) count.$(OBJEXT) \
 	process.$(OBJEXT) bjm.$(OBJEXT) quota.$(OBJEXT) \
 	resource.$(OBJEXT) signal.$(OBJEXT) sock.$(OBJEXT) \
 	system.$(OBJEXT) term.$(OBJEXT) time.$(OBJEXT) proc.$(OBJEXT) \
-	scsi.$(OBJEXT) stream.$(OBJEXT) block.$(OBJEXT) cde.$(OBJEXT) okapi.$(OBJEXT) cdenet.$(OBJEXT)
+	scsi.$(OBJEXT) stream.$(OBJEXT) block.$(OBJEXT) cde.$(OBJEXT) okapi.$(OBJEXT) cdenet.$(OBJEXT) provenance.$(OBJEXT)
 strace_OBJECTS = $(am_strace_OBJECTS)
 strace_LDADD = $(LDADD)
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
@@ -286,10 +286,10 @@ AM_CPPFLAGS = -I$(srcdir)/$(OS)/$(ARCH) -I$(srcdir)/$(OS) -I$(builddir)/$(OS)
 strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \
 		 io.c ioctl.c mem.c net.c process.c bjm.c quota.c \
 		 resource.c signal.c sock.c system.c term.c time.c \
-                proc.c scsi.c stream.c block.c cde.c okapi.c cdenet.c
+                proc.c scsi.c stream.c block.c cde.c okapi.c cdenet.c provenance.c
 
 # pgbovine - added more files:
-noinst_HEADERS = defs.h cde.h okapi.h cdenet.h
+noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h
 EXTRA_DIST = $(man_MANS) errnoent.sh signalent.sh syscallent.sh ioctlsort.c \
 	     debian/changelog debian/compat debian/control debian/copyright \
 	     debian/rules debian/source/format debian/watch \
@@ -539,6 +539,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cde.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/okapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cdenet.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/provenance.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
