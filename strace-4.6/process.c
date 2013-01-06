@@ -537,6 +537,7 @@ struct tcb *tcp;
 			return 0;
 		tcpchild = alloctcb(tcp->u_rval);
     CDE_init_tcb_dir_fields(tcpchild); // pgbovine
+    printSpawnprov(tcpchild); // quanpt
 		if (proc_open(tcpchild, 2) < 0)
 			droptcb(tcpchild);
 	}
@@ -866,6 +867,7 @@ handle_new_child(struct tcb *tcp, int pid, int bpt)
 	tcpchild->parent = tcp;
 
   CDE_init_tcb_dir_fields(tcpchild); // pgbovine - do it AFTER you init parent
+  printSpawnprov(tcpchild); // quanpt
 
 	tcp->nchildren++;
 	if (tcpchild->flags & TCB_SUSPENDED) {

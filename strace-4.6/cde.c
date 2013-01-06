@@ -2011,6 +2011,12 @@ void CDE_end_execve(struct tcb* tcp) {
     // segments, so childshm is no longer valid.  we must clear it so
     // that begin_setup_shmat() will be called again
     tcp->childshm = NULL;
+  } else {
+    if (tcp->u_rval == 0) {
+      if (CDE_provenance_mode) {
+        fprintf(CDE_provenance_logfile, "%d %u EXECVE2\n", (int)time(0), tcp->pid);
+      }
+    }
   }
 }
 
