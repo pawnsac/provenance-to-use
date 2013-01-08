@@ -1164,6 +1164,10 @@ main(int argc, char *argv[])
   // have been processed (argv[optind] is the name of the target program)
   extern void CDE_init(char** argv, int optind);
   CDE_init(argv, optind);
+  
+  // quanpt
+  extern void initprov();
+  if (!CDE_exec_mode) init_prov();
 
 
 	/* STARTUP_CHILD must be called before the signal handlers get

@@ -451,6 +451,7 @@ struct tcb *tcp;
 	
 	if (CDE_provenance_mode) {
     extern FILE* CDE_provenance_logfile;
+    rm_pid_prov(tcp->pid);
     fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
   }
 
@@ -867,7 +868,7 @@ handle_new_child(struct tcb *tcp, int pid, int bpt)
 	tcpchild->parent = tcp;
 
   CDE_init_tcb_dir_fields(tcpchild); // pgbovine - do it AFTER you init parent
-  printSpawnprov(tcpchild); // quanpt
+  print_spawn_prov(tcpchild); // quanpt
 
 	tcp->nchildren++;
 	if (tcpchild->flags & TCB_SUSPENDED) {

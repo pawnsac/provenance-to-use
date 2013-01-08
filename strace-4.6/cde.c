@@ -1290,7 +1290,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
   
   if (CDE_provenance_mode) {
-    printexecprov(tcp);
+    print_exec_prov(tcp);
   }
 
   if (CDE_exec_mode) {
@@ -2015,6 +2015,7 @@ void CDE_end_execve(struct tcb* tcp) {
     if (tcp->u_rval == 0) {
       if (CDE_provenance_mode) {
         fprintf(CDE_provenance_logfile, "%d %u EXECVE2\n", (int)time(0), tcp->pid);
+        add_pid_prov(tcp->pid);
       }
     }
   }

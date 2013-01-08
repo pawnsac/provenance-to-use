@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -13,9 +15,16 @@
 
 char CDE_provenance_mode = 0;
 FILE* CDE_provenance_logfile = NULL;
+typedef struct {
+  pid_t pv[1000]; // the list
+  int pc; // total count
+  
+} pidlist_t;
+static pidlist_t pidlist;
 
 extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
+extern char* canonicalize_path(char* path, char* relpath_base);
 
 
 /*
@@ -24,7 +33,7 @@ extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
  * If string length exceeds `max_strlen', append `...' to the output.
  */
 void
-printstrprov(FILE* logfile, struct tcb *tcp, long addr, int len)
+print_str_prov(FILE* logfile, struct tcb *tcp, long addr, int len)
 {
 	static char *str = NULL;
 	static char *outstr;
@@ -74,7 +83,7 @@ printstrprov(FILE* logfile, struct tcb *tcp, long addr, int len)
 
 
 void
-printargprov(FILE* logfile, struct tcb *tcp, long addr)
+print_arg_prov(FILE* logfile, struct tcb *tcp, long addr)
 {
 	union {
 		unsigned int p32;
@@ -97,7 +106,7 @@ printargprov(FILE* logfile, struct tcb *tcp, long addr)
 		if (cp.p64 == 0)
 			break;
 		fprintf(logfile, "%s", sep);
-		printstrprov(logfile, tcp, cp.p64, -1);
+		print_str_prov(logfile, tcp, cp.p64, -1);
 		addr += personality_wordsize[current_personality];
 	}
 	if (cp.p64)
@@ -107,28 +116,92 @@ printargprov(FILE* logfile, struct tcb *tcp, long addr)
 }
 
 
-void printexecprov(struct tcb *tcp) {
+void print_exec_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     char* opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
     assert(filename_abspath);
-    fprintf(CDE_provenance_logfile, "%d %d EXECVE %d %s ", (int)time(0), parentPid, tcp->pid, filename_abspath);
-    printargprov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
+    fprintf(CDE_provenance_logfile, "%d %u EXECVE %u %s ", (int)time(0), parentPid, tcp->pid, filename_abspath);
+    print_arg_prov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
     free(filename_abspath);
     free(opened_filename);
   }
 }
 
-void printIOprov(struct tcb *tcp) {
+void print_IO_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     // TODO: move fprintf from cde.c here
   }
 }
 
-void printSpawnprov(struct tcb *tcp) {
+void print_spawn_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
   }
+}
+
+void print_curr_prov(pidlist_t *pidlist_p) {
+  int i, curr_time;
+  FILE *f;
+  char buff[1024];
+  long unsigned int rss;
+  
+  // TODO: lock
+  curr_time = (int)time(0);
+  for (i = 0; i < pidlist_p->pc; i++) {
+    sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
+    f = fopen(buff, "r");
+    fgets(buff, 1024, f);
+    // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
+    sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu \
+  %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
+    fclose(f);
+    fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
+  }
+  // TODO: unlock
+}
+
+void *capture_cont_prov(void* ptr) {
+  pidlist_t *pidlist_p = (pidlist_t*) ptr;
+  // Wait till we have the first pid, which should be the traced process.
+  // Start recording memory footprint.
+  // Ok to stop when there is no more pid, since by then,
+  // the original tracded process should have stopped.
+  while (pidlist_p->pc == 0) usleep(100000);
+  while (pidlist_p->pc > 0) { // recording
+    print_curr_prov(pidlist_p);
+    usleep(500000); // TODO: configurable
+  } // done recording: pidlist.pc == 0
+}
+
+void init_prov() {
+  pthread_t ptid;
+  
+  if (CDE_provenance_mode) {
+    pidlist.pc = 0;
+    pthread_create( &ptid, NULL, capture_cont_prov, &pidlist);
+  }
+}
+
+void add_pid_prov(pid_t pid) {
+  // TODO: lock
+  pidlist.pv[pidlist.pc] = pid;
+  pidlist.pc++;
+  print_curr_prov(&pidlist);
+  // TODO: unlock
+}
+
+void rm_pid_prov(pid_t pid) {
+  int i=0;
+  assert(pidlist.pc>0);
+  print_curr_prov(&pidlist);
+  // TODO: lock
+  while (pidlist.pv[i] != pid && i < pidlist.pc) i++;
+  if (i < pidlist.pc) {
+    pidlist.pv[i] = pidlist.pv[pidlist.pc-1];
+    pidlist.pc--;
+  }
+  // TODO: unlock
 }
 
