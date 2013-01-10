@@ -45,7 +45,8 @@ for line in fin:
 
     # prepare mem graph of this process
     pid_mem[node] = open('gv/' + nodename + '.mem.gnu', 'w')
-    pid_mem[node].write('plot "-" title "' + label + '" with lines\n');
+    pid_mem[node].write('set terminal svg\nset output "' + nodename + '.svg"\n')
+    pid_mem[node].write('plot "-" title "' + label + '" with lines\n')
     
   elif action == 'SPAWN':
     node = '"' + words[3] + '_' + str(counter) + '"'
