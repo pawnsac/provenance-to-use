@@ -11,7 +11,16 @@
 # }
 
 import re
+from subprocess import call
+import os
+import time
 
+# prepare graphic directory
+if not os.path.exists("./gv"):
+  os.makedirs("./gv")
+os.system("rm gv/*.gnu gv/*.svg gv/*.gv")
+
+# open input output files
 fin = open('provenance.log', 'r')
 fout = open('gv/provenance.gv', 'w')
 fout.write("""digraph cdeprov2dot {
@@ -21,6 +30,7 @@ edge [fontname="Helvetica" fontsize="8"];
 "cdenet" [label="CDENet" shape="box" fillcolor="blue"];\n""")
 
 active_pid = {'-1':'cdenet'}
+pid_starttime = {}
 pid_mem = {}
 counter = 1
 
@@ -46,7 +56,11 @@ for line in fin:
     # prepare mem graph of this process
     pid_mem[node] = open('gv/' + nodename + '.mem.gnu', 'w')
     pid_mem[node].write('set terminal svg\nset output "' + nodename + '.svg"\n')
+    pid_mem[node].write('set xlabel "Time (seconds) from ' + time.ctime(int(words[0])) + '\n')
+    pid_mem[node].write('set ylabel "Memory Usage (kB)"\n')
+    pid_mem[node].write('set xrange [-1:]\nset xtics 1\n')
     pid_mem[node].write('plot "-" title "' + label + '" with lines\n')
+    pid_starttime[node] = int(words[0])
     
   elif action == 'SPAWN':
     node = '"' + words[3] + '_' + str(counter) + '"'
@@ -72,8 +86,15 @@ for line in fin:
     fout.write(active_pid[pid] + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
     
   elif action == 'MEM':
-    pid_mem[active_pid[pid]].write(words[0] + '\t' + words[3] + '\n')
+    node = active_pid[pid]
+    rel_time = int(words[0]) - pid_starttime[node]
+    pid_mem[node].write(str(rel_time) + '\t' + str(int(words[3])>>10) + '\n')
     
 fout.write("}")
 fout.close()
 fin.close()
+
+# covert created graphviz and gnuplot files into svg files
+os.chdir("./gv")
+os.system("dot -Tsvg provenance.gv -o main.svg")
+os.system("gnuplot *.gnu")
