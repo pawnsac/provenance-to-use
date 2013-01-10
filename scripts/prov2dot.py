@@ -58,8 +58,9 @@ for line in fin:
     pid_mem[node].write('set terminal svg\nset output "' + nodename + '.svg"\n')
     pid_mem[node].write('set xlabel "Time (seconds) from ' + time.ctime(int(words[0])) + '\n')
     pid_mem[node].write('set ylabel "Memory Usage (kB)"\n')
-    pid_mem[node].write('set xrange [-1:]\nset xtics 1\n')
+    pid_mem[node].write('set xrange [-1:]\n')
     pid_mem[node].write('plot "-" title "' + label + '" with lines\n')
+    pid_mem[node].write('0\t0\n')
     pid_starttime[node] = int(words[0])
     
   elif action == 'SPAWN':
@@ -74,7 +75,10 @@ for line in fin:
     
   elif action == 'EXIT':
     node = active_pid[pid]
-    pid_mem[node].close()
+    try:
+      pid_mem[node].close()
+    except:
+      pass
     del active_pid[pid]
     
   elif action == 'READ':

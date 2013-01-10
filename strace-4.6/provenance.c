@@ -152,6 +152,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
   for (i = 0; i < pidlist_p->pc; i++) {
     sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
     f = fopen(buff, "r");
+    if (f==NULL) continue;
     fgets(buff, 1024, f);
     // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
     sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu \
