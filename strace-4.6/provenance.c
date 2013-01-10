@@ -122,7 +122,7 @@ void print_exec_prov(struct tcb *tcp) {
     char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
     assert(filename_abspath);
-    fprintf(CDE_provenance_logfile, "%d %u EXECVE %u %s ", (int)time(0), parentPid, tcp->pid, filename_abspath);
+    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s ", (int)time(0), parentPid, tcp->pid, filename_abspath);
     print_arg_prov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
     free(filename_abspath);
     free(opened_filename);
@@ -171,8 +171,9 @@ void *capture_cont_prov(void* ptr) {
   while (pidlist_p->pc == 0) usleep(100000);
   while (pidlist_p->pc > 0) { // recording
     print_curr_prov(pidlist_p);
-    usleep(500000); // TODO: configurable
+    sleep(1); // TODO: configurable
   } // done recording: pidlist.pc == 0
+  return NULL;
 }
 
 void init_prov() {
