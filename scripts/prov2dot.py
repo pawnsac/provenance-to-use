@@ -116,11 +116,13 @@ for line in fin:
     node = '"' + words[3] + '_' + str(counter) + '"'
     label = 'fork ' + words[3]
     counter += 1
+    parentnode = active_pid[pid]
     active_pid[words[3]]=node # store the dict from pid to unique node name
+    pid_desc[node] = pid_desc[parentnode]
     
     # main graph
     fout.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
-    fout.write(active_pid[pid] + ' -> ' + node + ' [label="" color="darkblue"];\n')
+    fout.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
     
   elif action == 'EXIT':
     try:
