@@ -165,6 +165,19 @@ f2out.write("}")
 f2out.close()
 fin.close()
 
+for node in pid_graph:
+  try:
+    pid_graph[node].write("}")
+    pid_graph[node].close()
+  except:
+    pass
+
+for node in pid_mem:
+  try:
+    pid_mem[node].close()
+  except:
+    pass
+
 # covert created graphviz and gnuplot files into svg files
 os.chdir("./gv")
 os.system("dot -Tsvg main.gv -o main.svg")
