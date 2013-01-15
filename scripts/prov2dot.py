@@ -61,7 +61,7 @@ for line in fin:
   if action == 'EXECVE': # this case only, node is the child words[3]
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
-    label = ' '.join(words[4:]).replace('"','\\"')
+    label = ' '.join(words[4:]).replace('\\', '\\\\').replace('"','\\"')
     counter += 1
     active_pid[words[3]]=node # store the dict from pid to unique node name
     
@@ -123,6 +123,10 @@ for line in fin:
     # main graph
     fout.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
     fout.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+    
+    # main process graph
+    f2out.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
+    f2out.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
     
   elif action == 'EXIT':
     try:

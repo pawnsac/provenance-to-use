@@ -66,7 +66,7 @@ char* CDE_ROOT_DIR;
 #endif
 #endif
 #ifndef DEFAULT_STRLEN
-#define DEFAULT_STRLEN	32	/* default maximum # of bytes printed in
+#define DEFAULT_STRLEN	10240	/* default maximum # of bytes printed in
 				  `printstr', change with `-s' switch */
 #endif
 #ifndef DEFAULT_ACOLUMN
