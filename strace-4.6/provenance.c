@@ -126,7 +126,7 @@ void print_exec_prov(struct tcb *tcp) {
     char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
     assert(filename_abspath);
-    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s ", (int)time(0), parentPid, tcp->pid, filename_abspath);
+    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s ", (int)time(0), parentPid, tcp->pid, filename_abspath, tcp->current_dir);
     print_arg_prov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
     free(filename_abspath);
     free(opened_filename);

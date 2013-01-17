@@ -2022,7 +2022,9 @@ void CDE_end_execve(struct tcb* tcp) {
   } else {
     if (tcp->u_rval == 0) {
       if (CDE_provenance_mode) {
-        fprintf(CDE_provenance_logfile, "%d %u EXECVE2\n", (int)time(0), tcp->pid);
+        int ppid = -1;
+        if (tcp->parent) ppid = tcp->parent->pid;
+        fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
         add_pid_prov(tcp->pid);
       }
     }
