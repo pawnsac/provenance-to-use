@@ -13,8 +13,12 @@
 #define MIN(a,b)		(((a) < (b)) ? (a) : (b))
 #endif
 
+extern char CDE_exec_mode;
+
 char CDE_provenance_mode = 0;
 FILE* CDE_provenance_logfile = NULL;
+pthread_mutex_t mut_logfile = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mut_pidlist = PTHREAD_MUTEX_INITIALIZER;
 typedef struct {
   pid_t pv[1000]; // the list
   int pc; // total count
@@ -147,7 +151,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
   char buff[1024];
   long unsigned int rss;
   
-  // TODO: lock
+  pthread_mutex_lock(&mut_pidlist);
   curr_time = (int)time(0);
   for (i = 0; i < pidlist_p->pc; i++) {
     sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
@@ -160,7 +164,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     fclose(f);
     fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
   }
-  // TODO: unlock
+  pthread_mutex_unlock(&mut_pidlist);
 }
 
 void *capture_cont_prov(void* ptr) {
@@ -174,36 +178,60 @@ void *capture_cont_prov(void* ptr) {
     print_curr_prov(pidlist_p);
     sleep(1); // TODO: configurable
   } // done recording: pidlist.pc == 0
+  pthread_mutex_destroy(&mut_pidlist);
+  
+	if (CDE_provenance_logfile)
+  	fclose(CDE_provenance_logfile);
+  pthread_mutex_destroy(&mut_logfile);
+
   return NULL;
 }
 
 void init_prov() {
   pthread_t ptid;
-  
+  CDE_provenance_mode = !CDE_exec_mode;
   if (CDE_provenance_mode) {
+    pthread_mutex_init(&mut_logfile, NULL);
+    // create NEW provenance log file
+    if (access("provenance.log", R_OK)==-1)
+      CDE_provenance_logfile = fopen("provenance.log", "w");
+    else {
+      int i=1;
+      char path[100];
+      // check through provenance.$i.log to find a new file name
+      do {
+        bzero(path, sizeof(path));
+        sprintf(path, "provenance.%d.log", i);
+        i++;
+      } while (access(path, R_OK)==0);
+      fprintf(stderr, "Provenance log file: %s\n", path);
+      CDE_provenance_logfile = fopen(path, "w");
+    }
+
+    pthread_mutex_init(&mut_pidlist, NULL);
     pidlist.pc = 0;
     pthread_create( &ptid, NULL, capture_cont_prov, &pidlist);
   }
 }
 
 void add_pid_prov(pid_t pid) {
-  // TODO: lock
+  pthread_mutex_lock(&mut_pidlist);
   pidlist.pv[pidlist.pc] = pid;
   pidlist.pc++;
+  pthread_mutex_unlock(&mut_pidlist);
   print_curr_prov(&pidlist);
-  // TODO: unlock
 }
 
 void rm_pid_prov(pid_t pid) {
   int i=0;
   assert(pidlist.pc>0);
   print_curr_prov(&pidlist);
-  // TODO: lock
+  pthread_mutex_lock(&mut_pidlist);
   while (pidlist.pv[i] != pid && i < pidlist.pc) i++;
   if (i < pidlist.pc) {
     pidlist.pv[i] = pidlist.pv[pidlist.pc-1];
     pidlist.pc--;
   }
-  // TODO: unlock
+  pthread_mutex_unlock(&mut_pidlist);
 }
 

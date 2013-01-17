@@ -11602,6 +11602,14 @@ char* find_ELF_program_interpreter(char * file_name) {
   unsigned int i;
   FILE* file = fopen (file_name, "rb");
   assert(file);
+  
+  // something wrong somewhere else, I don't know :(
+  num_dump_sects = 0;
+  if (dump_sects != NULL)
+    free (dump_sects);
+  num_cmdline_dump_sects = 0;
+  if (cmdline_dump_sects != NULL)
+    free (cmdline_dump_sects);
 
   if (! get_file_header (file))
     {
@@ -11816,7 +11824,8 @@ main (int argc, char ** argv)
 {
   // activate the "readelf -l" option
   //do_segments++;
-
+  //int i;
+  //for (i=0; i<1000; i++) {
   char* x = find_ELF_program_interpreter(argv[1]);
   if (x) {
     printf("Interpreter: %s\n", x);
@@ -11834,6 +11843,7 @@ main (int argc, char ** argv)
   else {
     printf("Static executable\n");
   }
+  //}
 
   if (dump_sects != NULL)
     free (dump_sects);

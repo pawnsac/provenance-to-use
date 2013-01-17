@@ -16,6 +16,15 @@ import os
 import time
 import glob
 
+# import argparse
+# 
+# parser = argparse.ArgumentParser(description='Process provenance log file.')
+# parser.add_argument('-f', action="store", dest="fin_name")
+# parser.add_argument('-d', action="store", dest="dir_name")
+# 
+# args = parser.parse_args()
+
+
 # prepare graphic directory
 if not os.path.exists("./gv"):
   os.makedirs("./gv")
@@ -50,12 +59,15 @@ pid_graph = {}
 counter = 1
 
 for line in fin:
+  if re.match('^#', line):
+    continue
   line = line.rstrip('\n')
   words = line.split(' ', 4)
   pid = words[1]
   action = words[2]
   path = '' if len(words) < 4 else words[3]
   path = path.replace('"', '\"')
+  
   node = active_pid[pid] # possible NULL
   
   if action == 'EXECVE': # this case only, node is the child words[3]

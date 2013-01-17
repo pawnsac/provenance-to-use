@@ -893,14 +893,9 @@ main(int argc, char *argv[])
   
   //quanpt - add network system calls
   //  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
-  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
+  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr");//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
 	qualify(tmp);
   free(tmp);
-  
-  // quanpt - provenance
-  CDE_provenance_mode = !CDE_exec_mode;
-  extern FILE* CDE_provenance_logfile;
-  CDE_provenance_logfile = fopen("provenance.log", "w");
 
 	qualify("abbrev=all");
 	qualify("verbose=all");
@@ -1974,9 +1969,6 @@ cleanup()
 	}
 	if (cflag)
 		call_summary(outf);
-	extern FILE* CDE_provenance_logfile;
-	if (CDE_provenance_logfile)
-  	fclose(CDE_provenance_logfile); // quanpt
 }
 
 static void

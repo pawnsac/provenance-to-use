@@ -214,7 +214,7 @@ void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp) {
 //   if (!CDE_exec_mode) {
 //     return;
 //   }
-  
+  return;
   // copied from printsock function of net.c
   long addr = tcp->u_arg[1];
   int addrlen = tcp->u_arg[2];

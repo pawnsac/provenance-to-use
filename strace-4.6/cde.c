@@ -46,6 +46,10 @@ CDE is currently licensed under GPL v3:
 #include "provenance.h"
 #include <dirent.h>
 
+// quanpt - making find_ELF_program_interpreter thread safe
+#include <pthread.h>
+pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER;
+
 // for CDE_begin_socket_bind_or_connect
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -1380,7 +1384,9 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     // mallocs a new string if successful
     // (this string is most likely "/lib/ld-linux.so.2")
+    pthread_mutex_lock(&mut_findelf);
     ld_linux_filename = find_ELF_program_interpreter(path_to_executable);
+    pthread_mutex_unlock(&mut_findelf);
     if (!ld_linux_filename) {
       // if the program interpreter isn't found, then it's a static
       // binary, so let the execve call proceed normally
@@ -1481,7 +1487,9 @@ void CDE_begin_execve(struct tcb* tcp) {
       script_command_filename = strdup(p);
     }
 
+    pthread_mutex_lock(&mut_findelf);
     ld_linux_filename = find_ELF_program_interpreter(script_command_filename);
+    pthread_mutex_unlock(&mut_findelf);
 
     free(script_command_filename);
     free(tmp);
@@ -2988,6 +2996,9 @@ void CDE_init_pseudo_root_dir() {
 // pgbovine - do all CDE initialization here after command-line options
 // have been processed (argv[optind] is the name of the target program)
 void CDE_init(char** argv, int optind) {
+  // quanpt 
+  pthread_mutex_init(&mut_findelf, NULL);
+
   // pgbovine - initialize this before doing anything else!
   getcwd(cde_starting_pwd, sizeof cde_starting_pwd);
 
