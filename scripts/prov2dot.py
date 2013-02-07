@@ -160,7 +160,10 @@ for line in fin:
       del active_pid[pid]
     
   elif action == 'READ':
-    if re.match('\/proc\/\d+\/stat.*', path) is None: # TODO: temporary remove ps big read
+    if re.match('\/proc\/\d+\/stat.*', path) is None \
+    and re.match('.*\/lib\/', path) is None \
+    and re.match('.*\/lib\/', path) is None \
+    and re.match('.*\/usr\/share\/', path) is None: # TODO: temporary remove ps big read
       fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
       if showsub:
         try:# TOFIX: what about spawn node
