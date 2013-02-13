@@ -58,7 +58,8 @@ fhtml.write("""<h1>Overview</h1>
 fhtml.close()
 
 active_pid = {'-1':'cdenet', '0':'unknown'}
-pid_desc = {'cdenet':'[label="CDENet" shape="box" fillcolor="blue" URL="main.process.svg"]'}
+pid_desc = {'cdenet':'[label="CDENet" shape="box" fillcolor="blue" URL="main.process.svg"]',
+  'unknown':'[label="unknown" shape="box" fillcolor="blue" URL="main.process.svg"]'}
 pid_starttime = {}
 pid_mem = {}
 pid_graph = {}
