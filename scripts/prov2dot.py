@@ -80,7 +80,7 @@ for line in fin:
   if action == 'EXECVE': # this case only, node is the child words[3]
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
-    label = ' '.join(words[4:])[:100].replace('\\', '\\\\').replace('"','\\"')
+    label = ' '.join(words[4:]).replace('\\', '\\\\').replace('"','\\"').replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
     active_pid[words[3]]=node # store the dict from pid to unique node name
     
@@ -164,6 +164,9 @@ for line in fin:
     if re.match('\/proc\/\d+\/stat.*', path) is None \
     and re.match('.*\/lib\/', path) is None \
     and re.match('.*\/lib\/', path) is None \
+    and re.match('.*\/etc\/passwd', path) is None \
+    and re.match('.*\/etc/group', path) is None \
+    and re.match('.*\/R\/x86_64-pc-linux-gnu-library\/', path) is None \
     and re.match('.*\/usr\/share\/', path) is None: # TODO: temporary remove ps big read
       fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
       if showsub:
@@ -211,13 +214,21 @@ if showsub:
     except:
       pass
 
+def removeMultiEdge(filename):
+  os.system("head -n 5 " + filename + " > tmp.txt")
+  os.system("tail -n +6 " + filename + " | head -n -1 | sort | uniq >> tmp.txt")
+  os.system("echo } >> tmp.txt")
+  os.system("mv tmp.txt " + filename)
+
 # covert created graphviz and gnuplot files into svg files
 os.chdir(dir)
 os.system("dot -Tsvg main.process.gv -o main.process.svg")
 print("Processing main.gv, this might take a long time ...\n")
+removeMultiEdge("main.gv")
 os.system("dot -Tsvg main.gv -o main.svg")
 os.system("gnuplot *.gnu")
 for fname in glob.glob("./*.prov.gv"):
+  removeMultiEdge(fname)
   os.system("dot -Tsvg " + fname + " -o " + fname.replace('prov.gv', 'prov.svg'))
 os.system('echo "<h1>Processes</h1>" >> main.html')
 os.system('ls *.prov.svg | while read l; do echo "<a href=$l>$l</a><br/>" >> main.html; done')
