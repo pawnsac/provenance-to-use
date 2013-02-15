@@ -15,24 +15,26 @@ from subprocess import call
 import os
 import time
 import glob
-
+import datetime
 import argparse
 
 parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
+parser.add_argument('--nofilter', action="store_true", default=False)
 parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
 parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
 
 args = parser.parse_args()
 
 showsub = not args.nosub
+filter = not args.nofilter
 dir = args.dir_name
 logfile = args.fin_name
 
 # prepare graphic directory
 if not os.path.exists(dir):
   os.makedirs(dir)
-os.system("rm " + dir + "/*.gnu " + dir + ".svg " + dir + "/*.gv " + dir + "/*.html")
+os.system("rm " + dir + "/*.gnu " + dir + "/*.svg " + dir + "/*.gv " + dir + "/*.html")
 
 # open input output files
 fin = open(logfile, 'r')
@@ -80,7 +82,8 @@ for line in fin:
   if action == 'EXECVE': # this case only, node is the child words[3]
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
-    label = ' '.join(words[4:]).replace('\\', '\\\\').replace('"','\\"').replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
+    label = time.ctime(int(words[0])) + \
+        '\\n ' + ''.join(words[4:]).replace('\\', '\\\\').replace('"','\\"').replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
     active_pid[words[3]]=node # store the dict from pid to unique node name
     
@@ -161,13 +164,14 @@ for line in fin:
       del active_pid[pid]
     
   elif action == 'READ':
-    if re.match('\/proc\/\d+\/stat.*', path) is None \
+    if (not filter or (re.match('\/proc\/', path) is None \
     and re.match('.*\/lib\/', path) is None \
-    and re.match('.*\/lib\/', path) is None \
-    and re.match('.*\/etc\/passwd', path) is None \
-    and re.match('.*\/etc/group', path) is None \
+    and re.match('\/etc\/', path) is None \
+    and re.match('\/var\/', path) is None \
+    and re.match('\/dev\/', path) is None \
+    and re.match('\/sys\/', path) is None \
     and re.match('.*\/R\/x86_64-pc-linux-gnu-library\/', path) is None \
-    and re.match('.*\/usr\/share\/', path) is None: # TODO: temporary remove ps big read
+    and re.match('.*\/usr\/share\/', path) is None)): 
       fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
       if showsub:
         try:# TOFIX: what about spawn node
