@@ -18,9 +18,23 @@ import glob
 import datetime
 import argparse
 
+def isFilteredPath(path):
+  if re.match('\/proc\/', path) is None \
+    and re.match('.*\/lib\/', path) is None \
+    and re.match('\/etc\/', path) is None \
+    and re.match('\/var\/', path) is None \
+    and re.match('\/dev\/', path) is None \
+    and re.match('\/sys\/', path) is None \
+    and re.match('.*\/R\/x86_64-pc-linux-gnu-library\/', path) is None \
+    and re.match('.*\/usr\/share\/', path) is None:
+    return False
+  else: 
+    return True
+
 parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
 parser.add_argument('--nofilter', action="store_true", default=False)
+parser.add_argument('--withfork', action="store_true", default=False)
 parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
 parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
 
@@ -28,6 +42,7 @@ args = parser.parse_args()
 
 showsub = not args.nosub
 filter = not args.nofilter
+withfork = args.withfork
 dir = args.dir_name
 logfile = args.fin_name
 
@@ -83,9 +98,10 @@ for line in fin:
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
     label = time.ctime(int(words[0])) + \
-        '\\n ' + ''.join(words[4:]).replace('\\', '\\\\').replace('"','\\"').replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
+        '\\n ' + ''.join(words[4:]).replace('\\', '\\\\').replace('"','\\"') \
+        .replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
-    active_pid[words[3]]=node # store the dict from pid to unique node name
+    active_pid[words[3]] = node # store the dict from pid to unique node name
     
     # main graph
     pid_desc[node] = ' [label="' + label + '" shape="box" fillcolor="lightsteelblue1" URL="' + nodename + '.prov.svg"]'
@@ -143,13 +159,18 @@ for line in fin:
     active_pid[words[3]]=node # store the dict from pid to unique node name
     pid_desc[node] = pid_desc[parentnode]
     
-    # main graph
-    fout.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
-    fout.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
-    
-    # main process graph
-    f2out.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
-    f2out.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+    if withfork:
+      # main graph
+      fout.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
+      fout.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+      
+      # main process graph
+      f2out.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
+      f2out.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+    else:
+      active_pid[words[3]]=active_pid[pid]
+      print(line + ": active_pid["+words[3]+"]=active_pid["+pid+"]")
+
     
   elif action == 'EXIT':
     if showsub:
@@ -164,14 +185,7 @@ for line in fin:
       del active_pid[pid]
     
   elif action == 'READ':
-    if (not filter or (re.match('\/proc\/', path) is None \
-    and re.match('.*\/lib\/', path) is None \
-    and re.match('\/etc\/', path) is None \
-    and re.match('\/var\/', path) is None \
-    and re.match('\/dev\/', path) is None \
-    and re.match('\/sys\/', path) is None \
-    and re.match('.*\/R\/x86_64-pc-linux-gnu-library\/', path) is None \
-    and re.match('.*\/usr\/share\/', path) is None)): 
+    if (not filter or not isFilteredPath(path)): 
       fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
       if showsub:
         try:# TOFIX: what about spawn node
@@ -179,19 +193,21 @@ for line in fin:
         except:
           pass
   elif action == 'WRITE':
-    fout.write(node + ' -> "' + path + '" [label="" color="blue"];\n')
-    if showsub:
-      try:
-        pid_graph[node].write(node + ' -> "' + path + '" [label="" color="blue"];\n')
-      except:
-        pass
+    if (not filter or not isFilteredPath(path)): 
+      fout.write(node + ' -> "' + path + '" [label="" color="blue"];\n')
+      if showsub:
+        try:
+          pid_graph[node].write(node + ' -> "' + path + '" [label="" color="blue"];\n')
+        except:
+          pass
   elif action == 'READ-WRITE':
-    fout.write(node + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
-    if showsub:
-      try:
-        pid_graph[node].write(node + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
-      except:
-        pass
+    if (not filter or not isFilteredPath(path)): 
+      fout.write(node + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
+      if showsub:
+        try:
+          pid_graph[node].write(node + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
+        except:
+          pass
     
   elif action == 'MEM':
     if showsub:
@@ -219,10 +235,13 @@ if showsub:
       pass
 
 def removeMultiEdge(filename):
-  os.system("head -n 5 " + filename + " > tmp.txt")
-  os.system("tail -n +6 " + filename + " | head -n -1 | sort | uniq >> tmp.txt")
-  os.system("echo } >> tmp.txt")
-  os.system("mv tmp.txt " + filename)
+  lines = [line for line in open(filename)]
+  newlines = lines[:5]
+  newlines = newlines + list(set(lines[5:-1])) + ['}']
+  f = open(filename, 'w')
+  for line in newlines:
+    f.write(line)
+  f.close()
 
 # covert created graphviz and gnuplot files into svg files
 os.chdir(dir)
