@@ -1,12 +1,5 @@
-#!/bin/sh
-pwd
-echo 1234 > /dev/null
-sleep 4 0 0 0 0 string &
-ps
-slept 4
-cat hello.txt
-echo "here" > output.txt
+# /bin/sh
+echo "hello world" > hello.txt
+echo "wait"
+#./run2.sh
 sleep 2 &
-ps | grep sleep
-sleep 5
-echo "done"

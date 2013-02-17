@@ -1,4 +1,4 @@
 #!/bin/sh
 cd javart
-../cde java TestExec
+../cde /usr/bin/java TestExec
 ../prov2dot.py
