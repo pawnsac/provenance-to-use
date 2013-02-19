@@ -1,0 +1,10 @@
+#!/bin/sh
+if [ -z "${PTU_HOME+xxx}" ]
+then 
+  echo PTU_HOME is not set
+  exit
+fi
+rm -f provenance.log
+$PTU_HOME/ptu "$@"
+$PTU_HOME/scripts/prov2dot.py
+mv -f provenance.log gv/ 2>/dev/null

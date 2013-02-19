@@ -12,10 +12,8 @@
 
 import re
 from subprocess import call
-import os
-import time
+import os, sys, time, datetime
 import glob
-import datetime
 import argparse
 
 def isFilteredPath(path):
@@ -46,22 +44,27 @@ withfork = args.withfork
 dir = args.dir_name
 logfile = args.fin_name
 
+# open input output files
+try:
+  fin = open(logfile, 'r')
+except IOError:
+  print "Error: can\'t find file " + logfile + " or read data\n"
+  sys.exit(-1)
+
 # prepare graphic directory
 if not os.path.exists(dir):
   os.makedirs(dir)
-os.system("rm " + dir + "/*.gnu " + dir + "/*.svg " + dir + "/*.gv " + dir + "/*.html")
+os.system("rm -f " + dir + "/*.gnu " + dir + "/*.svg " + dir + "/*.gv " + dir + "/*.html")
 
-# open input output files
-fin = open(logfile, 'r')
 fout = open(dir + '/main.gv', 'w')
 fout.write("""digraph cdeprov2dot {
-graph [rankdir = "RL"];
+graph [rankdir = "RL" ];
 node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
 edge [fontname="Helvetica" fontsize="8"];
 "cdenet" [label="CDENet" shape="box" fillcolor="blue"];\n""")
 f2out = open(dir + '/main.process.gv', 'w')
 f2out.write("""digraph cdeprovshort2dot {
-graph [rankdir = "RL"];
+graph [rankdir = "RL" ];
 node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
 edge [fontname="Helvetica" fontsize="8"];
 "cdenet" [label="CDENet" shape="box" fillcolor="blue"];
@@ -134,7 +137,7 @@ for line in fin:
       # prov graph of this pid
       pid_graph[node] = open(dir + '/' + nodename + '.prov.gv', 'w')
       pid_graph[node].write('digraph "' + nodename + '" {\n'+
-        """graph [rankdir = "RL"];
+        """graph [rankdir = "RL" ];
         node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
         edge [fontname="Helvetica" fontsize="8"];
         """ +
@@ -169,7 +172,6 @@ for line in fin:
       f2out.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
     else:
       active_pid[words[3]]=active_pid[pid]
-      print(line + ": active_pid["+words[3]+"]=active_pid["+pid+"]")
 
     
   elif action == 'EXIT':

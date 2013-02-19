@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ -z "${PTU_HOME+xxx}" ]
+then 
+  echo PTU_HOME is not set
+  exit
+fi
+
+if [ ! -f ./gv/provenance.log ];
+then
+    echo "File ./gv/provenance.log not found!"
+fi
+
+$PTU_HOME/scripts/runpid.py "$@"

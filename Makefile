@@ -6,7 +6,7 @@ all: strace-4.6/Makefile okapi
 	cd readelf-mini && make
 	cd strace-4.6 && make
 	mv -f strace-4.6/ptu .
-	mv -f strace-4.6/ptu-exec .
+	mv -f strace-4.6/ptu-exec ptu-ex
 
 install: all
 	install ptu ptu-exec $(PREFIX)/bin
