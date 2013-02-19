@@ -198,36 +198,13 @@ int exitval;
 {
   if (CDE_exec_mode) {
     fprintf(ofp,
-            "CDE: Code, Data, and Environment packaging for Linux\n"
-            "Copyright 2010-2012 Philip Guo (philip@pgbovine.net)\n\n"
-            "Full user manual: http://www.pgbovine.net/cde.html\n\n"
-            "Basic usage: cde-exec [command within cde-root/ to run]\n");
-
-    fprintf(ofp, "\nOptions\n");
-    fprintf(ofp, "  -l  : Use native dynamic linker on machine (less portable but more robust)\n");
-    fprintf(ofp, "  -n  : Block network access (blank out bind/connect syscalls)\n");
-    fprintf(ofp, "  -f  : Do NOT follow forks, so child processes run natively\n");
-    fprintf(ofp, "  -s  : Streaming mode (ooh, mysterious!)\n");
-    fprintf(ofp, "  -i '<file path>' : Ignore the given exact file path\n");
-    fprintf(ofp, "  -p '<file path>' : Ignore the given file path prefix\n");
-    fprintf(ofp, "  -v  : Verbose mode (for debugging)\n");
-    fprintf(ofp, "  -V  : Print version\n");
+            "PTU\n"
+            "Basic usage: ptu-exec [command within cde-root/ to run]\n");
   }
   else {
     fprintf(ofp,
-            "CDE: Code, Data, and Environment packaging for Linux\n"
-            "Copyright 2010-2012 Philip Guo (philip@pgbovine.net)\n\n"
-            "Full user manual: http://www.pgbovine.net/cde.html\n\n"
-            "Basic usage: cde [command to run and package]\n");
-
-    fprintf(ofp, "\nOptions\n");
-    fprintf(ofp, "  -c  : Print the order of files copied into the package in cde-copied-files.log\n");
-    fprintf(ofp, "  -o <output dir> : Set a custom output directory instead of \"cde-package/\"\n");
-    fprintf(ofp, "  -f  : Do NOT follow forks, so child processes are not packaged\n");
-    fprintf(ofp, "  -i '<file path>' : Ignore the given exact file path\n");
-    fprintf(ofp, "  -p '<file path>' : Ignore the given file path prefix\n");
-    fprintf(ofp, "  -v  : Verbose mode (for debugging)\n");
-    fprintf(ofp, "  -V  : Print version\n");
+            "PTU\n"
+            "Basic usage: ptu-audit [command to run and package]\n");
   }
 
 	exit(exitval);

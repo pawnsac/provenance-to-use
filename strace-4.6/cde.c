@@ -1020,28 +1020,7 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     // (Note that filename can sometimes be a JUNKY STRING due to weird race
     //  conditions when strace is tracing complex multi-process applications)
       copy_file_into_cde_root(filename, tcp->current_dir);
-      if (CDE_provenance_mode) {
-        // only track open syscalls
-        if ((tcp->u_rval >= 0) &&
-            strcmp(syscall_name, "sys_open") == 0) {
-          char* filename_abspath = canonicalize_path(filename, tcp->current_dir);
-          assert(filename_abspath);
-  
-          // Note: tcp->u_arg[1] is only for open(), not openat()
-          unsigned char open_mode = (tcp->u_arg[1] & 3);
-          if (open_mode == O_RDONLY) {
-            fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
-          }
-          else if (open_mode == O_WRONLY) {
-            fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
-          }
-          else if (open_mode == O_RDWR) {
-            fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
-          }
-  
-          free(filename_abspath);
-        }
-      }
+      print_IO_prov(tcp, filename, syscall_name);
     }
   }
 
@@ -2021,12 +2000,7 @@ void CDE_end_execve(struct tcb* tcp) {
     tcp->childshm = NULL;
   } else {
     if (tcp->u_rval == 0) {
-      if (CDE_provenance_mode) {
-        int ppid = -1;
-        if (tcp->parent) ppid = tcp->parent->pid;
-        fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
-        add_pid_prov(tcp->pid);
-      }
+      print_execdone_prov(tcp);
     }
   }
 }

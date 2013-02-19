@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <fcntl.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -30,6 +31,7 @@ extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 extern char* canonicalize_path(char* path, char* relpath_base);
 
+void add_pid_prov(pid_t pid);
 
 /*
  * Print string specified by address `addr' and length `len'.
@@ -133,9 +135,40 @@ void print_exec_prov(struct tcb *tcp) {
   }
 }
 
-void print_IO_prov(struct tcb *tcp) {
+void print_execdone_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
-    // TODO: move fprintf from cde.c here
+    int ppid = -1;
+    if (tcp->parent) ppid = tcp->parent->pid;
+    fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
+    add_pid_prov(tcp->pid);
+  }
+}
+
+void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name) {
+  if (CDE_provenance_mode) {
+    // only track open syscalls
+    if ((tcp->u_rval >= 0) &&
+        strcmp(syscall_name, "sys_open") == 0) {
+      char* filename_abspath = canonicalize_path(filename, tcp->current_dir);
+      assert(filename_abspath);
+
+      // Note: tcp->u_arg[1] is only for open(), not openat()
+      unsigned char open_mode = (tcp->u_arg[1] & 3);
+      if (open_mode == O_RDONLY) {
+        fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
+      }
+      else if (open_mode == O_WRONLY) {
+        fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+      }
+      else if (open_mode == O_RDWR) {
+        fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+      }
+      else {
+        fprintf(CDE_provenance_logfile, "%d %u UNKNOWNIO %s\n", (int)time(0), tcp->pid, filename_abspath);
+      }
+
+      free(filename_abspath);
+    }
   }
 }
 
@@ -156,7 +189,11 @@ void print_curr_prov(pidlist_t *pidlist_p) {
   for (i = 0; i < pidlist_p->pc; i++) {
     sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
     f = fopen(buff, "r");
-    if (f==NULL) continue;
+    if (f==NULL) { // remove this invalid pid
+      pidlist.pv[i] = pidlist.pv[pidlist.pc-1];
+      pidlist.pc--;
+      continue;
+    }
     fgets(buff, 1024, f);
     // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
     sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu \
