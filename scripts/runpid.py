@@ -6,8 +6,8 @@ import re
 import argparse
 
 parser = argparse.ArgumentParser(description='Find and execute the node specified by pid and cmd.')
-parser.add_argument('-f', action="store", dest="file_name", default="./gv/provenance.log")
-parser.add_argument('-d', action="store", dest="cde_package", default="./cde-package")
+parser.add_argument('-f', action="store", dest="file_name", default="provenance.log")
+parser.add_argument('-d', action="store", dest="cde_package", default=".")
 parser.add_argument('-p', action="store", dest="pid", help="pid of a node", required=True, type=int)
 parser.add_argument('-c', action="store", dest="cmd", help="partial string of node's command", default="")
 
@@ -32,11 +32,7 @@ HERE="$(dirname "$(readlink -f "${0}")")"
   os.system('./' + scriptname + ' ' + par)
 
 # open input output files
-try:
-  fin = open(logfile, 'r')
-except IOError:
-  print "Error: can\'t find file " + logfile + " or read data\n"
-  sys.exit(-1)
+fin = open(logfile, 'r')
 
 path = None
 pwd = None

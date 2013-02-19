@@ -1,14 +1,18 @@
 #!/bin/sh
 
-if [ -z "${PTU_HOME+xxx}" ]
-then 
-  echo PTU_HOME is not set
-  exit
-fi
+logfile=./gv/provenance.log
 
-if [ ! -f ./gv/provenance.log ];
+if [ ! -f $logfile ]
 then
-    echo "File ./gv/provenance.log not found!"
+    echo "File" $logfile " not found!"
 fi
 
-$PTU_HOME/scripts/runpid.py "$@"
+if [ ! -f ./cde-exec ]
+then
+    cd src
+    make
+    cp ptu ../cde-exec
+    cd ..
+fi
+
+python ./runpid.py -f $logfile "$@"

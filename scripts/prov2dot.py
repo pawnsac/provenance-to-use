@@ -101,7 +101,7 @@ for line in fin:
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
     label = time.ctime(int(words[0])) + \
-        '\\n ' + ''.join(words[4:]).replace('\\', '\\\\').replace('"','\\"') \
+        '\\n PID: ' + words[3] + "\\n" + ''.join(words[4:]).replace('\\', '\\\\').replace('"','\\"') \
         .replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
     active_pid[words[3]] = node # store the dict from pid to unique node name

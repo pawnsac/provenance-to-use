@@ -5,6 +5,18 @@ then
   exit
 fi
 rm -f provenance.log
-$PTU_HOME/ptu "$@"
-$PTU_HOME/scripts/prov2dot.py
+
+package=./ptu
+
+# make the package
+$PTU_HOME/ptu -o $package "$@"
+mv $package/cde-exec $package/cde-exec.org 2>/dev/null
+cp $PTU_HOME/ptu-exec $package/ 2>/dev/null
+cp $PTU_HOME/scripts/runpid.py $package/ 2>/dev/null
+
+python $PTU_HOME/scripts/prov2dot.py 2>/dev/null
 mv -f provenance.log gv/ 2>/dev/null
+
+mv gv $package/
+
+cp -r $PTU_HOME $package/src
