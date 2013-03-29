@@ -469,6 +469,11 @@ internal_exit(struct tcb *tcp)
 			tcp->flags |= TCB_GROUP_EXITING;
 #endif
 	}
+	if (CDE_provenance_mode) {// quanpt: not sure about this exit yet
+    extern FILE* CDE_provenance_logfile;
+    //rm_pid_prov(tcp->pid);
+    fprintf(CDE_provenance_logfile, "%d %u IEXIT\n", (int)time(0), tcp->pid);
+  }
 	return 0;
 }
 

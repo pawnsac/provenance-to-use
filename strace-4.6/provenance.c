@@ -190,8 +190,9 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
     f = fopen(buff, "r");
     if (f==NULL) { // remove this invalid pid
-      pidlist.pv[i] = pidlist.pv[pidlist.pc-1];
-      pidlist.pc--;
+      fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i], rss); // lost_pid exit
+      pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
+      pidlist_p->pc--;
       continue;
     }
     fgets(buff, 1024, f);
