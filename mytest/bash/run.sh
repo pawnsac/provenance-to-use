@@ -1,5 +1,4 @@
-# /bin/sh
-echo "hello world" > hello.txt
-echo "wait"
-#./run2.sh
-sleep 2 &
+#!/bin/sh
+./process.py
+echo "Printing output:"
+cat out.txt
