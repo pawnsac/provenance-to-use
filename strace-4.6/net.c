@@ -1551,23 +1551,17 @@ sys_bind(tcp)
 struct tcb *tcp;
 {
   CDE_begin_socket_bind_or_connect(tcp); // pgbovine
-  CDEnet_begin_socket_bind_or_connect(tcp);
-  /*
-	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
-		printsock(tcp, tcp->u_arg[1], tcp->u_arg[2]);
-		tprintf(", %lu", tcp->u_arg[2]);
-	}
+  CDEnet_bind(tcp);
 	return 0;
-  */
 }
 
 int
 sys_connect(tcp)
 struct tcb *tcp;
 {
-  // pgbovine - handle connect in the same way as bind (see above)
-	return sys_bind(tcp);
+  CDE_begin_socket_bind_or_connect(tcp); // pgbovine  
+  CDEnet_connect(tcp);
+	return 0;
 }
 
 int
@@ -1575,7 +1569,8 @@ sys_listen(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-		tprintf("%ld, %lu", tcp->u_arg[0], tcp->u_arg[1]);
+  	CDEnet_listen(tcp);
+// 		tprintf("listen %ld, %lu\n", tcp->u_arg[0], tcp->u_arg[1]);
 	}
 	return 0;
 }
@@ -1584,27 +1579,29 @@ static int
 do_accept(struct tcb *tcp, int flags_arg)
 {
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
+	  CDEnet_accept(tcp);
+// 		tprintf("accept %ld, \n", tcp->u_arg[0]);
 		return 0;
 	}
-	if (!tcp->u_arg[2])
-		tprintf("%#lx, NULL", tcp->u_arg[1]);
-	else {
-		int len;
-		if (tcp->u_arg[1] == 0 || syserror(tcp)
-		    || umove (tcp, tcp->u_arg[2], &len) < 0) {
-			tprintf("%#lx", tcp->u_arg[1]);
-		} else {
-			printsock(tcp, tcp->u_arg[1], len);
-		}
-		tprintf(", ");
-		printnum_int(tcp, tcp->u_arg[2], "%u");
-	}
-	if (flags_arg >= 0) {
-		tprintf(", ");
-		printflags(sock_type_flags, tcp->u_arg[flags_arg],
-			   "SOCK_???");
-	}
+	CDEnet_accept_exit(tcp);
+// 	if (!tcp->u_arg[2])
+// 		tprintf("%#lx, NULL", tcp->u_arg[1]);
+// 	else {
+// 		int len;
+// 		if (tcp->u_arg[1] == 0 || syserror(tcp)
+// 		    || umove (tcp, tcp->u_arg[2], &len) < 0) {
+// 			tprintf("%#lx", tcp->u_arg[1]);
+// 		} else {
+// 			printsock(tcp, tcp->u_arg[1], len);
+// 		}
+// 		tprintf(", ");
+// 		printnum_int(tcp, tcp->u_arg[2], "%u");
+// 	}
+// 	if (flags_arg >= 0) {
+// 		tprintf(", ");
+// 		printflags(sock_type_flags, tcp->u_arg[flags_arg],
+// 			   "SOCK_???");
+// 	}
 	return 0;
 }
 
@@ -1627,11 +1624,12 @@ sys_send(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
-		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
-		tprintf(", %lu, ", tcp->u_arg[2]);
-		/* flags */
-		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
+	  CDEnet_send(tcp);
+// 		tprintf("send %ld, ", tcp->u_arg[0]);
+// 		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
+// 		tprintf(", %lu, ", tcp->u_arg[2]);
+// 		/* flags */
+// 		printflags(msg_flags, tcp->u_arg[3], "MSG_???\n");
 	}
 	return 0;
 }
@@ -1641,16 +1639,17 @@ sys_sendto(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
-		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
-		tprintf(", %lu, ", tcp->u_arg[2]);
-		/* flags */
-		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
-		/* to address */
-		tprintf(", ");
-		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
-		/* to length */
-		tprintf(", %lu", tcp->u_arg[5]);
+	  CDEnet_sendto(tcp);
+// 		tprintf("sendto %ld, ", tcp->u_arg[0]);
+// 		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
+// 		tprintf(", %lu, ", tcp->u_arg[2]);
+// 		/* flags */
+// 		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
+// 		/* to address */
+// 		tprintf(", ");
+// 		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
+// 		/* to length */
+// 		tprintf(", %lu\n", tcp->u_arg[5]);
 	}
 	return 0;
 }
@@ -1662,11 +1661,12 @@ sys_sendmsg(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
-		printmsghdr(tcp, tcp->u_arg[1]);
-		/* flags */
-		tprintf(", ");
-		printflags(msg_flags, tcp->u_arg[2], "MSG_???");
+	  CDEnet_sendmsg(tcp);
+// 		tprintf("sendmsg %ld, ", tcp->u_arg[0]);
+// 		printmsghdr(tcp, tcp->u_arg[1]);
+// 		/* flags */
+// 		tprintf(", ");
+// 		printflags(msg_flags, tcp->u_arg[2], "MSG_???\n");
 	}
 	return 0;
 }
@@ -1678,15 +1678,16 @@ sys_recv(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
+	  CDEnet_recv(tcp);
+// 		tprintf("%ld, ", tcp->u_arg[0]);
 	} else {
-		if (syserror(tcp))
-			tprintf("%#lx", tcp->u_arg[1]);
-		else
-			printstr(tcp, tcp->u_arg[1], tcp->u_rval);
-
-		tprintf(", %lu, ", tcp->u_arg[2]);
-		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
+// 		if (syserror(tcp))
+// 			tprintf("%#lx", tcp->u_arg[1]);
+// 		else
+// 			printstr(tcp, tcp->u_arg[1], tcp->u_rval);
+// 
+// 		tprintf(", %lu, ", tcp->u_arg[2]);
+// 		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
 	}
 	return 0;
 }
@@ -1696,42 +1697,42 @@ sys_recvfrom(tcp)
 struct tcb *tcp;
 {
 	int fromlen;
-
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
+  	CDEnet_recvfrom(tcp);
+// 		tprintf("%ld, ", tcp->u_arg[0]);
 	} else {
-		if (syserror(tcp)) {
-			tprintf("%#lx, %lu, %lu, %#lx, %#lx",
-				tcp->u_arg[1], tcp->u_arg[2], tcp->u_arg[3],
-				tcp->u_arg[4], tcp->u_arg[5]);
-			return 0;
-		}
-		/* buf */
-		printstr(tcp, tcp->u_arg[1], tcp->u_rval);
-		/* len */
-		tprintf(", %lu, ", tcp->u_arg[2]);
-		/* flags */
-		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
-		/* from address, len */
-		if (!tcp->u_arg[4] || !tcp->u_arg[5]) {
-			if (tcp->u_arg[4] == 0)
-				tprintf(", NULL");
-			else
-				tprintf(", %#lx", tcp->u_arg[4]);
-			if (tcp->u_arg[5] == 0)
-				tprintf(", NULL");
-			else
-				tprintf(", %#lx", tcp->u_arg[5]);
-			return 0;
-		}
-		if (umove(tcp, tcp->u_arg[5], &fromlen) < 0) {
-			tprintf(", {...}, [?]");
-			return 0;
-		}
-		tprintf(", ");
-		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
-		/* from length */
-		tprintf(", [%u]", fromlen);
+// 		if (syserror(tcp)) {
+// 			tprintf("%#lx, %lu, %lu, %#lx, %#lx",
+// 				tcp->u_arg[1], tcp->u_arg[2], tcp->u_arg[3],
+// 				tcp->u_arg[4], tcp->u_arg[5]);
+// 			return 0;
+// 		}
+// 		/* buf */
+// 		printstr(tcp, tcp->u_arg[1], tcp->u_rval);
+// 		/* len */
+// 		tprintf(", %lu, ", tcp->u_arg[2]);
+// 		/* flags */
+// 		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
+// 		/* from address, len */
+// 		if (!tcp->u_arg[4] || !tcp->u_arg[5]) {
+// 			if (tcp->u_arg[4] == 0)
+// 				tprintf(", NULL");
+// 			else
+// 				tprintf(", %#lx", tcp->u_arg[4]);
+// 			if (tcp->u_arg[5] == 0)
+// 				tprintf(", NULL");
+// 			else
+// 				tprintf(", %#lx", tcp->u_arg[5]);
+// 			return 0;
+// 		}
+// 		if (umove(tcp, tcp->u_arg[5], &fromlen) < 0) {
+// 			tprintf(", {...}, [?]");
+// 			return 0;
+// 		}
+// 		tprintf(", ");
+// 		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
+// 		/* from length */
+// 		tprintf(", [%u]", fromlen);
 	}
 	return 0;
 }
@@ -1743,15 +1744,16 @@ sys_recvmsg(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-		tprintf("%ld, ", tcp->u_arg[0]);
+	  CDEnet_recvmsg(tcp);
+// 		tprintf("recvmsg %ld, ", tcp->u_arg[0]);
 	} else {
-		if (syserror(tcp) || !verbose(tcp))
-			tprintf("%#lx", tcp->u_arg[1]);
-		else
-			printmsghdr(tcp, tcp->u_arg[1]);
-		/* flags */
-		tprintf(", ");
-		printflags(msg_flags, tcp->u_arg[2], "MSG_???");
+// 		if (syserror(tcp) || !verbose(tcp))
+// 			tprintf("%#lx", tcp->u_arg[1]);
+// 		else
+// 			printmsghdr(tcp, tcp->u_arg[1]);
+// 		/* flags */
+// 		tprintf(", ");
+// 		printflags(msg_flags, tcp->u_arg[2], "MSG_???\n");
 	}
 	return 0;
 }
@@ -1763,7 +1765,7 @@ sys_recvmmsg(struct tcb *tcp)
 	static char str[128];
 	if (entering(tcp)) {
 
-		tprintf("%ld, ", tcp->u_arg[0]);
+		tprintf("recvmsg_l %ld, ", tcp->u_arg[0]);
 		if (verbose(tcp)) {
 			sprint_timespec(str, tcp, tcp->u_arg[4]);
 			tcp->auxstr = strdup(str);
@@ -1773,9 +1775,10 @@ sys_recvmmsg(struct tcb *tcp)
 			tprintf(", ");
 			print_timespec(tcp, tcp->u_arg[4]);
 		}
+		tprintf("\n");
 		return 0;
 	} else {
-		if (verbose(tcp)) {
+		if (verbose(tcp) || 1) {
 			if (syserror(tcp))
 				tprintf("%#lx", tcp->u_arg[1]);
 			else
@@ -1794,12 +1797,13 @@ sys_recvmmsg(struct tcb *tcp)
 			tcp->auxstr = "Timeout";
 			return RVAL_STR;
 		}
-		if (!verbose(tcp))
+		if (!verbose(tcp) && 0)
 			return 0;
 		/* timeout on exit */
 		strcpy(str, "left ");
 		sprint_timespec(str + strlen(str), tcp, tcp->u_arg[4]);
 		tcp->auxstr = str;
+		tprintf("\n");
 		return RVAL_STR;
 	}
 }

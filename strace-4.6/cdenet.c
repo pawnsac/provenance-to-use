@@ -204,153 +204,167 @@ int CDEnet_convert_sin(struct sockaddr_in *sin) {
   return 0;
 }
 
-void CDEnet_begin_socket_bind_or_connect(struct tcb* tcp) {
+typedef struct socketdata {
+  unsigned short saf;
+  unsigned int port;
+  union ipdata {
+    unsigned long ipv4;
+    unsigned char ipv6[16];   /* IPv6 address */
+  } ip;
+} socketdata_t;
 
-  if (!entering(tcp)) {
-  	return;
-  }
-  
-  // only do this redirection in CDE_exec_mode
-//   if (!CDE_exec_mode) {
-//     return;
-//   }
-  return;
-  // copied from printsock function of net.c
-  long addr = tcp->u_arg[1];
-  int addrlen = tcp->u_arg[2];
-
-  union {
-    char pad[128];
-    struct sockaddr sa;
-    struct sockaddr_in sin;
-    struct sockaddr_un sau;
+int getsockinfo(struct tcb *tcp, long addr, int addrlen, socketdata_t *psock)
+{
+	union {
+		char pad[128];
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_un sau;
 #ifdef HAVE_INET_NTOP
-    struct sockaddr_in6 sa6;
+		struct sockaddr_in6 sa6;
 #endif
 #if defined(LINUX) && defined(AF_IPX)
-    struct sockaddr_ipx sipx;
+		struct sockaddr_ipx sipx;
 #endif
 #ifdef AF_PACKET
-    struct sockaddr_ll ll;
+		struct sockaddr_ll ll;
 #endif
 #ifdef AF_NETLINK
-    struct sockaddr_nl nl;
+		struct sockaddr_nl nl;
 #endif
-  } addrbuf;
-  char string_addr[100];
+	} addrbuf;
+	char string_addr[100];
 
-  if (addr == 0) {
-    return;
-  }
+	if (addr == 0) {
+		return -1;
+	}
 
-  if (addrlen < 2 || addrlen > sizeof(addrbuf)) {
-    addrlen = sizeof(addrbuf);
-  }
+	if (addrlen < 2 || addrlen > sizeof(addrbuf))
+		addrlen = sizeof(addrbuf);
 
-  memset(&addrbuf, 0, sizeof(addrbuf));
-  if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
-    return;
-  }
-  addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
-  
-  tprintf("{sa_family=");
-	printxval(addrfams, addrbuf.sa.sa_family, "AF_???");
-	tprintf(", ");
+	memset(&addrbuf, 0, sizeof(addrbuf));
+	if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
+		return -1;
+	}
+	addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
 
-  switch (addrbuf.sa.sa_family) {
-  case AF_UNIX:
-  	// already handled in cde
-    break;
-  case AF_INET:
-    // tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\") [BEFORE]",
-    //   ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
-    if (CDEnet_convert_sin(&addrbuf.sin)) {
-      // successfully convert
-      memcpy_to_child(tcp->pid, (char*)addr, addrbuf.pad, addrlen);
-      // tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\") [AFTER]",
-      //         ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
-    }
-    break;
+	psock->saf = addrbuf.sa.sa_family;
+
+	switch (addrbuf.sa.sa_family) {
+	case AF_UNIX:
+	  // AF_FILE is also a synonym for AF_UNIX
+	  // these are file operations
+		break;
+	case AF_INET:
+		//tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\")",
+			//ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
+		psock->port = ntohs(addrbuf.sin.sin_port);
+		psock->ip.ipv4 = addrbuf.sin.sin_addr.s_addr;
+		break;
 #ifdef HAVE_INET_NTOP
-  case AF_INET6:
-    inet_ntop(AF_INET6, &addrbuf.sa6.sin6_addr, string_addr, sizeof(string_addr));
-    tprintf("sin6_port=htons(%u), inet_pton(AF_INET6, \"%s\", &sin6_addr), sin6_flowinfo=%u",
-        ntohs(addrbuf.sa6.sin6_port), string_addr,
-        addrbuf.sa6.sin6_flowinfo);
-#ifdef HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID
-    {
-#if defined(HAVE_IF_INDEXTONAME) && defined(IN6_IS_ADDR_LINKLOCAL) && defined(IN6_IS_ADDR_MC_LINKLOCAL)
-        int numericscope = 0;
-        if (IN6_IS_ADDR_LINKLOCAL (&addrbuf.sa6.sin6_addr)
-          || IN6_IS_ADDR_MC_LINKLOCAL (&addrbuf.sa6.sin6_addr)) {
-      char scopebuf[IFNAMSIZ + 1];
-
-      if (if_indextoname (addrbuf.sa6.sin6_scope_id, scopebuf) == NULL)
-          numericscope++;
-      else
-          tprintf(", sin6_scope_id=if_nametoindex(\"%s\")", scopebuf);
-        } else
-      numericscope++;
-
-        if (numericscope)
+	case AF_INET6:
+		inet_ntop(AF_INET6, &addrbuf.sa6.sin6_addr, string_addr, sizeof(string_addr));
+		//tprintf("sin6_port=htons(%u), inet_pton(AF_INET6, \"%s\", &sin6_addr), sin6_flowinfo=%u",
+		//		ntohs(addrbuf.sa6.sin6_port), string_addr,
+		//		addrbuf.sa6.sin6_flowinfo);
+		psock->port = ntohs(addrbuf.sa6.sin6_port);
+		memcpy(&addrbuf.sa6.sin6_addr, &psock->ip.ipv6, 16);
+		break;
 #endif
-      tprintf(", sin6_scope_id=%u", addrbuf.sa6.sin6_scope_id);
-    }
-#endif
-        break;
-#endif
-#if defined(AF_IPX) && defined(linux)
-  case AF_IPX:
-    {
-      int i;
-      tprintf("sipx_port=htons(%u), ",
-          ntohs(addrbuf.sipx.sipx_port));
-      /* Yes, I know, this does not look too
-       * strace-ish, but otherwise the IPX
-       * addresses just look monstrous...
-       * Anyways, feel free if you don't like
-       * this way.. :)
-       */
-      tprintf("%08lx:", (unsigned long)ntohl(addrbuf.sipx.sipx_network));
-      for (i = 0; i<IPX_NODE_LEN; i++)
-        tprintf("%02x", addrbuf.sipx.sipx_node[i]);
-      tprintf("/[%02x]", addrbuf.sipx.sipx_type);
-    }
-    break;
-#endif /* AF_IPX && linux */
-#ifdef AF_PACKET
-  case AF_PACKET:
-    {
-      int i;
-      tprintf("proto=%#04x, if%d, pkttype=",
-          ntohs(addrbuf.ll.sll_protocol),
-          addrbuf.ll.sll_ifindex);
-      printxval(af_packet_types, addrbuf.ll.sll_pkttype, "?");
-      tprintf(", addr(%d)={%d, ",
-          addrbuf.ll.sll_halen,
-          addrbuf.ll.sll_hatype);
-      for (i=0; i<addrbuf.ll.sll_halen; i++)
-        tprintf("%02x", addrbuf.ll.sll_addr[i]);
-    }
-    break;
+ 
+  /* Quan - not handle AF_IPX AF_APACKET AF_NETLINK */
+	/* AF_AX25 AF_APPLETALK AF_NETROM AF_BRIDGE AF_AAL5
+	AF_X25 AF_ROSE etc. still need to be done */
 
-#endif /* AF_APACKET */
-#ifdef AF_NETLINK
-  case AF_NETLINK:
-    tprintf("pid=%d, groups=%08x", addrbuf.nl.nl_pid, addrbuf.nl.nl_groups);
-    break;
-#endif /* AF_NETLINK */
-  /* AF_AX25 AF_APPLETALK AF_NETROM AF_BRIDGE AF_AAL5
-  AF_X25 AF_ROSE etc. still need to be done */
+	default:
+		break;
+	}
+	return 0;
+}
 
-  default:
-    tprintf("sa_data=");
-    printstr(tcp, (long) &((struct sockaddr *) addr)->sa_data,
-      sizeof addrbuf.sa.sa_data);
-    break;
+void printSockInfo(struct tcb* tcp, const char *op, \
+    unsigned int d_port, unsigned long d_ipv4, int sk) {
+  struct sockaddr_in localAddr;
+  socklen_t len = sizeof(localAddr);;
+  if (getsockname(sk, (struct sockaddr*)&localAddr, &len)<0) {
+    localAddr.sin_port = 0;
+    localAddr.sin_addr.s_addr = 0;
+    printf("error: %d on %d\n", errno, sk);
   }
-  tprintf("}");
+  print_newsock_prov(tcp, op, ntohs(localAddr.sin_port), \
+      localAddr.sin_addr.s_addr, d_port, d_ipv4, sk);
+}
+
+void CDEnet_bind(struct tcb* tcp) {
+  socketdata_t sock;
+  int sk = tcp->u_rval;
+  if (!entering(tcp)) {
+    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+      printSockInfo(tcp, "BIND", sock.port, sock.ip.ipv4, sk);
+    }		  
+	}
+}
+void CDEnet_connect(struct tcb* tcp) {
+  socketdata_t sock;
+  if (entering(tcp)) {
+		if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+		  print_newsock_prov(tcp, "CONNECT", 0, 0, sock.port, sock.ip.ipv4, tcp->u_rval);
+		}		  
+	}
+}
+void CDEnet_recvmsg(struct tcb* tcp) { //TODO
+  socketdata_t sock;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "RECVMSG", sock.port, sock.ip.ipv4);
+  }
+}
+void CDEnet_recvfrom(struct tcb* tcp) { //TODO
+  socketdata_t sock;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "RECVFROM", sock.port, sock.ip.ipv4);
+  }
+}
+void CDEnet_recv(struct tcb* tcp) { //TODO
+  socketdata_t sock;
   
-  return;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "RECV", sock.port, sock.ip.ipv4);
+  }
+}
+void CDEnet_sendmsg(struct tcb* tcp) { //TODO
+  socketdata_t sock;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "SENDMSG", sock.port, sock.ip.ipv4);
+  }
+}
+void CDEnet_sendto(struct tcb* tcp) { //TODO
+  socketdata_t sock;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "SENDTO", sock.port, sock.ip.ipv4);
+  }
+}
+void CDEnet_send(struct tcb* tcp) { //TODO
+  socketdata_t sock;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "SEND", sock.port, sock.ip.ipv4);
+  }
+}
+void CDEnet_accept(struct tcb* tcp) { 
+  // done, but should be ignore, since we only care of the return of accept
+  // which is handled in accept_exit
+  print_act_prov(tcp, "ACCEPT");
+}
+void CDEnet_accept_exit(struct tcb* tcp) {
+  socketdata_t sock;
+  int sk = tcp->u_rval;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    printSockInfo(tcp, "ACCEPT_EXIT", sock.port, sock.ip.ipv4, sk);
+  }
+}
+void CDEnet_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
+  socketdata_t sock;
+  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    print_sock_prov(tcp, "LISTEN", sock.port, sock.ip.ipv4);
+  }
 }
 

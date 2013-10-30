@@ -870,7 +870,12 @@ main(int argc, char *argv[])
   
   //quanpt - add network system calls
   //  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
-  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr");//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
+  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
+    "rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,"
+    "chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
+    "faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
+    "mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,"
+    "send,sendto,sendmsg,recv,recvfrom,recvmsg,accept,listen");//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
 	qualify(tmp);
   free(tmp);
 

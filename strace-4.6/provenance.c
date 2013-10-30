@@ -2,6 +2,9 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -178,6 +181,30 @@ void print_spawn_prov(struct tcb *tcp) {
   }
 }
 
+void print_act_prov(struct tcb *tcp, const char* action) {
+  if (CDE_provenance_mode) {
+    fprintf(CDE_provenance_logfile, "%d %u %s 0\n", (int)time(0), tcp->pid, action);
+  }
+}
+
+void print_sock_prov(struct tcb *tcp, const char *op, unsigned int port, unsigned long ipv4) {
+  print_newsock_prov(tcp, op, 0, 0, port, ipv4, 0);
+}
+void print_newsock_prov(struct tcb *tcp, const char* op, \
+  unsigned int s_port, unsigned long s_ipv4, \
+  unsigned int d_port, unsigned long d_ipv4, int sk) {
+  struct in_addr s_in, d_in;
+  char saddr[32], daddr[32];
+  s_in.s_addr = s_ipv4;
+  strcpy(saddr, inet_ntoa(s_in));
+  d_in.s_addr = d_ipv4;
+  strcpy(daddr, inet_ntoa(d_in));
+  if (CDE_provenance_mode) {
+    fprintf(CDE_provenance_logfile, "%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
+        op, s_port, saddr, d_port, daddr, sk);
+  }
+}
+
 void print_curr_prov(pidlist_t *pidlist_p) {
   int i, curr_time;
   FILE *f;
@@ -190,7 +217,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
     f = fopen(buff, "r");
     if (f==NULL) { // remove this invalid pid
-      fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i], rss); // lost_pid exit
+      fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i]); // lost_pid exit
       pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
       pidlist_p->pc--;
       continue;
