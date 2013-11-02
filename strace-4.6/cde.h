@@ -47,5 +47,4 @@ int shmctl(int shmid, int cmd, struct shmid_ds *buf);
   } \
 } while(0)
 
-
 #endif // _CDE_H

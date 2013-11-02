@@ -102,6 +102,7 @@ extern void strcpy_redirected_cderoot(char* dst, char* src);
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern FILE* CDE_copied_files_logfile;
 extern char* CDE_PACKAGE_DIR;
+extern char* CDE_NEW_ROOT_DIR;
 extern void CDE_clear_options_arrays();
 extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
@@ -149,7 +150,7 @@ unsigned int nprocs, tcbtabsize;
 const char *progname;
 extern char **environ;
 
-static int detach(struct tcb *tcp, int sig);
+int detach(struct tcb *tcp, int sig);
 static int trace(void);
 static void cleanup(void);
 static void interrupt(int sig);
@@ -524,7 +525,7 @@ startup_child (char **argv)
   // pgbovine
   char path_to_search[MAXPATHLEN];
   path_to_search[0] = '\0';
- 
+
 	filename = argv[0];
 	if (strchr(filename, '/')) {
 		if (strlen(filename) > sizeof pathname - 1) {
@@ -867,7 +868,7 @@ main(int argc, char *argv[])
   //
   // syscalls added after August 10, 2011 (mostly minor ones):
   //   setxattr, lsetxattr, getxattr, lgetxattr, listxattr, llistxattr, removexattr, lremovexattr
-  
+
   //quanpt - add network system calls
   //  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
   char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
@@ -969,7 +970,9 @@ main(int argc, char *argv[])
 			not_failing_only = 1;
 			break;
 		case 'a':
-			acolumn = atoi(optarg);
+      // quanpt - hijack for '-a' option
+      CDE_NEW_ROOT_DIR = strdup(optarg);
+			//acolumn = atoi(optarg);
 			break;
 		case 'e':
 			qualify(optarg);
@@ -1141,7 +1144,7 @@ main(int argc, char *argv[])
   // have been processed (argv[optind] is the name of the target program)
   extern void CDE_init(char** argv, int optind);
   CDE_init(argv, optind);
-  
+
   // quanpt
   extern void initprov();
   if (!CDE_exec_mode) init_prov();
@@ -1779,7 +1782,7 @@ resume_from_tcp (struct tcb *tcp)
    attached-unstopped processes give the same ESRCH.  For unattached process we
    would SIGSTOP it and wait for its SIGSTOP notification forever.  */
 
-static int
+int
 detach(tcp, sig)
 struct tcb *tcp;
 int sig;

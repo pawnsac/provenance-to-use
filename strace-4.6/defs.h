@@ -759,3 +759,11 @@ extern long ia32;
 #endif
 
 extern int not_failing_only;
+
+
+#define DEBUG
+#ifdef DEBUG
+#define DD(x) do { \
+  fprintf(stderr, "'%s' in %s [%s:%d]\n", x, __FUNCTION__, __FILE__, __LINE__); \
+} while(0)
+#endif

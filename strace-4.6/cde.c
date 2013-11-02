@@ -162,7 +162,7 @@ static char cde_options_initialized = 0; // set to 1 after CDE_init_options() do
 static void begin_setup_shmat(struct tcb* tcp);
 static void* find_free_addr(int pid, int exec, unsigned long size);
 
-static char* strcpy_from_child(struct tcb* tcp, long addr);
+char* strcpy_from_child(struct tcb* tcp, long addr);
 char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 static int ignore_path(char* filename, struct tcb* tcp);
 
@@ -339,7 +339,7 @@ char* create_abspath_within_cderoot(char* path) {
 
        To prevent such atrocities, we just do a simple check to see if a
        path is already within cde-root/, and if so, then don't redirect it.
-      
+
     */
     if(strncmp(path, cde_pseudo_root_dir, strlen(cde_pseudo_root_dir)) == 0) {
       // TODO: maybe print a warning to stderr or a log file?
@@ -1271,7 +1271,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   if (CDE_verbose_mode) {
     vbprintf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
   }
-  
+
   if (CDE_provenance_mode) {
     print_exec_prov(tcp);
   }
@@ -1306,9 +1306,17 @@ void CDE_begin_execve(struct tcb* tcp) {
       }
     }
 
-    free(opened_filename_abspath);
-
     redirected_path = redirect_filename_into_cderoot(exe_filename, tcp->current_dir, tcp);
+  } else {
+    if (endswith(exe_filename, "/cde") ||
+        endswith(exe_filename, "/cde-exec") ||
+        endswith(exe_filename, "/ptu") ||
+        endswith(exe_filename, "/ptu-exec")) {
+          //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
+          if (tcp->flags & TCB_ATTACHED)
+            detach(tcp, 0);
+          goto done;
+        }
   }
 
   char* path_to_executable = NULL;
@@ -2693,7 +2701,7 @@ char* strcpy_from_child_or_null(struct tcb* tcp, long addr) {
 }
 
 // aborts the program if there's an error in strcpy_from_child_or_null
-static char* strcpy_from_child(struct tcb* tcp, long addr) {
+char* strcpy_from_child(struct tcb* tcp, long addr) {
   char* ret = strcpy_from_child_or_null(tcp, addr);
   EXITIF(ret == NULL);
   return ret;
@@ -2878,7 +2886,7 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // inherit from parent since you're executing the same program after
     // forking (at least until you do an exec)
     tcp->p_ignores = tcp->parent->p_ignores;
-    
+
 //     to think: this is called on startup_attach, startup_child (trace.c), internal_fork, handle_new_child (process)
 //     if (CDE_provenance_mode) {
 //       fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
@@ -2972,7 +2980,7 @@ void CDE_init_pseudo_root_dir() {
 // pgbovine - do all CDE initialization here after command-line options
 // have been processed (argv[optind] is the name of the target program)
 void CDE_init(char** argv, int optind) {
-  // quanpt 
+  // quanpt
   pthread_mutex_init(&mut_findelf, NULL);
 
   // pgbovine - initialize this before doing anything else!
@@ -3165,14 +3173,14 @@ void CDE_init(char** argv, int optind) {
       fputs("ignore_environment_var=SESSION_MANAGER\n", f);
       fputs("ignore_environment_var=XAUTHORITY\n", f);
       fputs("ignore_environment_var=DISPLAY\n", f);
-     
+
       fclose(f);
     }
   }
 
   // do this AFTER creating cde.options
   CDE_init_options();
-  
+
   CDEnet_sin_dict_load();
 
 
@@ -3352,6 +3360,22 @@ void CDE_add_redirect_substr_path(char* p) {
 
 void CDE_add_ignore_envvar(char* p) {
   _add_to_array_internal(ignore_envvars, &ignore_envvars_ind, p, (char*)"ignore_envvars");
+}
+
+void CDE_add_ignore_process(char* p){
+  assert(process_ignores[process_ignores_ind].process_name == NULL);
+  process_ignores[process_ignores_ind].process_name = strdup(p);
+  process_ignores[process_ignores_ind].process_ignore_prefix_paths_ind = 0;
+
+  // debug printf
+  //fprintf(stderr, "process_ignores[%d] = '%s'\n",
+  //        process_ignores_ind, process_ignores[process_ignores_ind].process_name);
+
+  process_ignores_ind++;
+  if (process_ignores_ind >= 50) {
+    fprintf(stderr, "Fatal error in cde.options: more than 50 'ignore_process' entries\n");
+    exit(1);
+  }
 }
 
 
@@ -3553,19 +3577,7 @@ static void CDE_init_options() {
             CDE_add_redirect_substr_path(p);
             break;
           case 8:
-            assert(process_ignores[process_ignores_ind].process_name == NULL);
-            process_ignores[process_ignores_ind].process_name = strdup(p);
-            process_ignores[process_ignores_ind].process_ignore_prefix_paths_ind = 0;
-
-            // debug printf
-            //fprintf(stderr, "process_ignores[%d] = '%s'\n",
-            //        process_ignores_ind, process_ignores[process_ignores_ind].process_name);
-
-            process_ignores_ind++;
-            if (process_ignores_ind >= 50) {
-              fprintf(stderr, "Fatal error in cde.options: more than 50 'ignore_process' entries\n");
-              exit(1);
-            }
+            CDE_add_ignore_process(p);
             break;
           case 9:
             assert(process_ignores_ind > 0);
@@ -3596,6 +3608,13 @@ static void CDE_init_options() {
   }
 
   fclose(f);
+
+  /*
+  CDE_add_ignore_process("cde");
+  CDE_add_ignore_process("cde-exec");
+  CDE_add_ignore_process("ptu");
+  CDE_add_ignore_process("ptu-exec");
+  */
 
   cde_options_initialized = 1;
 }
@@ -3815,4 +3834,15 @@ void CDE_begin_socket_bind_or_connect(struct tcb *tcp) {
       memcpy_to_child(tcp->pid, (char*)addr, (char*)&s, sizeof(s));
     }
   }
+}
+
+int endswith(const char *str, const char *suffix)
+{
+    if (!str || !suffix)
+        return 0;
+    size_t lenstr = strlen(str);
+    size_t lensuffix = strlen(suffix);
+    if (lensuffix >  lenstr)
+        return 0;
+    return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }

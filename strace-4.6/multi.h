@@ -1,6 +1,8 @@
 #ifndef MULTI_H_INCLUDED
 #define MULTI_H_INCLUDED
 
+#include <stddef.h>
+
 // create mirror file in the corresponding repo
 void create_mirror_file_in_cde_package(char* filename_abspath, char* src_prefix, char* dst_prefix);
 
