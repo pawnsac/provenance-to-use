@@ -1,4 +1,9 @@
 #!/bin/sh
-./process.py
-echo "Printing output:"
-cat out.txt
+/bin/echo -e "\ns01"
+./s01.*.sh
+
+/bin/echo -e "\ns04"
+./s04.*.sh
+
+/bin/echo -e "\ns05"
+./s05.*.sh
