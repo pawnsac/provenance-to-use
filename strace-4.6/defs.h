@@ -443,7 +443,6 @@ struct tcb {
 
   struct PI* p_ignores; // point to an element within process_ignores if
                         // this traced process has custom ignore options
-  int isCDEprocess;
 };
 
 /* TCB flags */

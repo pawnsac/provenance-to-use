@@ -1282,11 +1282,11 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     // try to exec another cde - unwrap it from this cde-exec
     if (isCDE(exe_filename)) {
-      printf("detach %s\n", tcp->current_dir); // quanpt debug
-      // move the pwd to the path in some other repo, should be done in chdir? TOCONFIRM
-      strcpy(tcp->current_dir, extract_sandboxed_pwd(tcp->current_dir, tcp));
-      printf("detach2 %s\n", tcp->current_dir); // quanpt debug
-      tcp->isCDEprocess = 1;
+//      printf("detach %s\n", tcp->current_dir); // quanpt debug
+//      // move the pwd to the path in some other repo, should be done in chdir? TOCONFIRM
+//      strcpy(tcp->current_dir, extract_sandboxed_pwd(tcp->current_dir, tcp));
+//      printf("detach2 %s\n", tcp->current_dir); // quanpt debug
+//      tcp->isCDEprocess = 1;
       goto done;
     }
 
@@ -2007,8 +2007,6 @@ void CDE_end_execve(struct tcb* tcp) {
   } else {
     if (tcp->u_rval == 0) {
       print_execdone_prov(tcp);
-      if (tcp->isCDEprocess && tcp->flags & TCB_ATTACHED)
-        detach(tcp, 0);
     }
   }
 }
@@ -2907,8 +2905,6 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // aliased, so don't mutate or free
     tcp->perceived_program_fullpath = tcp->parent->perceived_program_fullpath;
   }
-
-  tcp->isCDEprocess = 0; // quanpt
 }
 
 
