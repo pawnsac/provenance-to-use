@@ -102,7 +102,7 @@ extern void strcpy_redirected_cderoot(char* dst, char* src);
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern FILE* CDE_copied_files_logfile;
 extern char* CDE_PACKAGE_DIR;
-extern char* CDE_NEW_ROOT_DIR;
+extern char* CDE_ROOT_NAME;
 extern void CDE_clear_options_arrays();
 extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
@@ -971,7 +971,7 @@ main(int argc, char *argv[])
 			break;
 		case 'a':
       // quanpt - hijack for '-a' option
-      CDE_NEW_ROOT_DIR = strdup(optarg);
+      CDE_ROOT_NAME = strdup(optarg);
 			//acolumn = atoi(optarg);
 			break;
 		case 'e':

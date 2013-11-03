@@ -32,7 +32,9 @@
 
 // pgbovine - version number token for cde.options file
 #define CDE_OPTIONS_VERSION_NUM "# cde.options v1"
-#define CDE_ROOT_NAME "cde-root"
+//#define CDE_ROOT_NAME "cde-root"
+#define CDE_ROOT_NAME_DEFAULT "cde-root"
+char* CDE_ROOT_NAME;
 // pgbovine - these are both ABSOLUTE paths
 char* CDE_PACKAGE_DIR;
 char* CDE_ROOT_DIR;
@@ -441,6 +443,7 @@ struct tcb {
 
   struct PI* p_ignores; // point to an element within process_ignores if
                         // this traced process has custom ignore options
+  int isCDEprocess;
 };
 
 /* TCB flags */

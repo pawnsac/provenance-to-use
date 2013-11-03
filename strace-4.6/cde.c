@@ -70,6 +70,7 @@ __asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 depen
 char CDE_exec_mode;
 extern char CDE_provenance_mode; // quanpt
 char CDE_verbose_mode = 0; // -v option
+char* CDE_ROOT_NAME = NULL;
 
 // only valid if !CDE_exec_mode
 char* CDE_PACKAGE_DIR = NULL;
@@ -358,7 +359,7 @@ char* create_abspath_within_cderoot(char* path) {
         else {
           printf("Accessing remote file: '%s'\n", path);
           // copy from remote -> local
-          create_mirror_file(path, cde_remote_root_dir, cde_pseudo_root_dir);
+          create_mirror_file_in_cde_package(path, cde_remote_root_dir, cde_pseudo_root_dir);
 
           // VERY IMPORTANT: add ALL paths to cached_files_trie, even
           // for nonexistent files, so that we can avoid trying to access
@@ -392,17 +393,6 @@ char* create_abspath_within_cderoot(char* path) {
     assert(IS_ABSPATH(ret));
     return ret;
   }
-}
-
-
-
-// original_abspath must be an absolute path
-// create all the corresponding 'mirror' directories within
-// cde-package/cde-root/, MAKING SURE TO CREATE DIRECTORY SYMLINKS
-// when necessary (sort of emulate "mkdir -p" functionality)
-// if pop_one is non-zero, then pop last element before doing "mkdir -p"
-static void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
-  create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
 }
 
 
@@ -527,7 +517,7 @@ static void copy_file_into_cde_root(char* filename, char* child_current_pwd) {
     fprintf(CDE_copied_files_logfile, "%s\n", filename_abspath);
   }
 
-  create_mirror_file(filename_abspath, (char*)"", CDE_ROOT_DIR);
+  create_mirror_file_in_cde_package(filename_abspath, (char*)"", CDE_ROOT_DIR);
 
   free(filename_abspath);
 }
@@ -1277,12 +1267,6 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
   if (CDE_exec_mode) {
-    // try to exec another cde - skip that cde and go directly to the attach command
-    if (isCDE(exe_filename)) {
-      if (tcp->flags & TCB_ATTACHED)
-        detach(tcp, 0);
-      goto done;
-    }
 
     // if we're purposely ignoring a path to an executable (e.g.,
     // ignoring "/bin/bash" to prevent crashes on certain Ubuntu
@@ -1295,6 +1279,16 @@ void CDE_begin_execve(struct tcb* tcp) {
     //  We will need to handle this case LATER in the function.)
     char* opened_filename_abspath =
       canonicalize_path(exe_filename, extract_sandboxed_pwd(tcp->current_dir, tcp));
+
+    // try to exec another cde - unwrap it from this cde-exec
+    if (isCDE(exe_filename)) {
+      printf("detach %s\n", tcp->current_dir); // quanpt debug
+      // move the pwd to the path in some other repo, should be done in chdir? TOCONFIRM
+      strcpy(tcp->current_dir, extract_sandboxed_pwd(tcp->current_dir, tcp));
+      printf("detach2 %s\n", tcp->current_dir); // quanpt debug
+      tcp->isCDEprocess = 1;
+      goto done;
+    }
 
     if (ignore_path(opened_filename_abspath, tcp)) {
       free(opened_filename_abspath);
@@ -1316,11 +1310,11 @@ void CDE_begin_execve(struct tcb* tcp) {
     redirected_path = redirect_filename_into_cderoot(exe_filename, tcp->current_dir, tcp);
   } else {
     if (isCDE(exe_filename)) {
-          //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
-          if (tcp->flags & TCB_ATTACHED)
-            detach(tcp, 0);
-          goto done;
-        }
+      //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
+      if (tcp->flags & TCB_ATTACHED)
+        detach(tcp, 0);
+      goto done;
+    }
   }
 
   char* path_to_executable = NULL;
@@ -2013,6 +2007,8 @@ void CDE_end_execve(struct tcb* tcp) {
   } else {
     if (tcp->u_rval == 0) {
       print_execdone_prov(tcp);
+      if (tcp->isCDEprocess && tcp->flags & TCB_ATTACHED)
+        detach(tcp, 0);
     }
   }
 }
@@ -2911,6 +2907,8 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // aliased, so don't mutate or free
     tcp->perceived_program_fullpath = tcp->parent->perceived_program_fullpath;
   }
+
+  tcp->isCDEprocess = 0; // quanpt
 }
 
 
@@ -2998,6 +2996,9 @@ void CDE_init(char** argv, int optind) {
   // pgbovine - allow most promiscuous permissions for new files/directories
   umask(0000);
 
+  if (!CDE_ROOT_NAME) { // if it hasn't been set by the '-o' option, set to a default
+    CDE_ROOT_NAME = (char*)CDE_ROOT_NAME_DEFAULT;
+  }
 
   if (CDE_exec_mode) {
     // must do this before running CDE_init_options()
@@ -3211,7 +3212,7 @@ void CDE_init(char** argv, int optind) {
     char* log_filename = format("%s/cde.log", CDE_PACKAGE_DIR);
     if (stat(log_filename, &tmp)) {
       log_f = fopen(log_filename, "w");
-      fprintf(log_f, "cd '" CDE_ROOT_NAME "%s'", cde_starting_pwd);
+      fprintf(log_f, "cd '%s%s'", CDE_ROOT_NAME, cde_starting_pwd);
       fputc('\n', log_f);
     }
     else {
