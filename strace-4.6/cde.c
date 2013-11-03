@@ -1277,6 +1277,13 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
   if (CDE_exec_mode) {
+    // try to exec another cde - skip that cde and go directly to the attach command
+    if (isCDE(exe_filename)) {
+      if (tcp->flags & TCB_ATTACHED)
+        detach(tcp, 0);
+      goto done;
+    }
+
     // if we're purposely ignoring a path to an executable (e.g.,
     // ignoring "/bin/bash" to prevent crashes on certain Ubuntu
     // machines), then DO NOT use the ld-linux trick and simply
@@ -1308,10 +1315,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     redirected_path = redirect_filename_into_cderoot(exe_filename, tcp->current_dir, tcp);
   } else {
-    if (endswith(exe_filename, "/cde") ||
-        endswith(exe_filename, "/cde-exec") ||
-        endswith(exe_filename, "/ptu") ||
-        endswith(exe_filename, "/ptu-exec")) {
+    if (isCDE(exe_filename)) {
           //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
           if (tcp->flags & TCB_ATTACHED)
             detach(tcp, 0);
@@ -3845,4 +3849,11 @@ int endswith(const char *str, const char *suffix)
     if (lensuffix >  lenstr)
         return 0;
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+}
+
+int isCDE(const char *str) {
+  return endswith(str, "/cde") ||
+        endswith(str, "/cde-exec") ||
+        endswith(str, "/ptu") ||
+        endswith(str, "/ptu-exec");
 }
