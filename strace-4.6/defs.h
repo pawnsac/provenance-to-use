@@ -443,6 +443,9 @@ struct tcb {
 
   struct PI* p_ignores; // point to an element within process_ignores if
                         // this traced process has custom ignore options
+
+  // quanpt - multi repo
+  int current_repo_ind;
 };
 
 /* TCB flags */

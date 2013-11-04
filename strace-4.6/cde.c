@@ -185,6 +185,10 @@ int ignore_exact_paths_ind = 0;
 int ignore_prefix_paths_ind = 0;
 int ignore_substr_paths_ind = 0;
 
+static char* multi_repo_paths[100]; // quanpt
+int multi_repo_paths_ind = 0;
+int multi_repo_paths_curr = 0;
+
 // these override their ignore path counterparts
 static char* redirect_exact_paths[100];
 static char* redirect_prefix_paths[100];
@@ -208,6 +212,7 @@ int process_ignores_ind = 0;
 //
 // only relevant when we're executing in CDE_exec_mode
 char cde_pseudo_root_dir[MAXPATHLEN];
+char cde_pseudo_pkg_dir[MAXPATHLEN];
 
 
 // the path to where the root directory is mounted on the remote machine
@@ -539,11 +544,13 @@ static void modify_syscall_single_arg(struct tcb* tcp, int arg_num, char* filena
   assert(CDE_exec_mode);
   assert(filename);
 
+  //printf("from '%s' ", filename);
   char* redirected_filename =
     redirect_filename_into_cderoot(filename, tcp->current_dir, tcp);
   if (!redirected_filename) {
     return;
   }
+  //printf("to '%s %s'\n", redirected_filename); // quanpt
 
   if (!tcp->childshm) {
     begin_setup_shmat(tcp);
@@ -1281,13 +1288,18 @@ void CDE_begin_execve(struct tcb* tcp) {
       canonicalize_path(exe_filename, extract_sandboxed_pwd(tcp->current_dir, tcp));
 
     // try to exec another cde - unwrap it from this cde-exec
-    if (isCDE(exe_filename)) {
+    if (is_cde_binary(exe_filename)) {
 //      printf("detach %s\n", tcp->current_dir); // quanpt debug
 //      // move the pwd to the path in some other repo, should be done in chdir? TOCONFIRM
 //      strcpy(tcp->current_dir, extract_sandboxed_pwd(tcp->current_dir, tcp));
 //      printf("detach2 %s\n", tcp->current_dir); // quanpt debug
 //      tcp->isCDEprocess = 1;
-      goto done;
+      if (is_cde_binary(exe_filename)) {
+        //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
+        if (tcp->flags & TCB_ATTACHED)
+          detach(tcp, 0);
+        goto done;
+      }
     }
 
     if (ignore_path(opened_filename_abspath, tcp)) {
@@ -1309,7 +1321,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     redirected_path = redirect_filename_into_cderoot(exe_filename, tcp->current_dir, tcp);
   } else {
-    if (isCDE(exe_filename)) {
+    if (is_cde_binary(exe_filename)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
       if (tcp->flags & TCB_ATTACHED)
         detach(tcp, 0);
@@ -2498,6 +2510,7 @@ void alloc_tcb_CDE_fields(struct tcb* tcp) {
 
   tcp->current_dir = NULL;
   tcp->p_ignores = NULL;
+  tcp->current_repo_ind = -1;
 }
 
 void free_tcb_CDE_fields(struct tcb* tcp) {
@@ -2514,6 +2527,7 @@ void free_tcb_CDE_fields(struct tcb* tcp) {
     free(tcp->current_dir);
     tcp->current_dir = NULL;
   }
+  tcp->current_repo_ind = -1;
 }
 
 
@@ -2926,7 +2940,8 @@ void CDE_init_pseudo_root_dir() {
   int found_index = -1;
   for (i = 1; i <= p->depth; i++) {
     char* component = get_path_component(p, i);
-    if (strcmp(component, CDE_ROOT_NAME) == 0) {
+    //if (strcmp(component, CDE_ROOT_NAME) == 0) {
+    if (is_a_repo_name(component)) {
       // flag an error if there is more than one cde-root directory, since
       // we don't support NESTED cde packages o.O
       if (found_index >= 0) {
@@ -2955,9 +2970,13 @@ void CDE_init_pseudo_root_dir() {
     proc_self_exe[len] = '\0'; // wow, readlink doesn't put cap on the end!
 
     char* toplevel_cde_root_path =
-      format("%s/cde-root", dirname(proc_self_exe));
+      format("%s/" CDE_ROOT_NAME_DEFAULT, dirname(proc_self_exe));
 
     strcpy(cde_pseudo_root_dir, toplevel_cde_root_path);
+
+    char* tmp = format("%s", dirname(proc_self_exe));
+    strcpy(cde_pseudo_pkg_dir, tmp);
+    free(tmp);
 
     free(toplevel_cde_root_path);
 
@@ -2968,6 +2987,13 @@ void CDE_init_pseudo_root_dir() {
     // set that as cde_pseudo_root_dir
     char* tmp = path2str(p, found_index);
     strcpy(cde_pseudo_root_dir, tmp);
+    free(tmp);
+
+    // quanpt
+    assert(found_index>0);
+    tmp = path2str(p, found_index-1);
+    strcpy(cde_pseudo_pkg_dir, tmp);
+    printf("dir %s\n", cde_pseudo_pkg_dir);
     free(tmp);
   }
 
@@ -3379,6 +3405,10 @@ void CDE_add_ignore_process(char* p){
   }
 }
 
+void CDE_add_multi_repo_path(char* p) {
+  _add_to_array_internal(multi_repo_paths, &multi_repo_paths_ind, p, (char*)"multi_repo_paths");
+}
+
 
 // call this at the VERY BEGINNING of execution, so that ignore paths can be
 // specified on the command line (e.g., using the '-i' and '-p' options)
@@ -3391,6 +3421,7 @@ void CDE_clear_options_arrays() {
   memset(redirect_substr_paths, 0, sizeof(redirect_substr_paths));
   memset(ignore_envvars,        0, sizeof(ignore_envvars));
   memset(process_ignores,       0, sizeof(process_ignores));
+  memset(multi_repo_paths,      0, sizeof(multi_repo_paths)); // quanpt
 
 
   ignore_exact_paths_ind = 0;
@@ -3401,6 +3432,7 @@ void CDE_clear_options_arrays() {
   redirect_substr_paths_ind = 0;
   ignore_envvars_ind = 0;
   process_ignores_ind = 0;
+  multi_repo_paths_ind = 0; // quanpt
 }
 
 
@@ -3533,19 +3565,22 @@ static void CDE_init_options() {
         else if (strcmp(p, "ignore_process") == 0) {
           set_id = 8;
         }
+        else if (strcmp(p, "multi_repo_path") == 0) { // quanpt
+          set_id = 9;
+        }
         else if (strcmp(p, "process_ignore_prefix") == 0) {
           if (!in_braces) {
             fprintf(stderr, "Fatal error in cde.options: 'process_ignore_prefix' must be enclosed in { } after an 'ignore_process' directive\n");
             exit(1);
           }
-          set_id = 9;
+          set_id = 100;
         }
         else {
           fprintf(stderr, "Fatal error in cde.options: unrecognized token '%s'\n", p);
           exit(1);
         }
 
-        if (in_braces && set_id != 9) {
+        if (in_braces && set_id != 100) {
           fprintf(stderr, "Fatal error in cde.options: Only 'process_ignore_prefix' is allowed within { } after an 'ignore_process' directive\n");
           exit(1);
         }
@@ -3580,7 +3615,10 @@ static void CDE_init_options() {
           case 8:
             CDE_add_ignore_process(p);
             break;
-          case 9:
+          case 9: // quanpt
+            CDE_add_multi_repo_path(p);
+            break;
+          case 100:
             assert(process_ignores_ind > 0);
             // attach to the LATEST element in process_ignores
             cur = &process_ignores[process_ignores_ind-1];
@@ -3837,6 +3875,10 @@ void CDE_begin_socket_bind_or_connect(struct tcb *tcp) {
   }
 }
 
+// =======================================================================
+// quanpt - additional stuffs for multiple repositories implementation
+// =======================================================================
+
 int endswith(const char *str, const char *suffix)
 {
     if (!str || !suffix)
@@ -3848,9 +3890,52 @@ int endswith(const char *str, const char *suffix)
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }
 
-int isCDE(const char *str) {
+int is_cde_binary(const char *str) {
   return endswith(str, "/cde") ||
         endswith(str, "/cde-exec") ||
         endswith(str, "/ptu") ||
         endswith(str, "/ptu-exec");
+}
+
+void create_mirror_file_in_cde_package(char* filename_abspath, char* src_prefix, char* dst_prefix) {
+  create_mirror_file(filename_abspath, src_prefix, dst_prefix);
+}
+
+// original_abspath must be an absolute path
+// create all the corresponding 'mirror' directories within
+// cde-package/cde-root/, MAKING SURE TO CREATE DIRECTORY SYMLINKS
+// when necessary (sort of emulate "mkdir -p" functionality)
+// if pop_one is non-zero, then pop last element before doing "mkdir -p"
+void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
+  //TODO: check original_abspath with CDE_PACKAGE_DIR
+  // so we won't make unnecessary path like: ~/assi/cde/mytest/bash/cde-package/pkg02/home/quanpt/assi/cde/mytest/
+  //   bash/cde-package/cde-root/home/quanpt/assi/cde/mytest/bash
+  create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
+}
+
+// return (index+1) (so it is >0) if the path is in a repo
+// return 0 if no repo or current repo contains the path
+int is_in_another_repo(char* path, struct tcb* tcp) {
+  int i;
+  for (i=0; i<multi_repo_paths_ind; i++) {
+    if (strncmp(path, multi_repo_paths[i], strlen(multi_repo_paths[i])) == 0 && i != tcp->current_repo_ind)
+      return i+1;
+  }
+  return 0;
+}
+
+// return (index+1) (so it is >0) if the path is a repo name
+// return 0 if no repo matched
+int is_a_repo_name(char* path) {
+  if (strncmp(path, CDE_ROOT_NAME_DEFAULT, strlen(CDE_ROOT_NAME_DEFAULT)) == 0)
+    return 1;
+//  int i;
+//  if (multi_repo_paths_ind<=0) {
+//
+//  } else
+//    for (i=0; i<multi_repo_paths_ind; i++) {
+//      if (strcmp(path, multi_repo_paths[i]) == 0)
+//        return i+1;
+//    }
+  return 0;
 }
