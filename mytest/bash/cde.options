@@ -1,5 +1,8 @@
 # cde.options v1 (do not alter this first line!)
 
+multi_repo_path=cde-root
+multi_repo_path=cde-root-pkg02
+
 # These directories often contain pseudo-files that shouldn't be tracked
 ignore_prefix=/dev/
 ignore_exact=/dev

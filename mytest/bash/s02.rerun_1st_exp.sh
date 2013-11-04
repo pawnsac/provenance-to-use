@@ -1,3 +1,3 @@
 #!/bin/sh
 cd cde-package
-sh exp.sh
+sh mycopy_1st_exp.sh
