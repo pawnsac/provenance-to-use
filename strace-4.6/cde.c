@@ -284,7 +284,7 @@ static char* extract_sandboxed_pwd(char* real_pwd, struct tcb* tcp) {
   // if we're not ignoring it
   if (!real_pwd_is_within_cde_pseudo_root_dir) {
     // if we're in this mode, then we're okay!!!  don't return an error!
-    if (cde_exec_from_outside_cderoot) {
+    if (cde_exec_from_outside_cderoot || get_repo_path_id(real_pwd) >= 0) {
       return real_pwd;
     }
     else {
@@ -935,6 +935,12 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
     // the sandbox
     filename_abspath =
       canonicalize_path(filename, extract_sandboxed_pwd(child_current_pwd, tcp));
+
+    // quanpt - don't redirect to this root if filename point to another root
+    if (tcp && is_in_another_repo(filename_abspath, tcp)) {
+      free(filename_abspath);
+      return NULL;
+    }
   }
   else {
     filename_abspath = canonicalize_path(filename, child_current_pwd);
@@ -2348,6 +2354,8 @@ void CDE_end_fchdir(struct tcb* tcp) {
         make_mirror_dirs_in_cde_package(tcp->current_dir, 0);
         free(redirected_path);
       }
+    } else { // quanpt - update repo id of current tcp
+      tcp->current_repo_ind = get_repo_path_id(tcp->current_dir);
     }
   }
 }
@@ -2768,6 +2776,8 @@ void CDE_end_getcwd(struct tcb* tcp) {
       //char* tmp = strcpy_from_child(tcp, tcp->u_arg[0]);
       //printf("[%d] CDE_end_getcwd spoofed: %s\n", tcp->pid, tmp);
       //free(tmp);
+
+      // quanpt - do I really need to update current_dir and current_repo_id here???
     }
     else {
       char* tmp = strcpy_from_child(tcp, tcp->u_arg[0]);
@@ -2894,6 +2904,7 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     assert(tcp->parent->current_dir);
     strcpy(tcp->current_dir, tcp->parent->current_dir);
     //printf("inherited %s [%d]\n", tcp->current_dir, tcp->pid);
+    tcp->current_repo_ind = tcp->parent->current_repo_ind; // quanpt
 
     // inherit from parent since you're executing the same program after
     // forking (at least until you do an exec)
@@ -2908,6 +2919,8 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // otherwise create fresh fields derived from master (cde) process
     getcwd(tcp->current_dir, MAXPATHLEN);
     //printf("fresh %s [%d]\n", tcp->current_dir, tcp->pid);
+    tcp->current_repo_ind = get_repo_path_id(tcp->current_dir); // quanpt
+    //printf("rid %s %d\n", tcp->current_dir, tcp->current_repo_ind);
   }
 
 
@@ -2993,7 +3006,7 @@ void CDE_init_pseudo_root_dir() {
     assert(found_index>0);
     tmp = path2str(p, found_index-1);
     strcpy(cde_pseudo_pkg_dir, tmp);
-    printf("dir %s\n", cde_pseudo_pkg_dir);
+    //printf("dir %s\n", cde_pseudo_pkg_dir);
     free(tmp);
   }
 
@@ -3406,7 +3419,9 @@ void CDE_add_ignore_process(char* p){
 }
 
 void CDE_add_multi_repo_path(char* p) {
-  _add_to_array_internal(multi_repo_paths, &multi_repo_paths_ind, p, (char*)"multi_repo_paths");
+  char* tmp = format("%s/%s", cde_pseudo_pkg_dir, p);
+  _add_to_array_internal(multi_repo_paths, &multi_repo_paths_ind, tmp, (char*)"multi_repo_paths");
+  free(tmp);
 }
 
 
@@ -3913,15 +3928,10 @@ void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
   create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
 }
 
-// return (index+1) (so it is >0) if the path is in a repo
+// return 1 if the path is in a different repo
 // return 0 if no repo or current repo contains the path
 int is_in_another_repo(char* path, struct tcb* tcp) {
-  int i;
-  for (i=0; i<multi_repo_paths_ind; i++) {
-    if (strncmp(path, multi_repo_paths[i], strlen(multi_repo_paths[i])) == 0 && i != tcp->current_repo_ind)
-      return i+1;
-  }
-  return 0;
+  return (get_repo_path_id(path) == tcp->current_repo_ind) ? 1 : 0;
 }
 
 // return (index+1) (so it is >0) if the path is a repo name
@@ -3929,13 +3939,19 @@ int is_in_another_repo(char* path, struct tcb* tcp) {
 int is_a_repo_name(char* path) {
   if (strncmp(path, CDE_ROOT_NAME_DEFAULT, strlen(CDE_ROOT_NAME_DEFAULT)) == 0)
     return 1;
-//  int i;
-//  if (multi_repo_paths_ind<=0) {
-//
-//  } else
-//    for (i=0; i<multi_repo_paths_ind; i++) {
-//      if (strcmp(path, multi_repo_paths[i]) == 0)
-//        return i+1;
-//    }
   return 0;
+}
+
+int get_repo_path_id(char* path) {
+  int i, path_len, repo_path_len;
+
+  if (path==NULL) return -1;
+
+  path_len = strlen(path);
+  for (i=0; i<multi_repo_paths_ind; i++) {
+    repo_path_len = strlen(multi_repo_paths[i]);
+    if (strncmp(path, multi_repo_paths[i], repo_path_len) == 0 && path_len >= repo_path_len)
+      return i;
+  }
+  return -1;
 }
