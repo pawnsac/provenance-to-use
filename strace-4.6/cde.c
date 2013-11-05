@@ -935,18 +935,22 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
     // the sandbox
     filename_abspath =
       canonicalize_path(filename, extract_sandboxed_pwd(child_current_pwd, tcp));
-
-    // quanpt - don't redirect to this root if filename point to another root
-    if (tcp && is_in_another_repo(filename_abspath, tcp)) {
-      free(filename_abspath);
-      return NULL;
-    }
   }
   else {
     filename_abspath = canonicalize_path(filename, child_current_pwd);
   }
   assert(filename_abspath);
 
+  // quanpt - don't redirect to this root if filename point to some root
+  if (tcp && get_repo_path_id(filename_abspath)>=0) {
+    free(filename_abspath);
+    return NULL;
+  }
+
+  if (is_cde_binary(filename_abspath)) {
+    free(filename_abspath);
+    return NULL;
+  }
 
   // don't redirect paths that we're ignoring (remember to use ABSOLUTE PATH)
   if (ignore_path(filename_abspath, tcp)) {
@@ -1022,8 +1026,17 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     // non-existent files.
     // (Note that filename can sometimes be a JUNKY STRING due to weird race
     //  conditions when strace is tracing complex multi-process applications)
-      copy_file_into_cde_root(filename, tcp->current_dir);
       print_IO_prov(tcp, filename, syscall_name);
+
+      // quanpt - don't redirect to this root if filename point to another root
+      if (get_repo_path_id(filename)>=0) {
+        DD(filename);
+        free(filename);
+        return;
+      }
+
+      copy_file_into_cde_root(filename, tcp->current_dir);
+
     }
   }
 
@@ -1300,12 +1313,10 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      strcpy(tcp->current_dir, extract_sandboxed_pwd(tcp->current_dir, tcp));
 //      printf("detach2 %s\n", tcp->current_dir); // quanpt debug
 //      tcp->isCDEprocess = 1;
-      if (is_cde_binary(exe_filename)) {
-        //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
-        if (tcp->flags & TCB_ATTACHED)
-          detach(tcp, 0);
-        goto done;
-      }
+      //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
+      if (tcp->flags & TCB_ATTACHED)
+        detach(tcp, 0);
+      goto done;
     }
 
     if (ignore_path(opened_filename_abspath, tcp)) {
@@ -1333,6 +1344,13 @@ void CDE_begin_execve(struct tcb* tcp) {
         detach(tcp, 0);
       goto done;
     }
+
+//    if (is_in_another_repo(opened_filename_abspath, tcp)) {
+//      printf("audit - cde_begin_execve: IGNORED '%s'\n", opened_filename_abspath);
+//      if (tcp->flags & TCB_ATTACHED)
+//        detach(tcp, 0);
+//      goto done;
+//    }
   }
 
   char* path_to_executable = NULL;
@@ -3931,7 +3949,10 @@ void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
 // return 1 if the path is in a different repo
 // return 0 if no repo or current repo contains the path
 int is_in_another_repo(char* path, struct tcb* tcp) {
-  return (get_repo_path_id(path) == tcp->current_repo_ind) ? 1 : 0;
+  //return (get_repo_path_id(path) == tcp->current_repo_ind) ? 1 : 0;
+  int id=get_repo_path_id(path);
+  //printf("%s -> %s\n", path, multi_repo_paths[id]);
+  return (id >= 0 && id != tcp->current_repo_ind) ? 1 : 0;
 }
 
 // return (index+1) (so it is >0) if the path is a repo name
