@@ -69,6 +69,7 @@ __asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 depen
 // 0 for tracing regular execution
 char CDE_exec_mode;
 extern char CDE_provenance_mode; // quanpt
+extern char CDE_bare_run; // quanpt
 char CDE_verbose_mode = 0; // -v option
 char* CDE_ROOT_NAME = NULL;
 
@@ -171,6 +172,9 @@ static int ignore_path(char* filename, struct tcb* tcp);
 
 static char* redirect_filename_into_cderoot(char* filename, char* child_current_pwd, struct tcb* tcp);
 void memcpy_to_child(int pid, char* dst_child, char* src, int size);
+
+void create_mirror_file_in_cde_package(char* filename_abspath, char* src_prefix, char* dst_prefix);
+void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one);
 
 
 // the true pwd of the cde executable AT THE START of execution
@@ -3307,6 +3311,7 @@ void CDE_init(char** argv, int optind) {
 // argv[optind] is the target program's name
 static void CDE_create_convenience_scripts(char** argv, int optind) {
   assert(!CDE_exec_mode);
+  if (CDE_bare_run) return;
   char* target_program_fullpath = argv[optind];
 
   // only take the basename to construct cde_script_name,
@@ -3931,7 +3936,8 @@ int is_cde_binary(const char *str) {
 }
 
 void create_mirror_file_in_cde_package(char* filename_abspath, char* src_prefix, char* dst_prefix) {
-  create_mirror_file(filename_abspath, src_prefix, dst_prefix);
+  if (!CDE_bare_run)
+    create_mirror_file(filename_abspath, src_prefix, dst_prefix);
 }
 
 // original_abspath must be an absolute path
@@ -3943,7 +3949,8 @@ void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
   //TODO: check original_abspath with CDE_PACKAGE_DIR
   // so we won't make unnecessary path like: ~/assi/cde/mytest/bash/cde-package/pkg02/home/quanpt/assi/cde/mytest/
   //   bash/cde-package/cde-root/home/quanpt/assi/cde/mytest/bash
-  create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
+  if (!CDE_bare_run)
+    create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
 }
 
 // return 1 if the path is in a different repo

@@ -108,6 +108,7 @@ extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
 extern char CDE_provenance_mode;
+extern char CDE_bare_run;
 
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
@@ -884,7 +885,7 @@ main(int argc, char *argv[])
 	qualify("verbose=all");
 	qualify("signal=all");
 	while ((c = getopt(argc, argv,
-		"+cCdfFhqrtTvVxzlsn"
+		"+cCdfFhqrtTvVxzlsnb"
 #ifndef USE_PROCFS
 		"D"
 #endif
@@ -974,6 +975,10 @@ main(int argc, char *argv[])
       CDE_ROOT_NAME = strdup(optarg);
 			//acolumn = atoi(optarg);
 			break;
+    case 'b':
+      // quanpt - bare run to create provenance, not create package
+      CDE_bare_run = 1;
+      break;
 		case 'e':
 			qualify(optarg);
 			break;

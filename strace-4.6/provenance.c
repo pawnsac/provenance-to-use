@@ -20,13 +20,13 @@
 extern char CDE_exec_mode;
 
 char CDE_provenance_mode = 0;
+char CDE_bare_run = 0;
 FILE* CDE_provenance_logfile = NULL;
 pthread_mutex_t mut_logfile = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mut_pidlist = PTHREAD_MUTEX_INITIALIZER;
 typedef struct {
   pid_t pv[1000]; // the list
   int pc; // total count
-  
 } pidlist_t;
 static pidlist_t pidlist;
 
@@ -210,7 +210,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
   FILE *f;
   char buff[1024];
   long unsigned int rss;
-  
+
   pthread_mutex_lock(&mut_pidlist);
   curr_time = (int)time(0);
   for (i = 0; i < pidlist_p->pc; i++) {
@@ -244,7 +244,7 @@ void *capture_cont_prov(void* ptr) {
     sleep(1); // TODO: configurable
   } // done recording: pidlist.pc == 0
   pthread_mutex_destroy(&mut_pidlist);
-  
+
 	if (CDE_provenance_logfile)
   	fclose(CDE_provenance_logfile);
   pthread_mutex_destroy(&mut_logfile);
