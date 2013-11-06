@@ -953,8 +953,9 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
 
   // quanpt - don't redirect to this root if filename point to some root
   if (get_repo_path_id(filename_abspath)>=0) {
-    free(filename_abspath);
-    return NULL;
+    //free(filename_abspath);
+    //return NULL;
+    return filename_abspath;
   }
 
   if (is_cde_binary(filename_abspath)) {
