@@ -522,6 +522,12 @@ static void copy_file_into_cde_root(char* filename, char* child_current_pwd) {
     return;
   }
 
+  // quanpt - don't copy to root if filename point to some roots already
+  if (get_repo_path_id(filename_abspath)>=0) {
+    free(filename_abspath);
+    return;
+  }
+
   if (CDE_copied_files_logfile) {
     fprintf(CDE_copied_files_logfile, "%s\n", filename_abspath);
   }
@@ -946,7 +952,7 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
   assert(filename_abspath);
 
   // quanpt - don't redirect to this root if filename point to some root
-  if (tcp && get_repo_path_id(filename_abspath)>=0) {
+  if (get_repo_path_id(filename_abspath)>=0) {
     free(filename_abspath);
     return NULL;
   }
@@ -1032,13 +1038,6 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     //  conditions when strace is tracing complex multi-process applications)
       print_IO_prov(tcp, filename, syscall_name);
 
-      // quanpt - don't redirect to this root if filename point to another root
-      if (get_repo_path_id(filename)>=0) {
-        DD(filename);
-        free(filename);
-        return;
-      }
-
       copy_file_into_cde_root(filename, tcp->current_dir);
 
     }
@@ -1084,6 +1083,8 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
     modify_syscall_single_arg(tcp, 2, filename);
   }
   else {
+    if (get_repo_path_id(filename)>=0) // quanpt
+      goto done;
     // pre-emptively copy the given file into cde-root/, silencing warnings for
     // non-existent files.
     // (Note that filename can sometimes be a JUNKY STRING due to weird race
@@ -1342,19 +1343,21 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     redirected_path = redirect_filename_into_cderoot(exe_filename, tcp->current_dir, tcp);
   } else {
-    if (is_cde_binary(exe_filename)) {
-      //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
+
+    // just check the file itself (REMEMBER TO GET ITS ABSOLUTE PATH!)
+    exe_filename_abspath = canonicalize_path(exe_filename, tcp->current_dir);
+
+    if (is_cde_binary(exe_filename_abspath)) {
+      //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
       if (tcp->flags & TCB_ATTACHED)
         detach(tcp, 0);
       goto done;
     }
 
-//    if (is_in_another_repo(opened_filename_abspath, tcp)) {
-//      printf("audit - cde_begin_execve: IGNORED '%s'\n", opened_filename_abspath);
-//      if (tcp->flags & TCB_ATTACHED)
-//        detach(tcp, 0);
-//      goto done;
-//    }
+    if (is_in_another_repo(exe_filename_abspath, tcp)) {
+      //printf("audit - cde_begin_execve: not_redirect '%s'\n", exe_filename_abspath);
+      goto done;
+    }
   }
 
   char* path_to_executable = NULL;
@@ -1367,8 +1370,8 @@ void CDE_begin_execve(struct tcb* tcp) {
     path_to_executable = redirected_path;
   }
   else {
-    // just check the file itself (REMEMBER TO GET ITS ABSOLUTE PATH!)
-    exe_filename_abspath = canonicalize_path(exe_filename, tcp->current_dir);
+    //// just check the file itself (REMEMBER TO GET ITS ABSOLUTE PATH!)
+    //exe_filename_abspath = canonicalize_path(exe_filename, tcp->current_dir);
 
     // TODO: we don't check whether it's a real executable file :/
     if (stat(exe_filename_abspath, &filename_stat) != 0) {
@@ -3028,7 +3031,6 @@ void CDE_init_pseudo_root_dir() {
     assert(found_index>0);
     tmp = path2str(p, found_index-1);
     strcpy(cde_pseudo_pkg_dir, tmp);
-    //printf("dir %s\n", cde_pseudo_pkg_dir);
     free(tmp);
   }
 
@@ -3111,6 +3113,7 @@ void CDE_init(char** argv, int optind) {
 
     // make this an absolute path!
     CDE_PACKAGE_DIR = canonicalize_path(CDE_PACKAGE_DIR, cde_starting_pwd);
+    strcpy(cde_pseudo_pkg_dir, CDE_PACKAGE_DIR);
     CDE_ROOT_DIR = format("%s/%s", CDE_PACKAGE_DIR, CDE_ROOT_NAME);
     assert(IS_ABSPATH(CDE_ROOT_DIR));
 
@@ -3938,6 +3941,9 @@ int is_cde_binary(const char *str) {
 void create_mirror_file_in_cde_package(char* filename_abspath, char* src_prefix, char* dst_prefix) {
   if (!CDE_bare_run)
     create_mirror_file(filename_abspath, src_prefix, dst_prefix);
+  if (CDE_verbose_mode) {
+    vbprintf("  mirror_f: %s, %s, %s\n", filename_abspath, src_prefix, dst_prefix);
+  }
 }
 
 // original_abspath must be an absolute path
@@ -3951,6 +3957,9 @@ void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
   //   bash/cde-package/cde-root/home/quanpt/assi/cde/mytest/bash
   if (!CDE_bare_run)
     create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
+  if (CDE_verbose_mode) {
+    vbprintf("  mirror_d: %s, %s\n", original_abspath, CDE_ROOT_DIR);
+  }
 }
 
 // return 1 if the path is in a different repo
