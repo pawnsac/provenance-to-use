@@ -41,7 +41,7 @@ int getMAC(char* ret)
     if (success) {
         memcpy(mac_address, ifr.ifr_hwaddr.sa_data, 6);
         for (i=0; i<6; i++) {
-          sprintf(ret+i,"%x",mac_address[i]);
+          sprintf(ret+i+i, mac_address[i]<10 ? "0%x" : "%x", mac_address[i]);
         }
         return 1;
     } else
@@ -60,17 +60,31 @@ hash(unsigned char *str)
     return hash;
 }
 
+void i62a(char* ret, unsigned long num) {
+  const static char* b62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const static int BASE = 62;
+  int i=0;
+  while (num > 0) {
+    sprintf(ret+i, "%c", b62[num % BASE]);
+    num = num / BASE;
+    i++;
+  }
+}
+
 void getUUID(char* ret) {
   char mac[13];
   FILE *fp;
-  char path[PATH_MAX];
+  char uname[PATH_MAX], huname[PATH_MAX], hmac[PATH_MAX];
   fp = popen("uname -a", "r");
-  fgets(path, PATH_MAX, fp);
+  fgets(uname, PATH_MAX, fp);
   pclose(fp);
-  if (getMAC(mac))
-    sprintf(ret, "%lu_%s", hash(path), mac);
-  else
-    sprintf(ret, "%lu_nomac", hash(path));
+  i62a(huname, hash(uname));
+  if (getMAC(mac)) {
+    i62a(hmac, hash(mac));
+    sprintf(ret, "%s_%s", huname, hmac);
+  } else {
+    sprintf(ret, "%s_nomac", huname);
+  }
 }
 
 void main() {
