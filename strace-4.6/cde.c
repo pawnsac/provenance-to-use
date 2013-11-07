@@ -2376,7 +2376,7 @@ void CDE_end_fchdir(struct tcb* tcp) {
     if (!CDE_exec_mode) {
       char* redirected_path =
         redirect_filename_into_cderoot(tcp->current_dir, tcp->current_dir, tcp);
-      if (redirected_path) {
+      if (redirected_path && get_repo_path_id(tcp->current_dir)<0) {
         make_mirror_dirs_in_cde_package(tcp->current_dir, 0);
         free(redirected_path);
       }
@@ -3988,6 +3988,7 @@ int get_repo_path_id(char* path) {
   path_len = strlen(path);
   for (i=0; i<multi_repo_paths_ind; i++) {
     repo_path_len = strlen(multi_repo_paths[i]);
+    //DD(multi_repo_paths[i]);
     if (strncmp(path, multi_repo_paths[i], repo_path_len) == 0 && path_len >= repo_path_len)
       return i;
   }
