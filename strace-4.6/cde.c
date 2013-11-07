@@ -240,7 +240,7 @@ static void CDE_init_options(void);
 static void CDE_create_convenience_scripts(char** argv, int optind);
 static void CDE_create_toplevel_symlink_dirs(void);
 static void CDE_create_path_symlink_dirs(void);
-static void CDE_load_environment_vars(void);
+static void CDE_load_environment_vars(char*);
 
 // verbose printf
 void vbprintf(const char *fmt, ...)
@@ -1343,6 +1343,12 @@ void CDE_begin_execve(struct tcb* tcp) {
     }
 
     redirected_path = redirect_filename_into_cderoot(exe_filename, tcp->current_dir, tcp);
+
+    // quanpt - setup env if binary is in a different package from its parent
+    int id=get_repo_path_id(opened_filename_abspath);
+    if (id >= 0 && id != tcp->current_repo_ind) {
+      CDE_load_environment_vars(multi_repo_paths[i]);
+    }
   } else {
 
     // just check the file itself (REMEMBER TO GET ITS ABSOLUTE PATH!)
@@ -3251,7 +3257,7 @@ void CDE_init(char** argv, int optind) {
 
 
   if (CDE_exec_mode) {
-    CDE_load_environment_vars();
+    CDE_load_environment_vars(CDE_ROOT_NAME);
   }
   else {
     // pgbovine - copy 'cde' executable to CDE_PACKAGE_DIR and rename
@@ -3295,7 +3301,7 @@ void CDE_init(char** argv, int optind) {
 
 
     // copy /proc/self/environ to capture the FULL set of environment vars
-    char* fullenviron_fn = format("%s/cde.full-environment", CDE_PACKAGE_DIR);
+    char* fullenviron_fn = format("%s/cde.full-environment.%s", CDE_PACKAGE_DIR, CDE_ROOT_NAME);
     copy_file((char*)"/proc/self/environ", fullenviron_fn, 0666);
     free(fullenviron_fn);
   }
@@ -3701,10 +3707,12 @@ static void CDE_init_options() {
 }
 
 
-static void CDE_load_environment_vars() {
+static void CDE_load_environment_vars(char* repo_name) {
   static char cde_full_environment_abspath[MAXPATHLEN];
-  strcpy(cde_full_environment_abspath, cde_pseudo_root_dir);
-  strcat(cde_full_environment_abspath, "/../cde.full-environment");
+  sprintf(cde_full_environment_abspath, "%s/../cde.full-environment.%s", cde_pseudo_root_dir, repo_name);
+//  strcpy(cde_full_environment_abspath, cde_pseudo_root_dir);
+//  strcat(cde_full_environment_abspath, "/../cde.full-environment.");
+//  strcat(cde_full_environment_abspath, multi_repo_paths[i]);
 
   struct stat env_file_stat;
   if (stat(cde_full_environment_abspath, &env_file_stat)) {
