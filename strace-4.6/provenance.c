@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/param.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -18,6 +19,7 @@
 #endif
 
 extern char CDE_exec_mode;
+extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
 char CDE_provenance_mode = 0;
 char CDE_bare_run = 0;
@@ -254,19 +256,25 @@ void *capture_cont_prov(void* ptr) {
 
 void init_prov() {
   pthread_t ptid;
-  CDE_provenance_mode = !CDE_exec_mode;
+  char* env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
+  char path[255];
+  if (env_prov_mode != NULL)
+    CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
+  else
+    CDE_provenance_mode = !CDE_exec_mode;
   if (CDE_provenance_mode) {
     pthread_mutex_init(&mut_logfile, NULL);
     // create NEW provenance log file
-    if (access("provenance.log", R_OK)==-1)
-      CDE_provenance_logfile = fopen("provenance.log", "w");
+    bzero(path, sizeof(path));
+    sprintf(path, "%s/provenance.log", cde_pseudo_pkg_dir);
+    if (access(path, R_OK)==-1)
+      CDE_provenance_logfile = fopen(path, "w");
     else {
       int i=1;
-      char path[100];
       // check through provenance.$i.log to find a new file name
       do {
         bzero(path, sizeof(path));
-        sprintf(path, "provenance.%d.log", i);
+        sprintf(path, "%s/provenance.%d.log", cde_pseudo_pkg_dir, i);
         i++;
       } while (access(path, R_OK)==0);
       fprintf(stderr, "Provenance log file: %s\n", path);

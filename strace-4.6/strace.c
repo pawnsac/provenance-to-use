@@ -835,7 +835,7 @@ main(int argc, char *argv[])
   CDE_clear_options_arrays(); // pgbovine - call this as EARLY as possible so that '-i' and '-p' options work!
 
   // pgbovine - if program name is 'cde-exec', then activate CDE_exec_mode
-  CDE_exec_mode = (strcmp(basename(progname), "cde-exec") == 0);
+  CDE_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
 
 	/* Allocate the initial tcbtab.  */
 	tcbtabsize = argc;	/* Surely enough for all -p args.  */
@@ -1152,7 +1152,8 @@ main(int argc, char *argv[])
 
   // quanpt
   extern void initprov();
-  if (!CDE_exec_mode) init_prov();
+  //if (!CDE_exec_mode) init_prov();
+  init_prov();
 
 
 	/* STARTUP_CHILD must be called before the signal handlers get
