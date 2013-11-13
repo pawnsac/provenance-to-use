@@ -19,6 +19,7 @@
 #endif
 
 extern char CDE_exec_mode;
+extern char CDE_verbose_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
 char CDE_provenance_mode = 0;
@@ -135,6 +136,9 @@ void print_exec_prov(struct tcb *tcp) {
     assert(filename_abspath);
     fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s ", (int)time(0), parentPid, tcp->pid, filename_abspath, tcp->current_dir);
     print_arg_prov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
+    if (CDE_verbose_mode) {
+      vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
+    }
     free(filename_abspath);
     free(opened_filename);
   }
@@ -146,6 +150,9 @@ void print_execdone_prov(struct tcb *tcp) {
     if (tcp->parent) ppid = tcp->parent->pid;
     fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
     add_pid_prov(tcp->pid);
+    if (CDE_verbose_mode) {
+      vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve2");
+    }
   }
 }
 

@@ -1037,12 +1037,12 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     // non-existent files.
     // (Note that filename can sometimes be a JUNKY STRING due to weird race
     //  conditions when strace is tracing complex multi-process applications)
-      print_IO_prov(tcp, filename, syscall_name);
-
       copy_file_into_cde_root(filename, tcp->current_dir);
 
     }
   }
+
+  print_IO_prov(tcp, filename, syscall_name);
 
   free(filename);
 }
@@ -1294,9 +1294,10 @@ void CDE_begin_execve(struct tcb* tcp) {
     vbprintf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
   }
 
-  if (CDE_provenance_mode) {
-    print_exec_prov(tcp);
-  }
+//  if (CDE_provenance_mode) {
+//    print_exec_prov(tcp);
+//  }
+  char is_runable_count = 0;
 
   if (CDE_exec_mode) {
 
@@ -1779,6 +1780,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 #endif
 
       ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
+      is_runable_count += 1;
     }
     else {
       /* we're running a dynamically-linked binary executable, go
@@ -1960,10 +1962,12 @@ void CDE_begin_execve(struct tcb* tcp) {
 #endif
 
         ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
+        is_runable_count += 2;
       }
       else {
         // simply redirect the executable's path to within cde-root/:
         modify_syscall_single_arg(tcp, 1, exe_filename);
+        is_runable_count += 4;
       }
     }
 
@@ -2017,6 +2021,12 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
 done:
+  if (CDE_provenance_mode) {
+    if (CDE_verbose_mode)
+      vbprintf("  will %sbe captured in provenance.\n", is_runable_count > 0 ? "NOT " : "");
+    if (is_runable_count==0)
+      print_exec_prov(tcp);
+  }
   // make sure ALL of these vars are initially set to NULL when declared:
   if (exe_filename) {
     free(exe_filename);
@@ -2054,11 +2064,11 @@ void CDE_end_execve(struct tcb* tcp) {
     // segments, so childshm is no longer valid.  we must clear it so
     // that begin_setup_shmat() will be called again
     tcp->childshm = NULL;
-  } else {
-    if (tcp->u_rval == 0) {
-      print_execdone_prov(tcp);
-    }
   }
+  if (tcp->u_rval == 0) {
+    print_execdone_prov(tcp);
+  }
+
 }
 
 
