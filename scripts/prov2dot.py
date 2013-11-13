@@ -77,7 +77,8 @@ fhtml.write("""<h1>Overview</h1>
 """)
 fhtml.close()
 
-active_pid = {'-1':'cdenet', '0':'unknown'}
+active_pid = {'0':'unknown'}
+cde_pid = -1
 pid_desc = {'cdenet':'[label="CDENet" shape="box" fillcolor="blue" URL="main.process.svg"]',
   'unknown':'[label="unknown" shape="box" fillcolor="blue" URL="main.process.svg"]'}
 pid_starttime = {}
@@ -86,7 +87,7 @@ pid_graph = {}
 counter = 1
 
 for line in fin:
-  if re.match('^#', line):
+  if re.match('^#.*$', line) or re.match('^$', line):
     continue
   line = line.rstrip('\n')
   words = line.split(' ', 4)
@@ -95,7 +96,11 @@ for line in fin:
   path = '' if len(words) < 4 else words[3]
   path = path.replace('"', '\"')
   
-  node = active_pid[pid] # possible NULL
+  if pid in active_pid:
+    node = active_pid[pid] # possible NULL
+  else:
+    cde_pid = pid
+    active_pid[pid] = 'cdenet'
   
   if action == 'EXECVE': # this case only, node is the child words[3]
     nodename = words[3] + '_' + str(counter)

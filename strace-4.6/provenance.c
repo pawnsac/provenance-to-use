@@ -265,7 +265,8 @@ void *capture_cont_prov(void* ptr) {
 void init_prov() {
   pthread_t ptid;
   char* env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
-  char path[255];
+  char path[PATH_MAX];
+  int subns=1;
   if (env_prov_mode != NULL)
     CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
   else
@@ -275,20 +276,36 @@ void init_prov() {
     pthread_mutex_init(&mut_logfile, NULL);
     // create NEW provenance log file
     bzero(path, sizeof(path));
-    sprintf(path, "%s/provenance.log", cde_pseudo_pkg_dir);
+    sprintf(path, "%s/provenance.%s.1.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME);
     if (access(path, R_OK)==-1)
       CDE_provenance_logfile = fopen(path, "w");
     else {
-      int i=1;
-      // check through provenance.$i.log to find a new file name
+      // check through provenance.$subns.log to find a new file name
+      subns++;
       do {
         bzero(path, sizeof(path));
-        sprintf(path, "%s/provenance.%d.log", cde_pseudo_pkg_dir, i);
-        i++;
+        sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
       } while (access(path, R_OK)==0);
       fprintf(stderr, "Provenance log file: %s\n", path);
       CDE_provenance_logfile = fopen(path, "w");
     }
+
+    char* username = getlogin();
+    FILE *fp;
+    char uname[PATH_MAX];
+    fp = popen("uname -a", "r");
+    fgets(uname, PATH_MAX, fp);
+    pclose(fp);
+    rstrip(uname);
+    char fullns[PATH_MAX];
+    sprintf(fullns, "%s.%d", CDE_ROOT_NAME, subns);
+    fprintf(CDE_provenance_logfile, "# @agent: %s\n", username == NULL ? "(noone)" : username);
+    fprintf(CDE_provenance_logfile, "# @machine: %s\n", uname);
+    fprintf(CDE_provenance_logfile, "# @namespace: %s\n", CDE_ROOT_NAME);
+    fprintf(CDE_provenance_logfile, "# @subns: %d\n", subns);
+    fprintf(CDE_provenance_logfile, "# @fullns: %s\n", fullns);
+    fprintf(CDE_provenance_logfile, "# @parentns: %s\n", getenv("CDE_PROV_NAMESPACE"));
+    setenv("CDE_PROV_NAMESPACE", fullns, 1);
 
     pthread_mutex_init(&mut_pidlist, NULL);
     pidlist.pc = 0;
@@ -316,4 +333,21 @@ void rm_pid_prov(pid_t pid) {
   }
   pthread_mutex_unlock(&mut_pidlist);
 }
+
+void rstrip(char *s) {
+  size_t size;
+  char *end;
+
+  size = strlen(s);
+
+  if (!size)
+    return s;
+
+  end = s + size - 1;
+  while (end >= s && isspace(*end))
+    end--;
+  *(end + 1) = '\0';
+
+}
+
 
