@@ -133,6 +133,7 @@ void print_exec_prov(struct tcb *tcp) {
     char* opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
+    if (parentPid==-1) parentPid = getpid();
     assert(filename_abspath);
     fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s ", (int)time(0), parentPid, tcp->pid, filename_abspath, tcp->current_dir);
     print_arg_prov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
@@ -270,6 +271,7 @@ void init_prov() {
   else
     CDE_provenance_mode = !CDE_exec_mode;
   if (CDE_provenance_mode) {
+    setenv("IN_CDE_PROVENANCE_MODE", "1", 1);
     pthread_mutex_init(&mut_logfile, NULL);
     // create NEW provenance log file
     bzero(path, sizeof(path));

@@ -1321,8 +1321,11 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      printf("detach2 %s\n", tcp->current_dir); // quanpt debug
 //      tcp->isCDEprocess = 1;
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
-      if (tcp->flags & TCB_ATTACHED)
+      if (tcp->flags & TCB_ATTACHED) {
+        print_exec_prov(tcp);
+        is_runable_count += 8;
         detach(tcp, 0);
+      }
       goto done;
     }
 
@@ -1357,8 +1360,11 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     if (is_cde_binary(exe_filename_abspath)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
-      if (tcp->flags & TCB_ATTACHED)
+      if (tcp->flags & TCB_ATTACHED) {
+        print_exec_prov(tcp);
+        is_runable_count += 16;
         detach(tcp, 0);
+      }
       goto done;
     }
 
