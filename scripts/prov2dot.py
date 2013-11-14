@@ -29,6 +29,12 @@ def isFilteredPath(path):
   else: 
     return True
 
+def makePathNode(path):
+  filename=os.path.basename(path).replace('"','\\"')
+  node=path.replace('\\', '\\\\').replace('"','\\"')
+  nodedef='"' + node + '"[label="' + filename + '", tooltip="' + node + '"]'
+  return (node, nodedef)
+  
 parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
 parser.add_argument('--nofilter', action="store_true", default=False)
@@ -89,8 +95,8 @@ counter = 1
 for line in fin:
   if re.match('^#.*$', line) or re.match('^$', line):
     continue
-  line = line.rstrip('\n')
-  words = line.split(' ', 4)
+  line = line.rstrip('\n').replace('\\', '\\\\').replace('"','\\"')
+  words = line.split(' ', 5)
   pid = words[1]
   action = words[2]
   path = '' if len(words) < 4 else words[3]
@@ -106,20 +112,23 @@ for line in fin:
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
     label = time.ctime(int(words[0])) + \
-        '\\n PID: ' + words[3] + "\\n" + ''.join(words[4:]).replace('\\', '\\\\').replace('"','\\"') \
-        .replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
+        '\\n PID: ' + words[3] + "\\n" + words[4]
+    title = ''.join(words[5:])
+    #    .replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
     active_pid[words[3]] = node # store the dict from pid to unique node name
     
     # main graph
-    pid_desc[node] = ' [label="' + label + '" shape="box" fillcolor="lightsteelblue1" URL="' + nodename + '.prov.svg"]'
+    pid_desc[node] = ' [label="' + label + '" tooltip="' + title + '" shape="box" fillcolor="lightsteelblue1" URL="' + nodename + '.prov.svg"]'
     fout.write(node + pid_desc[node] + '\n')
-    fout.write(active_pid[pid] + ' -> ' + node + ' [label="" color="darkblue"]\n')
+    #fout.write(active_pid[pid] + ' -> ' + node + ' [label="" color="darkblue"]\n')
+    fout.write(node + ' -> ' + active_pid[pid] + ' [label="wasTriggeredBy" color="darkblue"]\n')
     
     # main process graph
     #pid_desc[node] = ' [label="' + label + '" shape="box" fillcolor="lightsteelblue1" URL="' + nodename + '.prov.svg"]'
     f2out.write(node + pid_desc[node] + '\n')
-    f2out.write(active_pid[pid] + ' -> ' + node + ' [label="" color="darkblue"]\n')
+    #f2out.write(active_pid[pid] + ' -> ' + node + ' [label="" color="darkblue"]\n')
+    f2out.write(node + ' -> ' + active_pid[pid] + ' [label="wasTriggeredBy" color="darkblue"]\n')
     
     # html file of this pid
 #     htmlf = open('gv/' + nodename + '.html', 'w')
@@ -149,13 +158,15 @@ for line in fin:
         'Memory [label="" shape=box image="' + nodename + '.mem.svg"];\n' +
         node + ' [label="' + label + '" shape="box" fillcolor="green"]\n' +
         parentnode + pid_desc[parentnode] + '\n' +
-        parentnode + ' -> ' + node + ' [label="" color="darkblue"]\n')
+        node + ' -> ' + parentnode + ' [label="wasTriggeredBy" color="darkblue"]\n')
+        #parentnode + ' -> ' + node + ' [label="" color="darkblue"]\n')
         
       # prov graph of parent pid
       try:
         pid_graph[parentnode].write(
           node + pid_desc[node] + '\n' +
-          parentnode + ' -> ' + node + ' [label="" color="darkblue"]\n')
+          node + ' -> ' + parentnode + ' [label="wasTriggeredBy" color="darkblue"]\n')
+          #parentnode + ' -> ' + node + ' [label="" color="darkblue"]\n')
       except:
         pass
     
@@ -170,11 +181,13 @@ for line in fin:
     if withfork:
       # main graph
       fout.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
-      fout.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+      #fout.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+      fout.write(node + ' -> ' + parentnode + ' [label="wasTriggeredBy" color="darkblue"];\n')
       
       # main process graph
       f2out.write(node + ' [label="' + label + '" shape="box" fillcolor="azure"];\n')
-      f2out.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+      #f2out.write(parentnode + ' -> ' + node + ' [label="" color="darkblue"];\n')
+      f2out.write(node + ' -> ' + parentnode + ' [label="wasTriggeredBy" color="darkblue"];\n')
     else:
       active_pid[words[3]]=active_pid[pid]
 
@@ -193,26 +206,39 @@ for line in fin:
     
   elif action == 'READ':
     if (not filter or not isFilteredPath(path)): 
-      fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
+      #fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
+      (pnode, pdef) = makePathNode(path)
+      fout.write(pdef)
+      fout.write(node + ' -> "' + pnode + '" [label="used" color="blue"];\n')
       if showsub:
         try:# TOFIX: what about spawn node
-          pid_graph[node].write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
+          #pid_graph[node].write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
+          pid_graph[node].write(pdef)
+          pid_graph[node].write(node + ' -> "' + pnode + '" [label="used" color="blue"];\n')
         except:
           pass
   elif action == 'WRITE':
     if (not filter or not isFilteredPath(path)): 
-      fout.write(node + ' -> "' + path + '" [label="" color="blue"];\n')
+      (pnode, pdef) = makePathNode(path)
+      fout.write(pdef)
+      #fout.write(node + ' -> "' + path + '" [label="wasGeneratedBy" color="blue"];\n')
+      fout.write('"' + pnode + '" -> ' + node + ' [label="wasGeneratedBy" color="blue"];\n')
       if showsub:
         try:
-          pid_graph[node].write(node + ' -> "' + path + '" [label="" color="blue"];\n')
+          #pid_graph[node].write(node + ' -> "' + path + '" [label="wasGeneratedBy" color="blue"];\n')
+          fout.write(pdef)
+          pid_graph[node].write('"' + pnode + '" -> ' + node + ' [label="wasGeneratedBy" color="blue"];\n')
         except:
           pass
   elif action == 'READ-WRITE':
     if (not filter or not isFilteredPath(path)): 
-      fout.write(node + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
+      (pnode, pdef) = makePathNode(path)
+      fout.write(pdef)
+      fout.write(node + ' -> "' + pnode + '" [dir="both" label="used" color="blue"];\n')
       if showsub:
         try:
-          pid_graph[node].write(node + ' -> "' + path + '" [dir="both" label="" color="blue"];\n')
+          fout.write(pdef)
+          pid_graph[node].write(node + ' -> "' + pnode + '" [dir="both" label="used" color="blue"];\n')
         except:
           pass
     
