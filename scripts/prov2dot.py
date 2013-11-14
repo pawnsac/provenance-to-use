@@ -35,6 +35,28 @@ def makePathNode(path):
   nodedef='"' + node + '"[label="' + filename + '", tooltip="' + node + '"]'
   return (node, nodedef)
   
+def getEdgeStr(node, pathnode, deptype):
+  if deptype == "wasGeneratedBy":
+    return '"' + pathnode + '" -> ' + node
+  elif deptype == "used" or deptype == "rw":
+    return node + ' -> "' + pathnode + '"'
+  else:
+    return 'ERROR -> ERROR'
+
+def printArtifactDep(node, path, deptype, filter):
+  if (not filter or not isFilteredPath(path)):
+    direction = 'dir="both" ' if deptype == "rw" else ''
+    (pnode, pdef) = makePathNode(path)
+    edge = getEdgeStr(node, pnode, deptype)
+    fout.write(pdef + '\n')
+    fout.write(edge + ' [' + direction +'label="' + deptype + '" color="blue"];\n')
+    if showsub:
+      try:# TOFIX: what about spawn node
+        pid_graph[node].write(pdef + '\n')
+        pid_graph[node].write(edge + ' [' + direction +'label="' + deptype + '" color="blue"];\n')
+      except:
+        pass
+        
 parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
 parser.add_argument('--nofilter', action="store_true", default=False)
@@ -111,9 +133,8 @@ for line in fin:
   if action == 'EXECVE': # this case only, node is the child words[3]
     nodename = words[3] + '_' + str(counter)
     node = '"' + nodename + '"'
-    label = time.ctime(int(words[0])) + \
-        '\\n PID: ' + words[3] + "\\n" + words[4]
-    title = ''.join(words[5:])
+    label = 'PID: ' + words[3] + "\\n" + os.path.basename(words[4])
+    title = time.ctime(int(words[0])) + ' ' + words[4] + ' ' + ''.join(words[5:])
     #    .replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
     active_pid[words[3]] = node # store the dict from pid to unique node name
@@ -205,42 +226,11 @@ for line in fin:
       del active_pid[pid]
     
   elif action == 'READ':
-    if (not filter or not isFilteredPath(path)): 
-      #fout.write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
-      (pnode, pdef) = makePathNode(path)
-      fout.write(pdef)
-      fout.write(node + ' -> "' + pnode + '" [label="used" color="blue"];\n')
-      if showsub:
-        try:# TOFIX: what about spawn node
-          #pid_graph[node].write('"' + path + '" -> ' + node + ' [label="" color="blue"];\n')
-          pid_graph[node].write(pdef)
-          pid_graph[node].write(node + ' -> "' + pnode + '" [label="used" color="blue"];\n')
-        except:
-          pass
+    printArtifactDep(node, path, "used", filter)
   elif action == 'WRITE':
-    if (not filter or not isFilteredPath(path)): 
-      (pnode, pdef) = makePathNode(path)
-      fout.write(pdef)
-      #fout.write(node + ' -> "' + path + '" [label="wasGeneratedBy" color="blue"];\n')
-      fout.write('"' + pnode + '" -> ' + node + ' [label="wasGeneratedBy" color="blue"];\n')
-      if showsub:
-        try:
-          #pid_graph[node].write(node + ' -> "' + path + '" [label="wasGeneratedBy" color="blue"];\n')
-          fout.write(pdef)
-          pid_graph[node].write('"' + pnode + '" -> ' + node + ' [label="wasGeneratedBy" color="blue"];\n')
-        except:
-          pass
+    printArtifactDep(node, path, "wasGeneratedBy", filter)
   elif action == 'READ-WRITE':
-    if (not filter or not isFilteredPath(path)): 
-      (pnode, pdef) = makePathNode(path)
-      fout.write(pdef)
-      fout.write(node + ' -> "' + pnode + '" [dir="both" label="used" color="blue"];\n')
-      if showsub:
-        try:
-          fout.write(pdef)
-          pid_graph[node].write(node + ' -> "' + pnode + '" [dir="both" label="used" color="blue"];\n')
-        except:
-          pass
+    printArtifactDep(node, path, "rw", filter)
     
   elif action == 'MEM':
     if showsub:
