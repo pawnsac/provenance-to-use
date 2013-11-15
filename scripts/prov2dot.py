@@ -32,7 +32,7 @@ def isFilteredPath(path):
 def makePathNode(path):
   filename=os.path.basename(path).replace('"','\\"')
   node=path.replace('\\', '\\\\').replace('"','\\"')
-  nodedef='"' + node + '"[label="' + filename + '", tooltip="' + node + '", color=' + colors[colorid] + ']'
+  nodedef='"' + node + '"[label="' + filename + '", tooltip="' + node + '", shape="", fillcolor=' + colors[colorid] + ']'
   return (node, nodedef)
   
 def getEdgeStr(node, pathnode, deptype):
@@ -56,6 +56,9 @@ def printArtifactDep(node, path, deptype, filter):
         pid_graph[node].write(edge + ' [' + direction +'label="' + deptype + '" color=""];\n') # blue
       except:
         pass
+    if withgraph:
+      p = re.compile('"[^"]*' + meta['namespace'] + '\/')
+      fgraph.write(p.sub('"/', edge) + '\n')
   
 parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
@@ -63,6 +66,7 @@ parser.add_argument('--nofilter', action="store_true", default=False)
 parser.add_argument('--withfork', action="store_true", default=False)
 parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
 parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
+parser.add_argument('--withgraph', action="store_true", default=False)
 
 args = parser.parse_args()
 
@@ -71,9 +75,13 @@ filter = not args.nofilter
 withfork = args.withfork
 dir = args.dir_name
 logfile = args.fin_name
+withgraph = args.withgraph
+
 meta = {}
-colors=['lightgray','lightblue','lightgreen','lightyellow','lightred']
+colors=['pink','yellow','lightgreen','lightblue'] 
 colorid=0
+# BIG TODO: colors are currently arranged to make the later overcolors the former
+#    so that sub-graph overcolors the parent graph nodes
 
 def processMetaData(line):
   m = re.match('# @(\w+): (.*)$', line)
@@ -108,14 +116,14 @@ fout.write("""digraph G {
 graph [rankdir = "RL" ];
 node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
 edge [fontname="Helvetica" fontsize="8"];
-"cdenet" [label="CDENet" shape="box" fillcolor=""];
-"namespace""" + meta['fullns'] + '"[shape=box label="' + meta['agent'] + "@" + meta['fullns'] + '" color=' +colors[colorid]+ ']')
+"cdenet" [label="XXX" shape="box" fillcolor=""" +colors[colorid]+ "];\n" + \
+"\"namespace" + meta['fullns'] + '"[shape=box label="' + meta['agent'] + "@" + meta['fullns'] + '" color=' +colors[colorid]+ ']')
 f2out = open(dir + '/main.process.gv', 'w')
 f2out.write("""digraph cdeprovshort2dot {
 graph [rankdir = "RL" ];
 node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
 edge [fontname="Helvetica" fontsize="8"];
-"cdenet" [label="CDENet" shape="box" fillcolor=""];
+"cdenet" [label="XXX" shape="box" fillcolor=""];
 "unknown" [label="unknown" shape="box" fillcolor=""];
 """) # blue lightsteelblue1
 fhtml = open(dir + '/main.html', 'w')
@@ -125,10 +133,13 @@ fhtml.write("""<h1>Overview</h1>
 """)
 fhtml.close()
 
+if withgraph:
+  fgraph = open(dir + '/main.graph', 'w')
+
 active_pid = {'0':'unknown'}
 info_pid = {}
 cde_pid = -1
-pid_desc = {'cdenet':'[label="CDENet" shape="box" fillcolor="" URL="main.process.svg"]', # blue
+pid_desc = {'cdenet':'[label="XXX" shape="box" fillcolor="" URL="main.process.svg"]', # blue
   'unknown':'[label="unknown" shape="box" fillcolor="" URL="main.process.svg"]'} # blue
 pid_starttime = {}
 pid_mem = {}
@@ -170,6 +181,10 @@ while 1:
     pid_desc[node] = ' [label="' + label + '" tooltip="' + title + '" shape="box" fillcolor="' + colors[colorid] + '" URL="' + nodename + '.prov.svg"]' # lightsteelblue1
     fout.write(node + pid_desc[node] + '\n')
     fout.write(node + ' -> ' + active_pid[pid] + ' [label="wasTriggeredBy" color=""]\n') # darkblue
+    
+    if withgraph:
+      fgraph.write(node + ' : ' + words[4] + '\n')
+      fgraph.write(node + ' -> ' + active_pid[pid] + '\n')
     
     # main process graph
     f2out.write(node + pid_desc[node] + '\n')
@@ -221,7 +236,7 @@ while 1:
     active_pid[words[3]]=node # store the dict from pid to unique node name
     pid_desc[node] = pid_desc[parentnode]
     
-    if withfork:
+    if withfork: # not handle the withgraph case
       # main graph
       fout.write(node + ' [label="' + label + '" shape="box" fillcolor=""];\n') #azure
       fout.write(node + ' -> ' + parentnode + ' [label="wasTriggeredBy" color=""];\n') #darkblue
@@ -267,6 +282,8 @@ while 1:
   
 fout.write("}")
 fout.close()
+if withgraph:
+  fgraph.close()
 f2out.write("}")
 f2out.close()
 fin.close()
