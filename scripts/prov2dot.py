@@ -12,8 +12,7 @@
 
 import re
 from subprocess import call
-import os, sys, time, datetime
-import glob
+import os, sys, time, datetime, glob, json
 import argparse
 
 def isFilteredPath(path):
@@ -177,7 +176,7 @@ while 1:
     #    .replace(', \\"',', \\n\\"').replace('[\\"','\\n[\\"')
     counter += 1
     active_pid[words[3]] = node # store the dict from pid to unique node name
-    info_pid[words[3]] = {'path': words[4], 'dir': words[5], 'param': words[6]}
+    info_pid[words[3]] = {'path': words[4], 'dir': words[5]}
     
     # main graph
     pid_desc[node] = ' [label="' + label + '" tooltip="' + title + '" shape="box" fillcolor="' + colors[colorid] + '" URL="' + nodename + '.prov.svg"]' # lightsteelblue1
@@ -185,7 +184,7 @@ while 1:
     fout.write(node + ' -> ' + active_pid[pid] + ' [label="wasTriggeredBy" color=""]\n') # darkblue
     
     if withgraph:
-      fgraph.write(node + ' : ' + words[4] + '\n')
+      fgraph.write(node + ' : ' + json.dumps(info_pid[words[3]]) + '\n')
       fgraph.write(node + ' -> ' + active_pid[pid] + '\n')
     
     # main process graph
