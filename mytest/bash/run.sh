@@ -7,3 +7,6 @@
 
 /bin/echo -e "\ns05"
 ./s05.*.sh
+
+/bin/echo -e "\ns06"
+./s06.*.sh
