@@ -28,6 +28,38 @@ def isFilteredPath(path):
     return False
   else: 
     return True
+  
+parser = argparse.ArgumentParser(description='Process provenance log file.')
+parser.add_argument('--nosub', action="store_true", default=False)
+parser.add_argument('--nofilter', action="store_true", default=False)
+parser.add_argument('--withfork', action="store_true", default=False)
+parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
+parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
+parser.add_argument('--withgraph', action="store_true", default=False)
+
+args = parser.parse_args()
+
+showsub = not args.nosub
+filter = not args.nofilter
+withfork = args.withfork
+dir = args.dir_name
+logfile = args.fin_name
+withgraph = args.withgraph
+
+meta = {}
+colors=['pink','yellow','lightgreen','lightblue'] 
+colorid=0
+# BIG TODO: colors are currently arranged to make the later overcolors the former
+#    so that sub-graph overcolors the parent graph nodes
+re_set = {}
+
+def processMetaData(line):
+  m = re.match('# @(\w+): (.*)$', line)
+  (key, value) = m.group(1, 2)
+  meta[key] = value
+  if key == "namespace":
+    re_set['rmns'] = re.compile('"[^"]*' + meta['namespace'] + '\/')
+  return key
 
 def makePathNode(path):
   filename=os.path.basename(path).replace('"','\\"')
@@ -57,37 +89,7 @@ def printArtifactDep(node, path, deptype, filter):
       except:
         pass
     if withgraph:
-      p = re.compile('"[^"]*' + meta['namespace'] + '\/')
-      fgraph.write(p.sub('"/', edge) + '\n')
-  
-parser = argparse.ArgumentParser(description='Process provenance log file.')
-parser.add_argument('--nosub', action="store_true", default=False)
-parser.add_argument('--nofilter', action="store_true", default=False)
-parser.add_argument('--withfork', action="store_true", default=False)
-parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
-parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
-parser.add_argument('--withgraph', action="store_true", default=False)
-
-args = parser.parse_args()
-
-showsub = not args.nosub
-filter = not args.nofilter
-withfork = args.withfork
-dir = args.dir_name
-logfile = args.fin_name
-withgraph = args.withgraph
-
-meta = {}
-colors=['pink','yellow','lightgreen','lightblue'] 
-colorid=0
-# BIG TODO: colors are currently arranged to make the later overcolors the former
-#    so that sub-graph overcolors the parent graph nodes
-
-def processMetaData(line):
-  m = re.match('# @(\w+): (.*)$', line)
-  (key, value) = m.group(1, 2)
-  meta[key] = value
-  return key
+      fgraph.write(re_set['rmns'].sub('"/', edge) + '\n')
 
 # open input output files
 try:
@@ -264,8 +266,6 @@ while 1:
     pinfo = info_pid[words[1]]
     if os.path.abspath(pinfo['path']) != path:
       printArtifactDep(node, path, "used", filter)
-    else:
-      print "SKIP: " + pinfo['path']
   elif action == 'WRITE':
     printArtifactDep(node, path, "wasGeneratedBy", filter)
   elif action == 'READ-WRITE':
