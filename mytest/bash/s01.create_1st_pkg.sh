@@ -1,7 +1,7 @@
 #!/bin/sh
 rm -rf cde-package
 rm -f provenance.*log
-../../../wincde/ptu sh my_1st_exp.sh
+../../../wincde/ptu -a cde-root-Y65bDAhpeDT_Z6fa9m4LFtO sh my_1st_exp.sh
 cd cde-package
 mv cde.log mycopy_1st_exp.sh
 cd ..

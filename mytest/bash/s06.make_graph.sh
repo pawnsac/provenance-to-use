@@ -2,9 +2,12 @@
 cd cde-package
 if [ ! -d gv ]
 then
-  ~/Tools/cde/scripts/prov2dot.py -f provenance.cde-root.1.log --withgraph
-  cat provenance.cde-root-pkg02.1.log provenance.cde-root.2.log > prov.log
-  ~/Tools/cde/scripts/prov2dot.py -f prov.log -d gv2
-  ~/Tools/cde/scripts/prov2dot.py -f provenance.cde-root.2.log -d gv3 --withgraph
+  ../../../scripts/prov2dot.py -f provenance.cde-root-Y6*.1.log --withgraph
+  cat provenance.cde-root-YP*.1.log  provenance.cde-root-Y6*.2.log > prov.log
+  ../../../scripts/prov2dot.py -f prov.log -d gv2
+  ../../../scripts/prov2dot.py -f provenance.cde-root-Y6*.2.log -d gv3 --withgraph
 fi
-~/Tools/cde/scripts/graphcmp.py gv/main.graph gv3/main.graph
+#../../../scripts/graphcmp.py gv/main.graph gv3/main.graph
+dot -Tpng gv/main.gv -o exp1.png
+dot -Tpng gv2/main.gv -o exp2.png
+mv exp*.png ~/html/

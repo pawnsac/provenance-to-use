@@ -46,7 +46,7 @@ logfile = args.fin_name
 withgraph = args.withgraph
 
 meta = {}
-colors=['pink','yellow','lightgreen','lightblue'] 
+colors=['yellow','pink','lightgreen','lightblue'] 
 colorid=0
 # BIG TODO: colors are currently arranged to make the later overcolors the former
 #    so that sub-graph overcolors the parent graph nodes
@@ -63,7 +63,7 @@ def processMetaData(line):
 def makePathNode(path):
   filename=os.path.basename(path).replace('"','\\"')
   node=path.replace('\\', '\\\\').replace('"','\\"')
-  nodedef='"' + node + '"[label="' + filename + '", tooltip="' + node + '", shape="", fillcolor=' + colors[colorid] + ']'
+  nodedef='"' + node + '"[label="' + filename + '", shape="", fillcolor=' + colors[colorid] + ', tooltip="' + node + '"]'
   return (node, nodedef)
   
 def getEdgeStr(node, pathnode, deptype):
