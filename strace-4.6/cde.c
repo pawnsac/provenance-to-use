@@ -72,7 +72,6 @@ extern char CDE_provenance_mode; // quanpt
 extern char CDE_bare_run; // quanpt
 char CDE_verbose_mode = 0; // -v option
 char* CDE_ROOT_NAME = NULL;
-
 // only valid if !CDE_exec_mode
 char* CDE_PACKAGE_DIR = NULL;
 char* CDE_ROOT_DIR = NULL;
@@ -3012,6 +3011,7 @@ void CDE_init_pseudo_root_dir() {
       }
 
       found_index = i;
+      CDE_ROOT_NAME = strdup(component);
       // keep searching in case there are duplicates, in which case the
       // above assertion will fail
     }
@@ -3729,7 +3729,6 @@ static void CDE_load_environment_vars(char* repo_name) {
 //  strcpy(cde_full_environment_abspath, cde_pseudo_root_dir);
 //  strcat(cde_full_environment_abspath, "/../cde.full-environment.");
 //  strcat(cde_full_environment_abspath, multi_repo_paths[i]);
-
   struct stat env_file_stat;
   if (stat(cde_full_environment_abspath, &env_file_stat)) {
     perror(cde_full_environment_abspath);
