@@ -281,8 +281,8 @@ void init_prov() {
       CDE_provenance_logfile = fopen(path, "w");
     else {
       // check through provenance.$subns.log to find a new file name
-      subns++;
       do {
+        subns++;
         bzero(path, sizeof(path));
         sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
       } while (access(path, R_OK)==0);

@@ -1277,6 +1277,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   char* script_command = NULL;
   char* ld_linux_filename = NULL;
   char* ld_linux_fullpath = NULL;
+  char* opened_filename_abspath = NULL;
 
   exe_filename = strcpy_from_child(tcp, tcp->u_arg[0]);
 
@@ -1309,7 +1310,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     //  is being executed (e.g., with "#!/bin/bash" as its shebang line),
     //  since exe_filename is the script's name and NOT "/bin/bash".
     //  We will need to handle this case LATER in the function.)
-    char* opened_filename_abspath =
+    opened_filename_abspath =
       canonicalize_path(exe_filename, extract_sandboxed_pwd(tcp->current_dir, tcp));
 
     // try to exec another cde - unwrap it from this cde-exec
@@ -1329,7 +1330,6 @@ void CDE_begin_execve(struct tcb* tcp) {
     }
 
     if (ignore_path(opened_filename_abspath, tcp)) {
-      free(opened_filename_abspath);
       goto done;
     }
 
@@ -1340,7 +1340,6 @@ void CDE_begin_execve(struct tcb* tcp) {
       if (strcmp(opened_filename_abspath, process_ignores[i].process_name) == 0) {
         //printf("IGNORED '%s'\n", opened_filename_abspath);
         tcp->p_ignores = &process_ignores[i];
-        free(opened_filename_abspath);
         goto done; // TOTALLY PUNT!!!
       }
     }
@@ -1997,6 +1996,7 @@ void CDE_begin_execve(struct tcb* tcp) {
           strdup(extract_sandboxed_pwd(redirected_path, tcp));
 
         free(old_perceived_program_fullpath);
+        free(redirected_path);
       }
     }
   }
@@ -2033,6 +2033,9 @@ done:
       print_exec_prov(tcp);
   }
   // make sure ALL of these vars are initially set to NULL when declared:
+  if (opened_filename_abspath) {
+    free(opened_filename_abspath);
+  }
   if (exe_filename) {
     free(exe_filename);
   }
