@@ -303,8 +303,8 @@ if showsub:
 
 def removeMultiEdge(filename):
   lines = [line for line in open(filename)]
-  newlines = lines[:5]
-  newlines = newlines + list(set(lines[5:-1])) + ['}']
+  newlines = lines[:4]
+  newlines = newlines + list(set(lines[4:-1])) + ['}']
   f = open(filename, 'w')
   for line in newlines:
     f.write(line)
