@@ -6,9 +6,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/param.h>
+#include <ctype.h>
 
 #include "defs.h"
 #include "provenance.h"
+#include "../leveldb-1.14.0/include/leveldb/c.h"
 
 /* macros */
 #ifndef MAX
@@ -17,6 +19,9 @@
 #ifndef MIN
 #define MIN(a,b)		(((a) < (b)) ? (a) : (b))
 #endif
+
+extern void vbprintf(const char *fmt, ...);
+void rstrip(char *s);
 
 extern char CDE_exec_mode;
 extern char CDE_verbose_mode;
@@ -32,6 +37,10 @@ typedef struct {
   int pc; // total count
 } pidlist_t;
 static pidlist_t pidlist;
+
+// leveldb
+leveldb_t *db;
+leveldb_options_t *options;
 
 extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
@@ -262,11 +271,59 @@ void *capture_cont_prov(void* ptr) {
   return NULL;
 }
 
+void db_write(const char* key, const char* value) {
+  leveldb_writeoptions_t *woptions;
+  char *err = NULL;
+  assert(db!=NULL);
+
+  woptions = leveldb_writeoptions_create();
+  if (value == NULL)
+    leveldb_put(db, woptions, key, strlen(key), value, 0, &err);
+  else
+    leveldb_put(db, woptions, key, strlen(key), value, strlen(value), &err);
+
+  if (err != NULL) {
+    vbprintf("DB - Write FAILED: '%s' -> '%s'\n", key, value);
+  }
+
+  leveldb_free(err); err = NULL;
+}
+
+void db_write_int(const char* key, int value) {
+  char val[16];
+  sprintf(val, "%d", value);
+  db_write(key, val);
+}
+
+char* db_readc(char* key) {
+  leveldb_readoptions_t *roptions;
+  char *err = NULL;
+  char *read, *ret;
+  size_t read_len;
+
+  roptions = leveldb_readoptions_create();
+  read = leveldb_get(db, roptions, key, strlen(key), &read_len, &err);
+
+  if (err != NULL) {
+    vbprintf("DB - Read FAILED: '%s'\n", key);
+    return NULL;
+  }
+  ret = malloc(read_len+1);
+  strncpy(ret, read, read_len);
+  ret[read_len] = 0;
+  
+  leveldb_free(err); err = NULL;
+  
+  return ret;
+}
+
 void init_prov() {
   pthread_t ptid;
   char* env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
   char path[PATH_MAX];
   int subns=1;
+  char *err = NULL;
+  
   if (env_prov_mode != NULL)
     CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
   else
@@ -289,6 +346,20 @@ void init_prov() {
       fprintf(stderr, "Provenance log file: %s\n", path);
       CDE_provenance_logfile = fopen(path, "w");
     }
+    
+    // leveldb initialization
+    sprintf(path+strlen(path), "_db");
+    fprintf(stderr, "Provenance db: %s\n", path);
+    options = leveldb_options_create();
+    leveldb_options_set_create_if_missing(options, 1);
+    db = leveldb_open(options, path, &err);
+    if (err != NULL || db == NULL) {
+      fprintf(stderr, "leveldb open fail.\n");
+      exit(-1);
+    }
+    assert(db!=NULL);
+    /* reset error var */
+    leveldb_free(err); err = NULL;
 
     char* username = getlogin();
     FILE *fp;
@@ -305,6 +376,15 @@ void init_prov() {
     fprintf(CDE_provenance_logfile, "# @subns: %d\n", subns);
     fprintf(CDE_provenance_logfile, "# @fullns: %s\n", fullns);
     fprintf(CDE_provenance_logfile, "# @parentns: %s\n", getenv("CDE_PROV_NAMESPACE"));
+    
+    // provenance meta data in lvdb
+    db_write("meta.agent", username == NULL ? "(noone)" : username);
+    db_write("meta.machine", uname);
+    db_write("meta.namespace", CDE_ROOT_NAME);
+    db_write_int("meta.subns", subns);
+    db_write("meta.fullns", fullns);
+    db_write("meta.parentns", getenv("CDE_PROV_NAMESPACE"));
+    
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
 
     pthread_mutex_init(&mut_pidlist, NULL);
@@ -341,7 +421,7 @@ void rstrip(char *s) {
   size = strlen(s);
 
   if (!size)
-    return s;
+    return;
 
   end = s + size - 1;
   while (end >= s && isspace(*end))

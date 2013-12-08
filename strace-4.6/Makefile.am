@@ -14,6 +14,9 @@ ARCH		= @arch@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = $(WARN_CFLAGS)
 AM_CPPFLAGS = -I$(srcdir)/$(OS)/$(ARCH) -I$(srcdir)/$(OS) -I$(builddir)/$(OS)
+LDADD = ../readelf-mini/libreadelf-mini.a ../leveldb-1.14.0/libleveldb.a $(INTLLIBS)
+#LDFLAGS = -pthread
+LINK=$(CXX) -pthread -static-libgcc  -static-libstdc++ -o $@
 
 strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \
 		 io.c ioctl.c mem.c net.c process.c bjm.c quota.c \

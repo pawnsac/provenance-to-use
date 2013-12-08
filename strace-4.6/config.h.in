@@ -49,42 +49,6 @@
    don't. */
 #undef HAVE_DECL__SYS_SIGLIST
 
-/* Define to 1 if you have the declaration of ` PTRACE_EVENT_CLONE', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_EVENT_CLONE
-
-/* Define to 1 if you have the declaration of ` PTRACE_EVENT_FORK', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_EVENT_FORK
-
-/* Define to 1 if you have the declaration of ` PTRACE_EVENT_VFORK', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_EVENT_VFORK
-
-/* Define to 1 if you have the declaration of ` PTRACE_GETEVENTMSG', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_GETEVENTMSG
-
-/* Define to 1 if you have the declaration of ` PTRACE_GETSIGINFO', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_GETSIGINFO
-
-/* Define to 1 if you have the declaration of ` PTRACE_O_TRACECLONE', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_O_TRACECLONE
-
-/* Define to 1 if you have the declaration of ` PTRACE_O_TRACEFORK', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_O_TRACEFORK
-
-/* Define to 1 if you have the declaration of ` PTRACE_O_TRACEVFORK', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_O_TRACEVFORK
-
-/* Define to 1 if you have the declaration of ` PTRACE_SETOPTIONS', and to 0
-   if you don't. */
-#undef HAVE_DECL_____PTRACE_SETOPTIONS
-
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
 #undef HAVE_DIRENT_H

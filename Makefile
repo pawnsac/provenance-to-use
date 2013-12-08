@@ -4,9 +4,10 @@ PREFIX ?= /usr/local
 
 all: strace-4.6/Makefile okapi
 	cd readelf-mini && make
+	cd leveldb-1.14.0 && make
 	cd strace-4.6 && make
-	mv -f strace-4.6/ptu .
-	mv -f strace-4.6/ptu-exec ptu-ex
+	mv -f strace-4.6/strace ./ptu
+	cp ptu ptu-ex
 
 install: all
 	install ptu ptu-exec $(PREFIX)/bin
