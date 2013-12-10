@@ -42,10 +42,17 @@ static pidlist_t pidlist;
 leveldb_t *db;
 leveldb_options_t *options;
 
+enum provenance_type {
+  PRV_RDONLY=1, PRV_WRONLY=2, PRV_RDWR = 3, PRV_UNKNOWNIO=4, 
+  PRV_SPAWN=17, PRV_LEXIT=18,
+  STAT_MEM=33,
+  PRV_INVALID=127};
+
 extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 extern char* canonicalize_path(char* path, char* relpath_base);
 
+void db_write_prov(long pid, int prv, const char *filename_abspath);
 void add_pid_prov(pid_t pid);
 
 /*
@@ -53,16 +60,17 @@ void add_pid_prov(pid_t pid);
  * If `len' < 0, treat the string as a NUL-terminated string.
  * If string length exceeds `max_strlen', append `...' to the output.
  */
-void
-print_str_prov(FILE* logfile, struct tcb *tcp, long addr, int len)
+int
+get_str_prov(char* dest, struct tcb *tcp, long addr, int len)
 {
 	static char *str = NULL;
 	static char *outstr;
 	int size;
+  int len_written = 0;
 
 	if (!addr) {
-		fprintf(logfile, "NULL");
-		return;
+		len_written += sprintf(dest+len_written, "NULL");
+		return len_written;
 	}
 	/* Allocate static buffers if they are not allocated yet. */
 	if (!str)
@@ -71,8 +79,8 @@ print_str_prov(FILE* logfile, struct tcb *tcp, long addr, int len)
 		outstr = malloc(4 * max_strlen + sizeof "\"...\"");
 	if (!str || !outstr) {
 		fprintf(stderr, "out of memory\n");
-		fprintf(logfile, "%#lx", addr);
-		return;
+		len_written += sprintf(dest+len_written, "%#lx", addr);
+		return len_written;
 	}
 
 	if (len < 0) {
@@ -83,15 +91,15 @@ print_str_prov(FILE* logfile, struct tcb *tcp, long addr, int len)
 		size = max_strlen + 1;
 		str[max_strlen] = '\0';
 		if (umovestr(tcp, addr, size, str) < 0) {
-			fprintf(logfile, "%#lx", addr);
-			return;
+			len_written += sprintf(dest+len_written, "%#lx", addr);
+			return len_written;
 		}
 	}
 	else {
 		size = MIN(len, max_strlen);
 		if (umoven(tcp, addr, size, str) < 0) {
-			fprintf(logfile, "%#lx", addr);
-			return;
+			len_written += sprintf(dest+len_written, "%#lx", addr);
+			return len_written;
 		}
 	}
 
@@ -99,12 +107,12 @@ print_str_prov(FILE* logfile, struct tcb *tcp, long addr, int len)
 	    (len < 0 || len > max_strlen))
 		strcat(outstr, "...");
 
-	fprintf(logfile, "%s", outstr);
+	len_written += sprintf(dest+len_written, "%s", outstr);
+  return len_written;
 }
 
-
 void
-print_arg_prov(FILE* logfile, struct tcb *tcp, long addr)
+print_arg_prov(char* argstr, struct tcb *tcp, long addr)
 {
 	union {
 		unsigned int p32;
@@ -113,27 +121,28 @@ print_arg_prov(FILE* logfile, struct tcb *tcp, long addr)
 	} cp;
 	const char *sep;
 	int n = 0;
+  unsigned int len = 0;
 
-  fprintf(logfile, "[");
+  len += sprintf(argstr+len, "[");
 	cp.p64 = 1;
 	for (sep = ""; !abbrev(tcp) || n < max_strlen / 2; sep = ", ", ++n) {
 		if (umoven(tcp, addr, personality_wordsize[current_personality],
 			   cp.data) < 0) {
-			fprintf(logfile, "%#lx\n", addr);
+			len += sprintf(argstr+len, "%#lx\n", addr);
 			return;
 		}
 		if (personality_wordsize[current_personality] == 4)
 			cp.p64 = cp.p32;
 		if (cp.p64 == 0)
 			break;
-		fprintf(logfile, "%s", sep);
-		print_str_prov(logfile, tcp, cp.p64, -1);
+		len += sprintf(argstr+len, "%s", sep);
+		len += get_str_prov(argstr+len, tcp, cp.p64, -1);
 		addr += personality_wordsize[current_personality];
 	}
 	if (cp.p64)
-		fprintf(logfile, "%s...", sep);
+		len += sprintf(argstr+len, "%s...", sep);
 
-	fprintf(logfile, "]\n");
+	len += sprintf(argstr+len, "]");
 }
 
 
@@ -142,10 +151,13 @@ void print_exec_prov(struct tcb *tcp) {
     char* opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
+    char args[MAXPATHLEN];
     if (parentPid==-1) parentPid = getpid();
     assert(filename_abspath);
-    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s ", (int)time(0), parentPid, tcp->pid, filename_abspath, tcp->current_dir);
-    print_arg_prov(CDE_provenance_logfile, tcp, tcp->u_arg[1]);
+    print_arg_prov(args, tcp, tcp->u_arg[1]);
+    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0), 
+      parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
+    db_write_prov_exec(parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
     if (CDE_verbose_mode) {
       vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
     }
@@ -159,6 +171,7 @@ void print_execdone_prov(struct tcb *tcp) {
     int ppid = -1;
     if (tcp->parent) ppid = tcp->parent->pid;
     fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
+    db_write_prov_execdone(tcp->pid, ppid);
     add_pid_prov(tcp->pid);
     if (CDE_verbose_mode) {
       vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve2");
@@ -178,15 +191,19 @@ void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name) {
       unsigned char open_mode = (tcp->u_arg[1] & 3);
       if (open_mode == O_RDONLY) {
         fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
+        db_write_prov(tcp->pid, PRV_RDONLY, filename_abspath);
       }
       else if (open_mode == O_WRONLY) {
         fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+        db_write_prov(tcp->pid, PRV_WRONLY, filename_abspath);
       }
       else if (open_mode == O_RDWR) {
         fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+        db_write_prov(tcp->pid, PRV_RDWR, filename_abspath);
       }
       else {
         fprintf(CDE_provenance_logfile, "%d %u UNKNOWNIO %s\n", (int)time(0), tcp->pid, filename_abspath);
+        db_write_prov(tcp->pid, PRV_UNKNOWNIO, filename_abspath);
       }
 
       free(filename_abspath);
@@ -197,14 +214,17 @@ void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name) {
 void print_spawn_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
+    db_write_prov_int(tcp->parent->pid, PRV_SPAWN, tcp->pid);
   }
 }
 
+/*
 void print_act_prov(struct tcb *tcp, const char* action) {
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u %s 0\n", (int)time(0), tcp->pid, action);
+    db_write_prov(tcp->pid, PRV_ACTION, action);
   }
-}
+}*/
 
 void print_sock_prov(struct tcb *tcp, const char *op, unsigned int port, unsigned long ipv4) {
   print_newsock_prov(tcp, op, 0, 0, port, ipv4, 0);
@@ -221,6 +241,7 @@ void print_newsock_prov(struct tcb *tcp, const char* op, \
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         op, s_port, saddr, d_port, daddr, sk);
+    // TODO: db_write_prov(tcp->pid, PRV_WRONLY, filename_abspath);
   }
 }
 
@@ -237,16 +258,20 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     f = fopen(buff, "r");
     if (f==NULL) { // remove this invalid pid
       fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i]); // lost_pid exit
+      db_write_prov(pidlist_p->pv[i], PRV_LEXIT, "");
       pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
       pidlist_p->pc--;
       continue;
     }
-    fgets(buff, 1024, f);
-    // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
-    sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu \
-  %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
+    if (fgets(buff, 1024, f) == NULL)
+      rss= 0;
+    else
+      // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
+      sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu \
+%*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
     fclose(f);
     fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
+    db_write_prov_int(pidlist_p->pv[i], STAT_MEM, rss);
   }
   pthread_mutex_unlock(&mut_pidlist);
 }
@@ -264,8 +289,10 @@ void *capture_cont_prov(void* ptr) {
   } // done recording: pidlist.pc == 0
   pthread_mutex_destroy(&mut_pidlist);
 
-	if (CDE_provenance_logfile)
+	if (CDE_provenance_logfile) {
   	fclose(CDE_provenance_logfile);
+    leveldb_close(db);
+  }
   pthread_mutex_destroy(&mut_logfile);
 
   return NULL;
@@ -365,7 +392,8 @@ void init_prov() {
     FILE *fp;
     char uname[PATH_MAX];
     fp = popen("uname -a", "r");
-    fgets(uname, PATH_MAX, fp);
+    if (fgets(uname, PATH_MAX, fp) == NULL)
+      sprintf(uname, "(unknown architecture)");
     pclose(fp);
     rstrip(uname);
     char fullns[PATH_MAX];
