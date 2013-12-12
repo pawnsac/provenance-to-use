@@ -62,8 +62,10 @@ void db_write_long(const char *key, long value);
 void db_write_io_prov(long pid, int prv, const char *filename_abspath);
 void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char *current_dir, char *args);
 void db_write_execdone_prov(long ppid, long pid);
-void db_write_prov_spawn(long ppid, long pid);
-void db_write_prov_stat(long pid, int stat, long num);
+void db_write_lexit_prov(long pid);
+void db_write_spawn_prov(long ppid, long pid);
+void db_write_prov_stat(long pid, char *stat);
+ull_t getusec();
 
 void add_pid_prov(pid_t pid);
 
@@ -226,7 +228,7 @@ void print_IO_prov(struct tcb *tcp, char *filename, const char *syscall_name) {
 void print_spawn_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
-    db_write_prov_spawn(tcp->parent->pid, tcp->pid);
+    db_write_spawn_prov(tcp->parent->pid, tcp->pid);
   }
 }
 
@@ -269,7 +271,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     f = fopen(buff, "r");
     if (f==NULL) { // remove this invalid pid
       fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i]); // lost_pid exit
-      db_write_io_prov(pidlist_p->pv[i], PRV_LEXIT, "");
+      db_write_lexit_prov(pidlist_p->pv[i]);
       pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
       pidlist_p->pc--;
       continue;
@@ -282,7 +284,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
 %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
     fclose(f);
     fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
-    db_write_prov_stat(pidlist_p->pv[i], STAT_MEM, rss);
+    db_write_prov_stat(pidlist_p->pv[i], buff);
   }
   pthread_mutex_unlock(&mut_pidlist);
 }
@@ -378,6 +380,18 @@ void init_prov() {
     db_write_long("meta.subns", subns);
     db_write("meta.fullns", fullns);
     db_write("meta.parentns", getenv("CDE_PROV_NAMESPACE"));
+    
+    // the initial PTU pid node
+    long pid = getpid();
+    char key[KEYLEN], pidkey[KEYLEN];
+    ull_t usec = getusec();
+    
+    sprintf(key, "pid.%ld", pid);
+    sprintf(pidkey, "%ld.%llu", pid, usec);
+    db_write(key, pidkey);
+    
+    sprintf(pidkey, "%ld.%llu", pid, usec);
+    db_write("meta.root", pidkey);
     
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
 
@@ -555,14 +569,28 @@ void db_write_execdone_prov(long ppid, long pid) {
   free(pidkey);
 }
 
-void db_write_prov_spawn(long ppid, long pid) {
+void db_write_lexit_prov(long pid) {
+  char key[KEYLEN], value[KEYLEN];
+  char *pidkey=db_read_pid_key(pid);
+  if (pidkey == NULL) return;
+  ull_t usec = getusec();
+  
+  // create (successful) exec relation 
+  sprintf(key, "prv.pid.%s.lexit", pidkey);
+  sprintf(value, "%llu", usec);
+  db_write(key, value);
+  
+  free(pidkey);
+}
+
+void db_write_spawn_prov(long ppid, long pid) {
   char key[KEYLEN];
   char *ppidkey=db_read_pid_key(ppid);
   if (ppidkey == NULL) return;
   ull_t usec = getusec();
+  
   char *pidkey = db_create_pid(pid, usec, ppidkey);
   
-  // new pid
   sprintf(key, "prv.pid.%s.spawn.%llu", ppidkey, usec);
   db_write(key, pidkey);
   
@@ -570,13 +598,23 @@ void db_write_prov_spawn(long ppid, long pid) {
   free(ppidkey);
 }
 
-void db_write_prov_stat(long pid, int stat, long num) {
+void db_write_prov_stat(long pid, char *stat) {
+  char key[KEYLEN];
+  char *pidkey = db_read_pid_key(pid);
+  if (pidkey == NULL) return;
+  ull_t usec = getusec();
+  
+  sprintf(key, "prv.pid.%s.stat.%llu", pidkey, usec);
+  db_write(key, stat);
+  
+  free(pidkey);
 }
 
 
 /*
  * primary key of processes:
- * pid.$pid -> prv.pid.$(pid.usec)
+ * pid.$pid -> $(pid.usec)
+ * with prv.pid.$(pid.usec).parent -> $(ppid.usec)
  * 
  * IO provenance:
  * prv.iopid.$(pid.usec).$action.$usec -> $filepath // tuple (pid, action, time, filepath)
@@ -585,12 +623,12 @@ void db_write_prov_stat(long pid, int stat, long num) {
  * Exec provenance:
  * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)
  * prv.pid.$(pid.usec).[path, pwd, args] -> corresponding value of EXECVE
- * prv.pid.$(pid.usec).ok -> success or not
- * prv.pid.$(pid.usec).parent -> $(ppid.usec)
+ * prv.pid.$(pid.usec).ok -> success (>0, = usec) or not exists
+ * prv.pid.$(pid.usec).lexit -> $usec
  * 
  * prv.pid.$(ppid.usec).spawn.$usec -> $(pid.usec)
- * prv.pid.$(pid.usec).parent -> $(ppid.usec)
  * 
  * Exec info:
  * info.($pid.usec).$time -> $stats_list
  */
+ 
