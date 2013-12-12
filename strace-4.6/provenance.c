@@ -20,6 +20,8 @@
 #define MIN(a,b)		(((a) < (b)) ? (a) : (b))
 #endif
 
+#define KEYLEN (128)
+
 extern void vbprintf(const char *fmt, ...);
 void rstrip(char *s);
 
@@ -42,17 +44,27 @@ static pidlist_t pidlist;
 leveldb_t *db;
 leveldb_options_t *options;
 
+typedef unsigned long long ull_t;
+
 enum provenance_type {
   PRV_RDONLY=1, PRV_WRONLY=2, PRV_RDWR = 3, PRV_UNKNOWNIO=4, 
-  PRV_SPAWN=17, PRV_LEXIT=18,
+  PRV_EXECVE=17, PRV_SPAWN=18, PRV_LEXIT=19, 
   STAT_MEM=33,
+  PRV_ACTION=65,
   PRV_INVALID=127};
 
 extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
-extern char* canonicalize_path(char* path, char* relpath_base);
+extern char* canonicalize_path(char *path, char *relpath_base);
 
-void db_write_prov(long pid, int prv, const char *filename_abspath);
+void db_write(const char *key, const char *value);
+void db_write_long(const char *key, long value);
+void db_write_io_prov(long pid, int prv, const char *filename_abspath);
+void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char *current_dir, char *args);
+void db_write_execdone_prov(long ppid, long pid);
+void db_write_prov_spawn(long ppid, long pid);
+void db_write_prov_stat(long pid, int stat, long num);
+
 void add_pid_prov(pid_t pid);
 
 /*
@@ -61,7 +73,7 @@ void add_pid_prov(pid_t pid);
  * If string length exceeds `max_strlen', append `...' to the output.
  */
 int
-get_str_prov(char* dest, struct tcb *tcp, long addr, int len)
+get_str_prov(char *dest, struct tcb *tcp, long addr, int len)
 {
 	static char *str = NULL;
 	static char *outstr;
@@ -112,7 +124,7 @@ get_str_prov(char* dest, struct tcb *tcp, long addr, int len)
 }
 
 void
-print_arg_prov(char* argstr, struct tcb *tcp, long addr)
+print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 {
 	union {
 		unsigned int p32;
@@ -148,8 +160,8 @@ print_arg_prov(char* argstr, struct tcb *tcp, long addr)
 
 void print_exec_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
-    char* opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
-    char* filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
+    char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
+    char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
     char args[MAXPATHLEN];
     if (parentPid==-1) parentPid = getpid();
@@ -157,7 +169,7 @@ void print_exec_prov(struct tcb *tcp) {
     print_arg_prov(args, tcp, tcp->u_arg[1]);
     fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0), 
       parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
-    db_write_prov_exec(parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
+    db_write_exec_prov(parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
     if (CDE_verbose_mode) {
       vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
     }
@@ -171,7 +183,7 @@ void print_execdone_prov(struct tcb *tcp) {
     int ppid = -1;
     if (tcp->parent) ppid = tcp->parent->pid;
     fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
-    db_write_prov_execdone(tcp->pid, ppid);
+    db_write_execdone_prov(ppid, tcp->pid);
     add_pid_prov(tcp->pid);
     if (CDE_verbose_mode) {
       vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve2");
@@ -179,31 +191,31 @@ void print_execdone_prov(struct tcb *tcp) {
   }
 }
 
-void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name) {
+void print_IO_prov(struct tcb *tcp, char *filename, const char *syscall_name) {
   if (CDE_provenance_mode) {
     // only track open syscalls
     if ((tcp->u_rval >= 0) &&
         strcmp(syscall_name, "sys_open") == 0) {
-      char* filename_abspath = canonicalize_path(filename, tcp->current_dir);
+      char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
       assert(filename_abspath);
 
       // Note: tcp->u_arg[1] is only for open(), not openat()
       unsigned char open_mode = (tcp->u_arg[1] & 3);
       if (open_mode == O_RDONLY) {
         fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_prov(tcp->pid, PRV_RDONLY, filename_abspath);
+        db_write_io_prov(tcp->pid, PRV_RDONLY, filename_abspath);
       }
       else if (open_mode == O_WRONLY) {
         fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_prov(tcp->pid, PRV_WRONLY, filename_abspath);
+        db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
       }
       else if (open_mode == O_RDWR) {
         fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_prov(tcp->pid, PRV_RDWR, filename_abspath);
+        db_write_io_prov(tcp->pid, PRV_RDWR, filename_abspath);
       }
       else {
         fprintf(CDE_provenance_logfile, "%d %u UNKNOWNIO %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_prov(tcp->pid, PRV_UNKNOWNIO, filename_abspath);
+        db_write_io_prov(tcp->pid, PRV_UNKNOWNIO, filename_abspath);
       }
 
       free(filename_abspath);
@@ -214,22 +226,21 @@ void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name) {
 void print_spawn_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
-    db_write_prov_int(tcp->parent->pid, PRV_SPAWN, tcp->pid);
+    db_write_prov_spawn(tcp->parent->pid, tcp->pid);
   }
 }
 
-/*
-void print_act_prov(struct tcb *tcp, const char* action) {
+void print_act_prov(struct tcb *tcp, const char *action) {
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u %s 0\n", (int)time(0), tcp->pid, action);
-    db_write_prov(tcp->pid, PRV_ACTION, action);
+    db_write_io_prov(tcp->pid, PRV_ACTION, action);
   }
-}*/
+}
 
 void print_sock_prov(struct tcb *tcp, const char *op, unsigned int port, unsigned long ipv4) {
   print_newsock_prov(tcp, op, 0, 0, port, ipv4, 0);
 }
-void print_newsock_prov(struct tcb *tcp, const char* op, \
+void print_newsock_prov(struct tcb *tcp, const char *op, \
   unsigned int s_port, unsigned long s_ipv4, \
   unsigned int d_port, unsigned long d_ipv4, int sk) {
   struct in_addr s_in, d_in;
@@ -241,7 +252,7 @@ void print_newsock_prov(struct tcb *tcp, const char* op, \
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         op, s_port, saddr, d_port, daddr, sk);
-    // TODO: db_write_prov(tcp->pid, PRV_WRONLY, filename_abspath);
+    // TODO: db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
   }
 }
 
@@ -258,7 +269,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     f = fopen(buff, "r");
     if (f==NULL) { // remove this invalid pid
       fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i]); // lost_pid exit
-      db_write_prov(pidlist_p->pv[i], PRV_LEXIT, "");
+      db_write_io_prov(pidlist_p->pv[i], PRV_LEXIT, "");
       pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
       pidlist_p->pc--;
       continue;
@@ -271,7 +282,7 @@ void print_curr_prov(pidlist_t *pidlist_p) {
 %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
     fclose(f);
     fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
-    db_write_prov_int(pidlist_p->pv[i], STAT_MEM, rss);
+    db_write_prov_stat(pidlist_p->pv[i], STAT_MEM, rss);
   }
   pthread_mutex_unlock(&mut_pidlist);
 }
@@ -290,6 +301,7 @@ void *capture_cont_prov(void* ptr) {
   pthread_mutex_destroy(&mut_pidlist);
 
 	if (CDE_provenance_logfile) {
+    vbprintf("=== Close log file and provenance db ===\n");
   	fclose(CDE_provenance_logfile);
     leveldb_close(db);
   }
@@ -298,55 +310,9 @@ void *capture_cont_prov(void* ptr) {
   return NULL;
 }
 
-void db_write(const char* key, const char* value) {
-  leveldb_writeoptions_t *woptions;
-  char *err = NULL;
-  assert(db!=NULL);
-
-  woptions = leveldb_writeoptions_create();
-  if (value == NULL)
-    leveldb_put(db, woptions, key, strlen(key), value, 0, &err);
-  else
-    leveldb_put(db, woptions, key, strlen(key), value, strlen(value), &err);
-
-  if (err != NULL) {
-    vbprintf("DB - Write FAILED: '%s' -> '%s'\n", key, value);
-  }
-
-  leveldb_free(err); err = NULL;
-}
-
-void db_write_int(const char* key, int value) {
-  char val[16];
-  sprintf(val, "%d", value);
-  db_write(key, val);
-}
-
-char* db_readc(char* key) {
-  leveldb_readoptions_t *roptions;
-  char *err = NULL;
-  char *read, *ret;
-  size_t read_len;
-
-  roptions = leveldb_readoptions_create();
-  read = leveldb_get(db, roptions, key, strlen(key), &read_len, &err);
-
-  if (err != NULL) {
-    vbprintf("DB - Read FAILED: '%s'\n", key);
-    return NULL;
-  }
-  ret = malloc(read_len+1);
-  strncpy(ret, read, read_len);
-  ret[read_len] = 0;
-  
-  leveldb_free(err); err = NULL;
-  
-  return ret;
-}
-
 void init_prov() {
   pthread_t ptid;
-  char* env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
+  char *env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
   char path[PATH_MAX];
   int subns=1;
   char *err = NULL;
@@ -388,7 +354,7 @@ void init_prov() {
     /* reset error var */
     leveldb_free(err); err = NULL;
 
-    char* username = getlogin();
+    char *username = getlogin();
     FILE *fp;
     char uname[PATH_MAX];
     fp = popen("uname -a", "r");
@@ -409,7 +375,7 @@ void init_prov() {
     db_write("meta.agent", username == NULL ? "(noone)" : username);
     db_write("meta.machine", uname);
     db_write("meta.namespace", CDE_ROOT_NAME);
-    db_write_int("meta.subns", subns);
+    db_write_long("meta.subns", subns);
     db_write("meta.fullns", fullns);
     db_write("meta.parentns", getenv("CDE_PROV_NAMESPACE"));
     
@@ -458,4 +424,173 @@ void rstrip(char *s) {
 
 }
 
+/* db function */
 
+void db_write(const char *key, const char *value) {
+  leveldb_writeoptions_t *woptions;
+  char *err = NULL;
+  assert(db!=NULL);
+
+  woptions = leveldb_writeoptions_create();
+  if (value == NULL)
+    leveldb_put(db, woptions, key, strlen(key), value, 0, &err);
+  else
+    leveldb_put(db, woptions, key, strlen(key), value, strlen(value), &err);
+
+  if (err != NULL) {
+    vbprintf("DB - Write FAILED: '%s' -> '%s'\n", key, value);
+  }
+
+  leveldb_free(err); err = NULL;
+}
+
+void db_write_long(const char *key, long value) {
+  char val[16];
+  sprintf(val, "%ld", value);
+  db_write(key, val);
+}
+
+char* db_readc(char *key) {
+  leveldb_readoptions_t *roptions;
+  char *err = NULL;
+  char *read;
+  size_t read_len;
+
+  roptions = leveldb_readoptions_create();
+  read = leveldb_get(db, roptions, key, strlen(key), &read_len, &err);
+
+  if (err != NULL) {
+    vbprintf("DB - Read FAILED: '%s'\n", key);
+    return NULL;
+  }
+  read = realloc(read, read_len+1);
+  read[read_len] = 0;
+  
+  leveldb_free(err); err = NULL;
+  
+  return read;
+}
+
+char* db_read_pid_key(long pid) {
+  char key[KEYLEN];
+  sprintf(key, "pid.%ld", pid);
+  return db_readc(key);
+}
+
+ull_t getusec() {
+  struct timeval tv;
+  ull_t usec;
+  if (gettimeofday(&tv, NULL) != 0) {
+    usec = -1;
+  }
+  usec = tv.tv_sec * 1000000 + tv.tv_usec;
+  return usec;
+}
+
+void db_write_io_prov(long pid, int action, const char *filename_abspath) {
+  char key[KEYLEN];
+  char *pidkey=db_read_pid_key(pid);
+  if (pidkey == NULL) return;
+  ull_t usec = getusec();
+  
+  sprintf(key, "prv.iopid.%s.%d.%llu", pidkey, action, usec);
+  db_write(key, filename_abspath);
+  
+  sprintf(key, "prv.iofile.%s.%s.%llu", filename_abspath, pidkey, usec);
+  db_write_long(key, action);
+  
+  free(pidkey);
+}
+
+char* db_create_pid(long pid, ull_t usec, char* ppidkey) {
+  char key[KEYLEN];
+  char *pidkey = malloc(KEYLEN);
+  
+  sprintf(key, "pid.%ld", pid);
+  sprintf(pidkey, "%ld.%llu", pid, usec);
+  db_write(key, pidkey);
+  
+  sprintf(key, "prv.pid.%s.parent", pidkey);
+  db_write(key, ppidkey);
+  
+  return pidkey;
+}
+
+void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char *current_dir, char *args) {
+  char key[KEYLEN];
+  char *ppidkey=db_read_pid_key(ppid);
+  if (ppidkey == NULL) return;
+  ull_t usec = getusec();
+  char *pidkey;
+  
+  pidkey = db_create_pid(pid, usec, ppidkey);
+  
+  // new execve item
+  sprintf(key, "prv.pid.%s.exec.%llu", ppidkey, usec);
+  db_write(key, pidkey);
+  
+  // info on new pidkey
+  sprintf(key, "prv.pid.%s.path", pidkey);
+  db_write(key, filename_abspath);
+  sprintf(key, "prv.pid.%s.pwd", pidkey);
+  db_write(key, current_dir);
+  sprintf(key, "prv.pid.%s.args", pidkey);
+  db_write(key, args);
+  
+  free(pidkey);
+  free(ppidkey);
+}
+
+void db_write_execdone_prov(long ppid, long pid) {
+  char key[KEYLEN], value[KEYLEN];
+  char *pidkey=db_read_pid_key(pid);
+  if (pidkey == NULL) return;
+  ull_t usec = getusec();
+  
+  // create (successful) exec relation 
+  sprintf(key, "prv.pid.%s.ok", pidkey);
+  sprintf(value, "%llu", usec);
+  db_write(key, value);
+  
+  free(pidkey);
+}
+
+void db_write_prov_spawn(long ppid, long pid) {
+  char key[KEYLEN];
+  char *ppidkey=db_read_pid_key(ppid);
+  if (ppidkey == NULL) return;
+  ull_t usec = getusec();
+  char *pidkey = db_create_pid(pid, usec, ppidkey);
+  
+  // new pid
+  sprintf(key, "prv.pid.%s.spawn.%llu", ppidkey, usec);
+  db_write(key, pidkey);
+  
+  free(pidkey);
+  free(ppidkey);
+}
+
+void db_write_prov_stat(long pid, int stat, long num) {
+}
+
+
+/*
+ * primary key of processes:
+ * pid.$pid -> prv.pid.$(pid.usec)
+ * 
+ * IO provenance:
+ * prv.iopid.$(pid.usec).$action.$usec -> $filepath // tuple (pid, action, time, filepath)
+ * prv.iofile.$filepath.$(pid.usec).$usec -> $action
+ * 
+ * Exec provenance:
+ * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)
+ * prv.pid.$(pid.usec).[path, pwd, args] -> corresponding value of EXECVE
+ * prv.pid.$(pid.usec).ok -> success or not
+ * prv.pid.$(pid.usec).parent -> $(ppid.usec)
+ * 
+ * prv.pid.$(ppid.usec).spawn.$usec -> $(pid.usec)
+ * prv.pid.$(pid.usec).parent -> $(ppid.usec)
+ * 
+ * Exec info:
+ * info.($pid.usec).$time -> $stats_list
+ */
