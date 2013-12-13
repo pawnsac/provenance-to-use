@@ -20,7 +20,7 @@
 #define MIN(a,b)		(((a) < (b)) ? (a) : (b))
 #endif
 
-#define KEYLEN (128)
+#define KEYLEN (1024)
 
 extern void vbprintf(const char *fmt, ...);
 void rstrip(char *s);
@@ -43,8 +43,10 @@ static pidlist_t pidlist;
 // leveldb
 leveldb_t *db;
 leveldb_options_t *options;
+leveldb_writeoptions_t *woptions;
+leveldb_readoptions_t *roptions;
 
-typedef unsigned long long ull_t;
+typedef unsigned long long int ull_t;
 
 enum provenance_type {
   PRV_RDONLY=1, PRV_WRONLY=2, PRV_RDWR = 3, PRV_UNKNOWNIO=4, 
@@ -58,7 +60,7 @@ extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 extern char* canonicalize_path(char *path, char *relpath_base);
 
 void db_write(const char *key, const char *value);
-void db_write_long(const char *key, long value);
+void db_write_fmt(const char *key, const char *fmt, ...);
 void db_write_io_prov(long pid, int prv, const char *filename_abspath);
 void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char *current_dir, char *args);
 void db_write_execdone_prov(long ppid, long pid);
@@ -165,7 +167,7 @@ void print_exec_prov(struct tcb *tcp) {
     char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     int parentPid = tcp->parent == NULL ? -1 : tcp->parent->pid;
-    char args[MAXPATHLEN];
+    char args[KEYLEN*10];
     if (parentPid==-1) parentPid = getpid();
     assert(filename_abspath);
     print_arg_prov(args, tcp, tcp->u_arg[1]);
@@ -353,6 +355,8 @@ void init_prov() {
       exit(-1);
     }
     assert(db!=NULL);
+    woptions = leveldb_writeoptions_create();
+    roptions = leveldb_readoptions_create();
     /* reset error var */
     leveldb_free(err); err = NULL;
 
@@ -377,7 +381,7 @@ void init_prov() {
     db_write("meta.agent", username == NULL ? "(noone)" : username);
     db_write("meta.machine", uname);
     db_write("meta.namespace", CDE_ROOT_NAME);
-    db_write_long("meta.subns", subns);
+    db_write_fmt("meta.subns", "%d", subns);
     db_write("meta.fullns", fullns);
     db_write("meta.parentns", getenv("CDE_PROV_NAMESPACE"));
     
@@ -394,6 +398,8 @@ void init_prov() {
     db_write("meta.root", pidkey);
     
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
+    
+    if (username != NULL) free(username);
 
     pthread_mutex_init(&mut_pidlist, NULL);
     pidlist.pc = 0;
@@ -441,11 +447,9 @@ void rstrip(char *s) {
 /* db function */
 
 void db_write(const char *key, const char *value) {
-  leveldb_writeoptions_t *woptions;
   char *err = NULL;
   assert(db!=NULL);
 
-  woptions = leveldb_writeoptions_create();
   if (value == NULL)
     leveldb_put(db, woptions, key, strlen(key), value, 0, &err);
   else
@@ -458,19 +462,25 @@ void db_write(const char *key, const char *value) {
   leveldb_free(err); err = NULL;
 }
 
-void db_write_long(const char *key, long value) {
-  char val[16];
-  sprintf(val, "%ld", value);
+void db_write_ull(const char *key, ull_t num) {
+  char val[KEYLEN];
+  sprintf(val, "%llu", num);
+  db_write(key, val);
+}
+void db_write_fmt(const char *key, const char *fmt, ...) {
+  char val[KEYLEN];
+  va_list args;
+	va_start(args, fmt);
+  sprintf(val, fmt, args);
+	va_end(args);
   db_write(key, val);
 }
 
 char* db_readc(char *key) {
-  leveldb_readoptions_t *roptions;
   char *err = NULL;
   char *read;
   size_t read_len;
 
-  roptions = leveldb_readoptions_create();
   read = leveldb_get(db, roptions, key, strlen(key), &read_len, &err);
 
   if (err != NULL) {
@@ -497,7 +507,7 @@ ull_t getusec() {
   if (gettimeofday(&tv, NULL) != 0) {
     usec = -1;
   }
-  usec = tv.tv_sec * 1000000 + tv.tv_usec;
+  usec = (ull_t) tv.tv_sec * 1000000 + tv.tv_usec;
   return usec;
 }
 
@@ -511,7 +521,7 @@ void db_write_io_prov(long pid, int action, const char *filename_abspath) {
   db_write(key, filename_abspath);
   
   sprintf(key, "prv.iofile.%s.%s.%llu", filename_abspath, pidkey, usec);
-  db_write_long(key, action);
+  db_write_fmt(key, "%d", action);
   
   free(pidkey);
 }
@@ -550,6 +560,8 @@ void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char 
   db_write(key, current_dir);
   sprintf(key, "prv.pid.%s.args", pidkey);
   db_write(key, args);
+  sprintf(key, "prv.pid.%s.start", pidkey);
+  db_write_ull(key, usec);
   
   free(pidkey);
   free(ppidkey);
