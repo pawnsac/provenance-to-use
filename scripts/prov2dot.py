@@ -235,6 +235,7 @@ while 1:
     counter += 1
     parentnode = active_pid[pid]
     active_pid[words[3]]=node # store the dict from pid to unique node name
+    info_pid[words[3]]=info_pid[words[1]]
     pid_desc[node] = pid_desc[parentnode]
     
     if withfork: # not handle the withgraph case

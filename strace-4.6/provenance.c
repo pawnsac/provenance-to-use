@@ -462,16 +462,11 @@ void db_write(const char *key, const char *value) {
   leveldb_free(err); err = NULL;
 }
 
-void db_write_ull(const char *key, ull_t num) {
-  char val[KEYLEN];
-  sprintf(val, "%llu", num);
-  db_write(key, val);
-}
 void db_write_fmt(const char *key, const char *fmt, ...) {
   char val[KEYLEN];
   va_list args;
 	va_start(args, fmt);
-  sprintf(val, fmt, args);
+  vsprintf(val, fmt, args);
 	va_end(args);
   db_write(key, val);
 }
@@ -561,7 +556,7 @@ void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char 
   sprintf(key, "prv.pid.%s.args", pidkey);
   db_write(key, args);
   sprintf(key, "prv.pid.%s.start", pidkey);
-  db_write_ull(key, usec);
+  db_write_fmt(key, "%llu", usec);
   
   free(pidkey);
   free(ppidkey);

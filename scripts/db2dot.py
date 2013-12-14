@@ -53,6 +53,7 @@ colorid=0
 #    so that sub-graph overcolors the parent graph nodes
 re_set = {}
 db = None
+filelist = []
 
 def main():
   
@@ -102,6 +103,7 @@ def main():
   
   # make the graph
   pidqueue = deque([rootpid])
+  db.Put('prv.pid.'+rootpid+'.actualpid', rootpid)
   while len(pidqueue) > 0:
     printGraph(pidqueue, fout, f2out)
   
@@ -114,15 +116,64 @@ def main():
   f2out.close()
   db = None
 
+  # covert created graphviz and gnuplot files into svg files
+  os.chdir(dir)
+  os.system("dot -Tsvg main.process.gv -o main.process.svg")
+  print("Processing main.gv, this might take a long time ...\n")
+  #removeMultiEdge("main.gv")
+  os.system("dot -Tsvg main.gv -o main.svg")
+  #os.system("unflatten -f -l3 main.gv | dot -Tsvg -Edir=none -Gsplines=ortho -o main.svg")
+  os.system("gnuplot *.gnu")
+  for fname in glob.glob("./*.prov.gv"):
+    #removeMultiEdge(fname)
+    os.system("dot -Tsvg " + fname + " -o " + fname.replace('prov.gv', 'prov.svg'))
+  os.system('echo "<h1>Processes</h1>" >> main.html')
+  os.system('ls *.prov.svg | while read l; do echo "<a href=$l>$l</a><br/>" >> main.html; done')
+  os.system('echo "<h1>Memory Footprints</h1>" >> main.html')
+  os.system('ls *.mem.svg | while read l; do echo "<a href=$l>$l</a><br/>" >> main.html; done')
 
 def printGraph(pidqueue, f1, f2):
   pidkey = pidqueue.popleft()
   for (k, v) in db.RangeIter(key_from='prv.pid.'+pidkey+'.exec.', key_to='prv.pid.'+pidkey+'.exec.zzz'):
     try:
-      db.Get('prv.pid.'+v+'.ok') # process successfully run
+      db.Get('prv.pid.'+v+'.ok') # assert process successfully run
+      
+      # update actual pid (itself) and actual parent (parent.actualpid)
+      db.Put('prv.pid.'+v+'.actualpid', v)
+      db.Put('prv.pid.'+v+'.actualparent', db.Get('prv.pid.'+pidkey+'.actualpid'))
+      
       printProc(v, f1, f2)
-      printExecEdge(pidkey, v, f1, f2)
+      printExecEdge(v, f1, f2)
       pidqueue.append(v)
+      
+    except KeyError:
+      pass
+      
+  for (k, v) in db.RangeIter(key_from='prv.pid.'+pidkey+'.spawn.', key_to='prv.pid.'+pidkey+'.spawn.zzz'):
+    try:
+      
+      # don't print these spawn
+      #printProc(v, f1, f2)
+      #printExecEdge(pidkey, v, f1, f2)
+      
+      pidqueue.append(v)
+      
+      # update actual pid (parent.actualpid) and actual parent (parent.actualparent)
+      db.Put('prv.pid.'+v+'.actualpid', db.Get('prv.pid.'+pidkey+'.actualpid'))
+      db.Put('prv.pid.'+v+'.actualparent', db.Get('prv.pid.'+pidkey+'.actualparent'))
+      
+    except KeyError:
+      pass
+      
+  for (k, v) in db.RangeIter(key_from='prv.iopid.'+pidkey+'.', key_to='prv.iopid.'+pidkey+'.zzz'):
+    try:
+      if filter and isFilteredPath(v):
+        continue
+      fnode = v.replace('\\', '\\\\').replace('"','\\"')
+      if not v in filelist:
+        printFileNode(fnode, v, f1, f2)
+        filelist.append(v)
+      printFileEdge(pidkey, getFileAction(k), fnode, f1, f2)
     except KeyError:
       pass
 
@@ -139,26 +190,63 @@ def getExecStartTime(pidkey):
   except KeyError:
     return None
   except ValueError:
-    print db.Get('prv.pid.'+pidkey+'.start'), " ", + (int)(db.Get('prv.pid.'+pidkey+'.start'))/1000000
+    print pidkey, db.Get('prv.pid.'+pidkey+'.start'), " ", + (int)(db.Get('prv.pid.'+pidkey+'.start'))/1000000
     return None
+def hasKey(key):
+  try:
+    db.Get(key)
+    return True
+  except KeyError:
+    return False
     
 def printProc(pidkey, f1, f2):
-  label = 'PID: ' + getPidFromKey(pidkey) + "\\n" + os.path.basename(getExecAttr(pidkey, 'path'))
-  title = getExecStartTime(pidkey) + ' ' + getExecAttr(pidkey, 'pwd') + ' ' + getExecAttr(pidkey, 'args')
-  line = pidkey + ' [label="' + label + '" tooltip="' + title + '" shape="box" fillcolor="' + colors[colorid] + '" URL="' + pidkey + '.prov.svg"]\n'
+  if hasKey('prv.pid.'+pidkey+'.ok'):
+    label = 'PID: ' + getPidFromKey(pidkey) + "\\n" + os.path.basename(getExecAttr(pidkey, 'path'))
+    title = getExecStartTime(pidkey) + ' ' + getExecAttr(pidkey, 'pwd') + ' ' + \
+      getExecAttr(pidkey, 'args').replace('\\','\\\\  ').replace('"','\\"')
+    line = pidkey + ' [label="' + label + '" tooltip="' + title + '" shape="box" fillcolor="' + colors[colorid] + '" URL="' + pidkey + '.prov.svg"]\n'
+  else:
+    line = pidkey + ' [shape="box"]\n'
   f1.write(line)
   f2.write(line)
   
-def printExecEdge(key1, key2, f1, f2):
-  line = key1 + ' -> ' + key2 + '\n'
+def printExecEdge(pidkey, f1, f2):
+  line = pidkey + ' -> ' + db.Get('prv.pid.'+pidkey+'.actualparent') + '[label="wasTriggeredBy"]\n'
   f1.write(line)
   f2.write(line)
+
+def printFileNode(fnode, path, f1, f2):
+  filename=os.path.basename(path).replace('"','\\"')
+  nodedef='"' + fnode + '"[label="' + filename + '", shape="", fillcolor=' + colors[colorid] + ', tooltip="' + fnode + '"]\n'
+  f1.write(nodedef)
+  f2.write(nodedef)
+  
+def printFileEdge(pidkey, action, path, f1, f2):
+  line = ''
+  direction = ''
+  pidkey = db.Get('prv.pid.'+pidkey+'.actualpid')
+  if action == '1' or action == '3':
+    if action == '3':
+      direction = 'dir="both"'
+    line = pidkey + ' -> "' + path + '" [' + direction + ' label="used"];\n'
+  elif action == '2':
+    line = '"' + path + '" -> ' + pidkey + ' [label="wasGeneratedBy"];\n'
+  else:
+    line = '"' + path + '" -> ' + pidkey + ' [label="ERROR"];\n'
+  f1.write(line)
+  f2.write(line)
+
+def getFileAction(key):
+  return key.split('.')[4]
 
 if __name__ == "__main__":
   main()
   sys.exit(-1)
 else:
   sys.exit(-1)
+  
+  
+### =======================
 
 def processMetaData(line):
   m = re.match('# @(\w+): (.*)$', line)
@@ -168,19 +256,8 @@ def processMetaData(line):
     re_set['rmns'] = re.compile('"[^"]*' + meta['namespace'] + '\/')
   return key
 
-def makePathNode(path):
-  filename=os.path.basename(path).replace('"','\\"')
-  node=path.replace('\\', '\\\\').replace('"','\\"')
-  nodedef='"' + node + '"[label="' + filename + '", shape="", fillcolor=' + colors[colorid] + ', tooltip="' + node + '"]'
-  return (node, nodedef)
   
-def getEdgeStr(node, pathnode, deptype):
-  if deptype == "wasGeneratedBy":
-    return '"' + pathnode + '" -> ' + node
-  elif deptype == "used" or deptype == "rw":
-    return node + ' -> "' + pathnode + '"'
-  else:
-    return 'ERROR -> ERROR'
+
 
 def printArtifactDep(node, path, deptype, filter):
   if (not filter or not isFilteredPath(path)):
@@ -382,19 +459,3 @@ def removeMultiEdge(filename):
   for line in newlines:
     f.write(line)
   f.close()
-
-# covert created graphviz and gnuplot files into svg files
-os.chdir(dir)
-os.system("dot -Tsvg main.process.gv -o main.process.svg")
-print("Processing main.gv, this might take a long time ...\n")
-removeMultiEdge("main.gv")
-os.system("dot -Tsvg main.gv -o main.svg")
-#os.system("unflatten -f -l3 main.gv | dot -Tsvg -Edir=none -Gsplines=ortho -o main.svg")
-os.system("gnuplot *.gnu")
-for fname in glob.glob("./*.prov.gv"):
-  removeMultiEdge(fname)
-  os.system("dot -Tsvg " + fname + " -o " + fname.replace('prov.gv', 'prov.svg'))
-os.system('echo "<h1>Processes</h1>" >> main.html')
-os.system('ls *.prov.svg | while read l; do echo "<a href=$l>$l</a><br/>" >> main.html; done')
-os.system('echo "<h1>Memory Footprints</h1>" >> main.html')
-os.system('ls *.mem.svg | while read l; do echo "<a href=$l>$l</a><br/>" >> main.html; done')
