@@ -225,10 +225,10 @@ def printFileEdge(pidkey, action, path, f1, f2):
   line = ''
   direction = ''
   pidkey = db.Get('prv.pid.'+pidkey+'.actualpid')
-  if action == '1' or action == '3':
-    if action == '3':
-      direction = 'dir="both"'
-    line = pidkey + ' -> "' + path + '" [' + direction + ' label="used"];\n'
+  if action == '1': 
+    line = pidkey + ' -> "' + path + '" [label="used"];\n'
+  elif action == '3':
+    line = pidkey + ' -> "' + path + '" [dir="both" label="modified"];\n'
   elif action == '2':
     line = '"' + path + '" -> ' + pidkey + ' [label="wasGeneratedBy"];\n'
   else:

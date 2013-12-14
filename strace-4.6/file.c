@@ -32,6 +32,10 @@
 
 #include "defs.h"
 
+// quanpt
+extern void print_open_prov(struct tcb *tcp, const char *syscall_name);
+extern void print_rename_prov(struct tcb *tcp, const char *syscall_name);
+
 // pgbovine
 extern void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name);
 extern void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name);
@@ -469,10 +473,14 @@ decode_open(struct tcb *tcp, int offset)
 int
 sys_open(struct tcb *tcp)
 {
-  // modified by pgbovine
-  CDE_standard_fileop_macro(tcp);
+  if (entering(tcp)) {
+    CDE_begin_standard_fileop(tcp, "sys_open");
+  } else {
+    print_open_prov(tcp, "sys_open");
+  }
   return 0;
-
+  // modified by pgbovine
+  // CDE_standard_fileop_macro(tcp)
 	//return decode_open(tcp, 0);
 }
 
@@ -480,8 +488,13 @@ sys_open(struct tcb *tcp)
 int
 sys_openat(struct tcb *tcp)
 {
+  if (entering(tcp)) {
+    CDE_begin_standard_fileop(tcp, "sys_openat");
+  } else {
+    print_open_prov(tcp, "sys_openat");
+  }
   // modified by pgbovine
-  CDE_at_fileop_macro(tcp);
+  // CDE_at_fileop_macro(tcp);
   return 0;
 
   /*
@@ -2369,6 +2382,7 @@ sys_rename(struct tcb *tcp)
   }
   else {
     CDE_end_file_rename(tcp);
+    print_rename_prov(tcp, "sys_rename");
   }
   return 0;
 
@@ -2392,6 +2406,7 @@ sys_renameat(struct tcb *tcp)
   }
   else {
     CDE_end_file_renameat(tcp);
+    print_rename_prov(tcp, "sys_renameat");
   }
   return 0;
 

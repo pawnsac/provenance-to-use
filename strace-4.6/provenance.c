@@ -22,6 +22,7 @@
 
 #define KEYLEN (1024)
 
+extern char* strcpy_from_child(struct tcb* tcp, long addr);
 extern void vbprintf(const char *fmt, ...);
 void rstrip(char *s);
 
@@ -190,39 +191,73 @@ void print_execdone_prov(struct tcb *tcp) {
     db_write_execdone_prov(ppid, tcp->pid);
     add_pid_prov(tcp->pid);
     if (CDE_verbose_mode) {
-      vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve2");
+      vbprintf("[%d-prov] BEGIN execve2\n", tcp->pid);
     }
   }
 }
 
-void print_IO_prov(struct tcb *tcp, char *filename, const char *syscall_name) {
+void print_file_prov(int sec, unsigned int pid, int action, char *path) {
+  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", sec, pid, 
+      (action == PRV_RDONLY ? "READ" : (
+        action == PRV_WRONLY ? "WRITE" : (
+        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))), 
+      path);
+  db_write_io_prov(pid, action, path);
+}
+
+void print_open_prov(struct tcb *tcp, const char *syscall_name) {
   if (CDE_provenance_mode) {
-    // only track open syscalls
-    if ((tcp->u_rval >= 0) &&
-        strcmp(syscall_name, "sys_open") == 0) {
+    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 : 
+      (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+    
+    // track open, rename syscalls
+    if (tcp->u_rval >= 0 && pos > 0) {
+      char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
       char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
       assert(filename_abspath);
+      vbprintf("[%d-prov] print_open_prov: %s %s %d %d\n", tcp->pid, filename, syscall_name, tcp->u_rval, pos);
 
-      // Note: tcp->u_arg[1] is only for open(), not openat()
-      unsigned char open_mode = (tcp->u_arg[1] & 3);
+      // Note: tcp->u_arg[1] is only for open(), tcp->u_arg[2] for openat()
+      unsigned char open_mode = (tcp->u_arg[pos] & 3);
       if (open_mode == O_RDONLY) {
-        fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_io_prov(tcp->pid, PRV_RDONLY, filename_abspath);
+        print_file_prov((int)time(0), tcp->pid, PRV_RDONLY, filename_abspath);
+        //~ fprintf(CDE_provenance_logfile, "%d %u READ %s\n", (int)time(0), tcp->pid, filename_abspath);
+        //~ db_write_io_prov(tcp->pid, PRV_RDONLY, filename_abspath);
       }
       else if (open_mode == O_WRONLY) {
-        fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
+        print_file_prov((int)time(0), tcp->pid, PRV_WRONLY, filename_abspath);
+        //~ fprintf(CDE_provenance_logfile, "%d %u WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+        //~ db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
       }
       else if (open_mode == O_RDWR) {
-        fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_io_prov(tcp->pid, PRV_RDWR, filename_abspath);
+        print_file_prov((int)time(0), tcp->pid, PRV_RDWR, filename_abspath);
+        //~ fprintf(CDE_provenance_logfile, "%d %u READ-WRITE %s\n", (int)time(0), tcp->pid, filename_abspath);
+        //~ db_write_io_prov(tcp->pid, PRV_RDWR, filename_abspath);
       }
       else {
-        fprintf(CDE_provenance_logfile, "%d %u UNKNOWNIO %s\n", (int)time(0), tcp->pid, filename_abspath);
-        db_write_io_prov(tcp->pid, PRV_UNKNOWNIO, filename_abspath);
+        print_file_prov((int)time(0), tcp->pid, PRV_UNKNOWNIO, filename_abspath);
+        //~ fprintf(CDE_provenance_logfile, "%d %u UNKNOWNIO %s\n", (int)time(0), tcp->pid, filename_abspath);
+        //~ db_write_io_prov(tcp->pid, PRV_UNKNOWNIO, filename_abspath);
       }
 
       free(filename_abspath);
+    }
+  }
+}
+
+void print_rename_prov(struct tcb *tcp, const char *syscall_name) {
+  if (CDE_provenance_mode) {
+    if (tcp->u_rval == 0) {
+      int pos = strcmp(syscall_name, "sys_rename") == 0 ? 0 : 
+          (strcmp(syscall_name, "sys_renameat") == 0 ? 1 : 0);
+          // filename position: rename->0,1 or renameat->1,3 pos->pos, pos*2+1
+      char* src_filename = strcpy_from_child(tcp, tcp->u_arg[pos]);
+      print_file_prov((int)time(0), tcp->pid, PRV_RDWR, src_filename);
+      free(src_filename);
+
+      char* dst_filename = strcpy_from_child(tcp, tcp->u_arg[pos+pos+1]);
+      print_file_prov((int)time(0), tcp->pid, PRV_WRONLY, dst_filename);
+      free(dst_filename);
     }
   }
 }
