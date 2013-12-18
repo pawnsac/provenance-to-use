@@ -545,9 +545,15 @@ solaris_open(struct tcb *tcp)
 int
 sys_creat(struct tcb *tcp)
 {
-  // modified by pgbovine
-  CDE_standard_fileop_macro(tcp);
+  if (entering(tcp)) {
+    CDE_begin_standard_fileop(tcp, "sys_creat");
+  } else {
+    print_open_prov(tcp, "sys_creat");
+  }
   return 0;
+  // modified by pgbovine
+  //~ CDE_standard_fileop_macro(tcp);
+  //~ return 0;
 
   /*
 	if (entering(tcp)) {
@@ -2177,11 +2183,17 @@ sys_fchroot(struct tcb *tcp)
 int
 sys_link(struct tcb *tcp)
 {
-  // pgbovine
   if (entering(tcp)) {
     CDE_begin_file_link(tcp);
+  } else {
+    print_rename_prov(tcp, "sys_link");
   }
   return 0;
+  // pgbovine
+  //~ if (entering(tcp)) {
+    //~ CDE_begin_file_link(tcp);
+  //~ }
+  //~ return 0;
 
   /*
 	if (entering(tcp)) {
@@ -2197,11 +2209,17 @@ sys_link(struct tcb *tcp)
 int
 sys_linkat(struct tcb *tcp)
 {
-  // pgbovine
   if (entering(tcp)) {
     CDE_begin_file_linkat(tcp);
+  } else {
+    print_rename_prov(tcp, "sys_linkat");
   }
   return 0;
+  // pgbovine
+  //~ if (entering(tcp)) {
+    //~ CDE_begin_file_linkat(tcp);
+  //~ }
+  //~ return 0;
 
   /*
 	if (entering(tcp)) {

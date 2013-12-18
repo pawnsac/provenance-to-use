@@ -205,17 +205,19 @@ void print_file_prov(int sec, unsigned int pid, int action, char *path) {
   db_write_io_prov(pid, action, path);
 }
 
+// assume openAT use the same current_dir with PWD (from CDE code)
 void print_open_prov(struct tcb *tcp, const char *syscall_name) {
   if (CDE_provenance_mode) {
     int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 : 
-      (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+        (strcmp(syscall_name, "sys_creat") == 0 ? 1 : 
+        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0));
     
     // track open, rename syscalls
     if (tcp->u_rval >= 0 && pos > 0) {
       char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
       char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
       assert(filename_abspath);
-      vbprintf("[%d-prov] print_open_prov: %s %s %d %d\n", tcp->pid, filename, syscall_name, tcp->u_rval, pos);
+      //vbprintf("[%d-prov] print_open_prov: %s %s %d %d\n", tcp->pid, filename, syscall_name, tcp->u_rval, pos);
 
       // Note: tcp->u_arg[1] is only for open(), tcp->u_arg[2] for openat()
       unsigned char open_mode = (tcp->u_arg[pos] & 3);
@@ -245,19 +247,45 @@ void print_open_prov(struct tcb *tcp, const char *syscall_name) {
   }
 }
 
+// TODO: think what to do with 
+//    int symlink(const char* oldpath, const char* newpath); --> not really create a file
+//    int chmod(const char* path, mode_t mod);
+//    int chown(const char* path, uid_t owner, gid_t grp); --> write META data of a file
+//    int utimes(const char* path, const struct timeval* times);
+//    int lutimes(const char* path, const struct timeval* times); --> read META data of a file
+
+// assume renameAT use the same current_dir with PWD (from CDE code)
 void print_rename_prov(struct tcb *tcp, const char *syscall_name) {
+  vbprintf("[%d-prov] print_rename_prov: %s %d\n", tcp->pid, syscall_name, tcp->u_rval);
   if (CDE_provenance_mode) {
     if (tcp->u_rval == 0) {
-      int pos = strcmp(syscall_name, "sys_rename") == 0 ? 0 : 
-          (strcmp(syscall_name, "sys_renameat") == 0 ? 1 : 0);
-          // filename position: rename->0,1 or renameat->1,3 pos->pos, pos*2+1
-      char* src_filename = strcpy_from_child(tcp, tcp->u_arg[pos]);
-      print_file_prov((int)time(0), tcp->pid, PRV_RDWR, src_filename);
+      int pos = -1, file1_action = PRV_RDONLY;
+          //~ strcmp(syscall_name, "sys_rename") == 0 ? 0 : 
+          //~ (strcmp(syscall_name, "sys_link") == 0 ? 0 : 
+          //~ (strcmp(syscall_name, "sys_renameat") == 0 ? 1 : 
+          //~ (strcmp(syscall_name, "sys_linkat") == 0 ? 1 : 0)));
+          //~ // filename position: rename->0,1 or renameat->1,3 pos->pos, pos*2+1
+      if (strcmp(syscall_name, "sys_rename") == 0) {
+        pos = 0;
+        file1_action = PRV_RDWR;
+      } else if (strcmp(syscall_name, "sys_link") == 0) {
+        pos = 0;
+      } else if (strcmp(syscall_name, "sys_renameat") == 0) {
+        pos = 1;
+      } else if (strcmp(syscall_name, "sys_linkat") == 0) {
+        pos = 1;
+      }
+      char *src_filename = strcpy_from_child(tcp, tcp->u_arg[pos]);
+      char *src_filename_abspath = canonicalize_path(src_filename, tcp->current_dir);
+      print_file_prov((int)time(0), tcp->pid, file1_action, src_filename_abspath);
       free(src_filename);
+      free(src_filename_abspath);
 
       char* dst_filename = strcpy_from_child(tcp, tcp->u_arg[pos+pos+1]);
-      print_file_prov((int)time(0), tcp->pid, PRV_WRONLY, dst_filename);
+      char *dst_filename_abspath = canonicalize_path(dst_filename, tcp->current_dir);
+      print_file_prov((int)time(0), tcp->pid, PRV_WRONLY, dst_filename_abspath);
       free(dst_filename);
+      free(dst_filename_abspath);
     }
   }
 }
