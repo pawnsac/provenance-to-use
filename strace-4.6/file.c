@@ -31,10 +31,7 @@
  */
 
 #include "defs.h"
-
-// quanpt
-extern void print_open_prov(struct tcb *tcp, const char *syscall_name);
-extern void print_rename_prov(struct tcb *tcp, const char *syscall_name);
+#include "provenance.h"
 
 // pgbovine
 extern void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name);
@@ -84,6 +81,15 @@ extern void CDE_end_getcwd(struct tcb* tcp);
     CDE_begin_at_fileop(tcp, __FUNCTION__); \
   }
 
+#define print_syscall_read_prov_macro(tcp, pos) \
+  if (!entering(tcp)) { \
+    print_syscall_read_prov(tcp, __FUNCTION__, pos); \
+  }
+
+#define print_syscall_write_prov_macro(tcp, pos) \
+  if (!entering(tcp)) { \
+    print_syscall_write_prov(tcp, __FUNCTION__, pos); \
+  }
 
 #include <dirent.h>
 
@@ -545,15 +551,13 @@ solaris_open(struct tcb *tcp)
 int
 sys_creat(struct tcb *tcp)
 {
-  if (entering(tcp)) {
-    CDE_begin_standard_fileop(tcp, "sys_creat");
-  } else {
-    print_open_prov(tcp, "sys_creat");
-  }
-  return 0;
   // modified by pgbovine
-  //~ CDE_standard_fileop_macro(tcp);
-  //~ return 0;
+  CDE_standard_fileop_macro(tcp);
+  
+  // int creat(const char *pathname, mode_t mode);
+  print_syscall_write_prov_macro(tcp, 0);
+    
+  return 0;
 
   /*
 	if (entering(tcp)) {
@@ -593,6 +597,10 @@ int
 sys_access(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
+  
+  // int access(const char *pathname, int mode);
+  // print_syscall_readmeta_prov_macro(tcp, 0);
+  
   return 0;
 
 	//return decode_access(tcp, 0);
@@ -603,6 +611,10 @@ int
 sys_faccessat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
+  
+  // int faccessat(int dirfd, const char *pathname, int mode, int flags);
+  // print_syscall_readmeta_prov_macro(tcp, 1);
+  
   return 0;
 
   /*
@@ -741,6 +753,10 @@ int
 sys_truncate(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
+  
+  // int truncate(const char *path, off_t length);
+  print_syscall_write_prov_macro(tcp, 0);
+  
   return 0;
 
   /*
@@ -758,6 +774,10 @@ int
 sys_truncate64(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
+  
+  // int truncate(const char *path, off_t length);
+  print_syscall_write_prov_macro(tcp, 0);
+  
   return 0;
 
   /*
@@ -2186,7 +2206,8 @@ sys_link(struct tcb *tcp)
   if (entering(tcp)) {
     CDE_begin_file_link(tcp);
   } else {
-    print_rename_prov(tcp, "sys_link");
+    // int link(const char *oldpath, const char *newpath);
+    print_syscall_two_prov(tcp, "sys_link", 0, 1);
   }
   return 0;
   // pgbovine
@@ -2212,7 +2233,9 @@ sys_linkat(struct tcb *tcp)
   if (entering(tcp)) {
     CDE_begin_file_linkat(tcp);
   } else {
-    print_rename_prov(tcp, "sys_linkat");
+    // int linkat(int olddirfd, const char *oldpath,
+    //              int newdirfd, const char *newpath, int flags);
+    print_syscall_two_prov(tcp, "sys_linkat", 1, 3);
   }
   return 0;
   // pgbovine
@@ -2299,11 +2322,19 @@ sys_unlinkat(struct tcb *tcp)
 int
 sys_symlink(struct tcb *tcp)
 {
-  // pgbovine
   if (entering(tcp)) {
     CDE_begin_file_symlink(tcp);
   }
+  else {
+    // int symlink(const char *oldpath, const char *newpath);
+    print_syscall_two_prov(tcp, "sys_symlink", 0, 1);
+  }
   return 0;
+  //~ // pgbovine
+  //~ if (entering(tcp)) {
+    //~ CDE_begin_file_symlink(tcp);
+  //~ }
+  //~ return 0;
 
   /*
 	if (entering(tcp)) {
@@ -2319,11 +2350,19 @@ sys_symlink(struct tcb *tcp)
 int
 sys_symlinkat(struct tcb *tcp)
 {
-  // pgbovine
   if (entering(tcp)) {
     CDE_begin_file_symlinkat(tcp);
   }
+  else {
+    // int symlinkat(const char *oldpath, int newdirfd, const char *newpath);
+    print_syscall_two_prov(tcp, "sys_symlinkat", 0, 2); // <-- strange huh? quanpt
+  }
   return 0;
+  //~ // pgbovine
+  //~ if (entering(tcp)) {
+    //~ CDE_begin_file_symlinkat(tcp);
+  //~ }
+  //~ return 0;
 
   /*
 	if (entering(tcp)) {
@@ -2400,7 +2439,7 @@ sys_rename(struct tcb *tcp)
   }
   else {
     CDE_end_file_rename(tcp);
-    print_rename_prov(tcp, "sys_rename");
+    print_rename_prov(tcp, 0);
   }
   return 0;
 
@@ -2424,7 +2463,7 @@ sys_renameat(struct tcb *tcp)
   }
   else {
     CDE_end_file_renameat(tcp);
-    print_rename_prov(tcp, "sys_renameat");
+    print_rename_prov(tcp, 1);
   }
   return 0;
 
@@ -2445,6 +2484,10 @@ int
 sys_chown(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
+  
+  // int chown(const char *path, uid_t owner, gid_t group);
+  // print_syscall_write_prov_macro(tcp, 0);
+
   return 0;
 
   /*
@@ -2462,6 +2505,11 @@ int
 sys_fchownat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
+  
+  // int fchownat(int dirfd, const char *pathname,
+  //                  uid_t owner, gid_t group, int flags);
+  // print_syscall_write_prov_macro(tcp, 1);
+  
   return 0;
 
   /*
@@ -2503,6 +2551,10 @@ int
 sys_chmod(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
+  
+  // int chmod(const char *path, mode_t mode);
+  // print_syscall_write_prov_macro(tcp, 0);
+  
   return 0;
 
 	//return decode_chmod(tcp, 0);
@@ -2513,6 +2565,10 @@ int
 sys_fchmodat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
+  
+  // int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
+  // print_syscall_write_prov_macro(tcp, 1);
+  
   return 0;
 
   /*
@@ -2676,6 +2732,10 @@ int
 sys_mknod(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
+  
+  // int mknod(const char *pathname, mode_t mode, dev_t dev);
+  print_syscall_write_prov_macro(tcp, 0);
+  
   return 0;
 
 	//return decode_mknod(tcp, 0);
@@ -2686,6 +2746,10 @@ int
 sys_mknodat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
+  
+  // int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);
+  print_syscall_write_prov_macro(tcp, 1);
+  
   return 0;
 
   /*
