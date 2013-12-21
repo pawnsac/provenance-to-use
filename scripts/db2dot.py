@@ -89,9 +89,9 @@ def main():
   graph [rankdir = "RL" ];
   node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
   edge [fontname="Helvetica" fontsize="8"];
-  "cdenet" [label="XXX" shape="box" fillcolor=""];
-  "unknown" [label="unknown" shape="box" fillcolor=""];
-  """) # blue lightsteelblue1
+  """+
+  rootpid + '[label="XXX" shape="box" fillcolor=' +colors[colorid]+ '];\n' + \
+  "\"namespace:" + fullns + '"[shape=box label="' + agent + "@" + fullns + '" color=' +colors[colorid]+ ']\n')
   fhtml = open(dir + '/main.html', 'w')
   fhtml.write("""<h1>Overview</h1>
   <a href=main.svg>Full Graph</a><br/>
@@ -171,9 +171,9 @@ def printGraph(pidqueue, f1, f2):
         continue
       fnode = v.replace('\\', '\\\\').replace('"','\\"')
       if not v in filelist:
-        printFileNode(fnode, v, f1, f2)
+        printFileNode(fnode, v, f1)
         filelist.append(v)
-      printFileEdge(pidkey, getFileAction(k), fnode, f1, f2)
+      printFileEdge(pidkey, getFileAction(k), fnode, f1)
     except KeyError:
       pass
 
@@ -215,13 +215,13 @@ def printExecEdge(pidkey, f1, f2):
   f1.write(line)
   f2.write(line)
 
-def printFileNode(fnode, path, f1, f2):
+def printFileNode(fnode, path, f1):
   filename=os.path.basename(path).replace('"','\\"')
   nodedef='"' + fnode + '"[label="' + filename + '", shape="", fillcolor=' + colors[colorid] + ', tooltip="' + fnode + '"]\n'
   f1.write(nodedef)
-  f2.write(nodedef)
+  #f2.write(nodedef)
   
-def printFileEdge(pidkey, action, path, f1, f2):
+def printFileEdge(pidkey, action, path, f1):
   line = ''
   direction = ''
   pidkey = db.Get('prv.pid.'+pidkey+'.actualpid')
@@ -234,7 +234,7 @@ def printFileEdge(pidkey, action, path, f1, f2):
   else:
     line = '"' + path + '" -> ' + pidkey + ' [label="ERROR"];\n'
   f1.write(line)
-  f2.write(line)
+  #f2.write(line)
 
 def getFileAction(key):
   return key.split('.')[4]
