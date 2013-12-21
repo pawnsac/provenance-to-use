@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/param.h>
 #include <ctype.h>
+#include <pwd.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -444,7 +445,7 @@ void init_prov() {
     /* reset error var */
     leveldb_free(err); err = NULL;
 
-    char *username = getlogin();
+    struct passwd *pw = getpwuid(getuid()); // don't free this pointer
     FILE *fp;
     char uname[PATH_MAX];
     fp = popen("uname -a", "r");
@@ -454,7 +455,7 @@ void init_prov() {
     rstrip(uname);
     char fullns[PATH_MAX];
     sprintf(fullns, "%s.%d", CDE_ROOT_NAME, subns);
-    fprintf(CDE_provenance_logfile, "# @agent: %s\n", username == NULL ? "(noone)" : username);
+    fprintf(CDE_provenance_logfile, "# @agent: %s\n", pw == NULL ? "(noone)" : pw->pw_name);
     fprintf(CDE_provenance_logfile, "# @machine: %s\n", uname);
     fprintf(CDE_provenance_logfile, "# @namespace: %s\n", CDE_ROOT_NAME);
     fprintf(CDE_provenance_logfile, "# @subns: %d\n", subns);
@@ -462,7 +463,7 @@ void init_prov() {
     fprintf(CDE_provenance_logfile, "# @parentns: %s\n", getenv("CDE_PROV_NAMESPACE"));
     
     // provenance meta data in lvdb
-    db_write("meta.agent", username == NULL ? "(noone)" : username);
+    db_write("meta.agent", pw == NULL ? "(noone)" : pw->pw_name);
     db_write("meta.machine", uname);
     db_write("meta.namespace", CDE_ROOT_NAME);
     db_write_fmt("meta.subns", "%d", subns);
@@ -483,8 +484,6 @@ void init_prov() {
     
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
     
-    if (username != NULL) free(username);
-
     pthread_mutex_init(&mut_pidlist, NULL);
     pidlist.pc = 0;
     pthread_create( &ptid, NULL, capture_cont_prov, &pidlist);
