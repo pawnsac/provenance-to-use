@@ -106,8 +106,9 @@ def main():
   db.Put('prv.pid.'+rootpid+'.actualpid', rootpid)
   while len(pidqueue) > 0:
     printGraph(pidqueue, fout, f2out)
-  
+
   # done
+  db.Put('meta.nomalized', '1')
   if withgraph:
     fgraph.close()
   fout.write("}")
@@ -140,13 +141,20 @@ def printGraph(pidqueue, f1, f2):
       
       # update actual pid (itself) and actual parent (parent.actualpid)
       db.Put('prv.pid.'+v+'.actualpid', v)
-      db.Put('prv.pid.'+v+'.actualparent', db.Get('prv.pid.'+pidkey+'.actualpid'))
+      parent = db.Get('prv.pid.'+pidkey+'.actualpid')
+      db.Put('prv.pid.'+v+'.actualparent', parent)
+      
+      # update actual child
+      # to replace: prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)
+      time = k.split('.')[-1]
+      db.Put('prv.pid.'+parent+'.actualexec.'+time, v)
       
       printProc(v, f1, f2)
       printExecEdge(v, f1, f2)
       pidqueue.append(v)
       
     except KeyError:
+      print 'keyerror: prv.pid.%s.exec. -> %s\n' % pidkey, v
       pass
       
   for (k, v) in db.RangeIter(key_from='prv.pid.'+pidkey+'.spawn.', key_to='prv.pid.'+pidkey+'.spawn.zzz'):
@@ -163,18 +171,27 @@ def printGraph(pidqueue, f1, f2):
       db.Put('prv.pid.'+v+'.actualparent', db.Get('prv.pid.'+pidkey+'.actualparent'))
       
     except KeyError:
+      print 'keyerror: prv.pid.%s.actualpid/actualparent.\n' % pidkey
       pass
       
   for (k, v) in db.RangeIter(key_from='prv.iopid.'+pidkey+'.', key_to='prv.iopid.'+pidkey+'.zzz'):
     try:
+      # replace this: prv.iopid.$(pid.usec).$action.$usec -> $filepath
+      actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
+      actiontime = '.'.join(k.split('.')[-2:])
+      db.Put('prv.iopid.'+actualpid+'.actual.'+actiontime, v)
+      
       if filter and isFilteredPath(v):
         continue
+      
       fnode = v.replace('\\', '\\\\').replace('"','\\"')
       if not v in filelist:
         printFileNode(fnode, v, f1)
         filelist.append(v)
       printFileEdge(pidkey, getFileAction(k), fnode, f1)
+      
     except KeyError:
+      print 'keyerror: prv.pid.%s.actualpid.\n' % pidkey
       pass
 
 def getPidFromKey(pidkey):
@@ -237,7 +254,7 @@ def printFileEdge(pidkey, action, path, f1):
   #f2.write(line)
 
 def getFileAction(key):
-  return key.split('.')[4]
+  return key.split('.')[-2]
 
 if __name__ == "__main__":
   main()
