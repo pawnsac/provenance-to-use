@@ -712,13 +712,21 @@ void db_write_prov_stat(long pid, char *stat) {
  * 
  * Exec provenance:
  * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)
- * prv.pid.$(pid.usec).[path, pwd, args] -> corresponding value of EXECVE
+ * prv.pid.$(pid.usec).[path, pwd, args, start] -> corresponding value of EXECVE
  * prv.pid.$(pid.usec).ok -> success (>0, = usec) or not exists
  * prv.pid.$(pid.usec).lexit -> $usec
+ * prv.pid.$(pid.usec).stat.$usec -> $fullstring // every 1 sec?
  * 
  * prv.pid.$(ppid.usec).spawn.$usec -> $(pid.usec)
  * 
  * Exec info:
  * info.($pid.usec).$time -> $stats_list
+ * 
+ * === summary graph ===
+ * prv.pid.$(pid.usec).actualpid -> $(pid.usec)       // if a "real" process
+ * prv.pid.$(pid.usec).actualpid -> $(actualpid.usec) // if spawn
+ * prv.pid.$(pid.usec).actualparent -> $(actualppid.usec)
+ * prv.pid.$(actualppid.usec).actualexec.$usec -> $(actualpid.usec)
+ * prv.iopid.$(actualppid.usec).actual.$action.$usec -> $filepath
  */
  
