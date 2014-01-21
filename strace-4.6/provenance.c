@@ -69,11 +69,15 @@ void rm_pid_prov(pid_t pid);
 void db_write(const char *key, const char *value);
 void db_write_fmt(const char *key, const char *fmt, ...);
 void db_write_io_prov(long pid, int prv, const char *filename_abspath);
-void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char *current_dir, char *args);
+void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, \
+                        char *current_dir, char *args);
 void db_write_execdone_prov(long ppid, long pid);
 void db_write_lexit_prov(long pid);
 void db_write_spawn_prov(long ppid, long pid);
 void db_write_prov_stat(long pid, char *stat);
+void db_write_sock_action(long pid, int sockfd, \
+                       const char *buf, size_t len_param, int flags, \
+                       size_t len_result, int action);
 ull_t getusec();
 
 void add_pid_prov(pid_t pid);
@@ -178,7 +182,7 @@ void print_exec_prov(struct tcb *tcp) {
     if (parentPid==-1) parentPid = getpid();
     assert(filename_abspath);
     print_arg_prov(args, tcp, tcp->u_arg[1]);
-    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0), 
+    fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
       parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
     db_write_exec_prov(parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
     if (CDE_verbose_mode) {
@@ -203,10 +207,10 @@ void print_execdone_prov(struct tcb *tcp) {
 }
 
 //~ void print_file_prov(int sec, unsigned int pid, int action, char *path) {
-  //~ fprintf(CDE_provenance_logfile, "%d %u %s %s\n", sec, pid, 
+  //~ fprintf(CDE_provenance_logfile, "%d %u %s %s\n", sec, pid,
       //~ (action == PRV_RDONLY ? "READ" : (
         //~ action == PRV_WRONLY ? "WRITE" : (
-        //~ action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))), 
+        //~ action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
       //~ path);
   //~ db_write_io_prov(pid, action, path);
 //~ }
@@ -215,14 +219,14 @@ void print_io_prov(struct tcb *tcp, int pos, int action) {
   char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
   assert(filename_abspath);
-  
-  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid, 
+
+  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
       (action == PRV_RDONLY ? "READ" : (
         action == PRV_WRONLY ? "WRITE" : (
-        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))), 
+        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
       filename_abspath);
   db_write_io_prov(tcp->pid, action, filename_abspath);
-  
+
   free(filename);
   free(filename_abspath);
 }
@@ -242,9 +246,9 @@ void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos
 // assume openAT use the same current_dir with PWD (from CDE code)
 void print_open_prov(struct tcb *tcp, const char *syscall_name) {
   if (CDE_provenance_mode) {
-    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 : 
+    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
         (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
-    
+
     // track open, rename syscalls
     if (tcp->u_rval >= 0 && pos > 0) {
 
@@ -266,7 +270,7 @@ void print_open_prov(struct tcb *tcp, const char *syscall_name) {
   }
 }
 
-// TODO: think what to do with 
+// TODO: think what to do with
 //    int chmod(const char* path, mode_t mod);
 //    int chown(const char* path, uid_t owner, gid_t grp); --> write META data of a file
 //    int utimes(const char* path, const struct timeval* times);
@@ -341,8 +345,26 @@ void print_newsock_prov(struct tcb *tcp, const char *op, \
   if (CDE_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         op, s_port, saddr, d_port, daddr, sk);
+    printf("%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
+        op, s_port, saddr, d_port, daddr, sk);
     // TODO: db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
   }
+}
+
+void print_sock_action(struct tcb *tcp, int sockfd, \
+                       const char *buf, size_t len_param, int flags, \
+                       size_t len_result, int action) {
+  if (1) {
+    int i;
+    printf("sock %d action %d size %ld res %ld: '", \
+           sockfd, action, len_param, len_result);
+    for (i=0; i<len_result; i++) {
+      printf("%c", buf[i]);
+    }
+    printf("'\n");
+  }
+  db_write_sock_action(tcp->pid, sockfd, buf, len_param, flags, \
+                       len_result, action);
 }
 
 void print_curr_prov(pidlist_t *pidlist_p) {
@@ -405,7 +427,7 @@ void init_prov() {
   char path[PATH_MAX];
   int subns=1;
   char *err = NULL;
-  
+
   if (env_prov_mode != NULL)
     CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
   else
@@ -428,7 +450,7 @@ void init_prov() {
       fprintf(stderr, "Provenance log file: %s\n", path);
       CDE_provenance_logfile = fopen(path, "w");
     }
-    
+
     // leveldb initialization
     sprintf(path+strlen(path), "_db");
     fprintf(stderr, "Provenance db: %s\n", path);
@@ -461,7 +483,7 @@ void init_prov() {
     fprintf(CDE_provenance_logfile, "# @subns: %d\n", subns);
     fprintf(CDE_provenance_logfile, "# @fullns: %s\n", fullns);
     fprintf(CDE_provenance_logfile, "# @parentns: %s\n", getenv("CDE_PROV_NAMESPACE"));
-    
+
     // provenance meta data in lvdb
     db_write("meta.agent", pw == NULL ? "(noone)" : pw->pw_name);
     db_write("meta.machine", uname);
@@ -469,21 +491,21 @@ void init_prov() {
     db_write_fmt("meta.subns", "%d", subns);
     db_write("meta.fullns", fullns);
     db_write("meta.parentns", getenv("CDE_PROV_NAMESPACE"));
-    
+
     // the initial PTU pid node
     long pid = getpid();
     char key[KEYLEN], pidkey[KEYLEN];
     ull_t usec = getusec();
-    
+
     sprintf(key, "pid.%ld", pid);
     sprintf(pidkey, "%ld.%llu", pid, usec);
     db_write(key, pidkey);
-    
+
     sprintf(pidkey, "%ld.%llu", pid, usec);
     db_write("meta.root", pidkey);
-    
+
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
-    
+
     pthread_mutex_init(&mut_pidlist, NULL);
     pidlist.pc = 0;
     pthread_create( &ptid, NULL, capture_cont_prov, &pidlist);
@@ -529,20 +551,25 @@ void rstrip(char *s) {
 
 /* db function */
 
-void db_write(const char *key, const char *value) {
+void db_nwrite(const char *key, const char *value, int len) {
   char *err = NULL;
   assert(db!=NULL);
 
   if (value == NULL)
-    leveldb_put(db, woptions, key, strlen(key), value, 0, &err);
-  else
-    leveldb_put(db, woptions, key, strlen(key), value, strlen(value), &err);
+    len = 0;
+  else if (len < 0)
+    len = strlen(value);
+  leveldb_put(db, woptions, key, strlen(key), value, len, &err);
 
   if (err != NULL) {
     vbprintf("DB - Write FAILED: '%s' -> '%s'\n", key, value);
   }
 
   leveldb_free(err); err = NULL;
+}
+
+void db_write(const char *key, const char *value) {
+  db_nwrite(key, value, -1);
 }
 
 void db_write_fmt(const char *key, const char *fmt, ...) {
@@ -567,9 +594,9 @@ char* db_readc(char *key) {
   }
   read = realloc(read, read_len+1);
   read[read_len] = 0;
-  
+
   leveldb_free(err); err = NULL;
-  
+
   return read;
 }
 
@@ -594,27 +621,27 @@ void db_write_io_prov(long pid, int action, const char *filename_abspath) {
   char *pidkey=db_read_pid_key(pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
-  
+
   sprintf(key, "prv.iopid.%s.%d.%llu", pidkey, action, usec);
   db_write(key, filename_abspath);
-  
+
   sprintf(key, "prv.iofile.%s.%s.%llu", filename_abspath, pidkey, usec);
   db_write_fmt(key, "%d", action);
-  
+
   free(pidkey);
 }
 
 char* db_create_pid(long pid, ull_t usec, char* ppidkey) {
   char key[KEYLEN];
   char *pidkey = malloc(KEYLEN);
-  
+
   sprintf(key, "pid.%ld", pid);
   sprintf(pidkey, "%ld.%llu", pid, usec);
   db_write(key, pidkey);
-  
+
   sprintf(key, "prv.pid.%s.parent", pidkey);
   db_write(key, ppidkey);
-  
+
   return pidkey;
 }
 
@@ -624,13 +651,13 @@ void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char 
   if (ppidkey == NULL) return;
   ull_t usec = getusec();
   char *pidkey;
-  
+
   pidkey = db_create_pid(pid, usec, ppidkey);
-  
+
   // new execve item
   sprintf(key, "prv.pid.%s.exec.%llu", ppidkey, usec);
   db_write(key, pidkey);
-  
+
   // info on new pidkey
   sprintf(key, "prv.pid.%s.path", pidkey);
   db_write(key, filename_abspath);
@@ -640,7 +667,7 @@ void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, char 
   db_write(key, args);
   sprintf(key, "prv.pid.%s.start", pidkey);
   db_write_fmt(key, "%llu", usec);
-  
+
   free(pidkey);
   free(ppidkey);
 }
@@ -650,12 +677,12 @@ void db_write_execdone_prov(long ppid, long pid) {
   char *pidkey=db_read_pid_key(pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
-  
-  // create (successful) exec relation 
+
+  // create (successful) exec relation
   sprintf(key, "prv.pid.%s.ok", pidkey);
   sprintf(value, "%llu", usec);
   db_write(key, value);
-  
+
   free(pidkey);
 }
 
@@ -664,12 +691,12 @@ void db_write_lexit_prov(long pid) {
   char *pidkey=db_read_pid_key(pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
-  
-  // create (successful) exec relation 
+
+  // create (successful) exec relation
   sprintf(key, "prv.pid.%s.lexit", pidkey);
   sprintf(value, "%llu", usec);
   db_write(key, value);
-  
+
   free(pidkey);
 }
 
@@ -678,12 +705,12 @@ void db_write_spawn_prov(long ppid, long pid) {
   char *ppidkey=db_read_pid_key(ppid);
   if (ppidkey == NULL) return;
   ull_t usec = getusec();
-  
+
   char *pidkey = db_create_pid(pid, usec, ppidkey);
-  
+
   sprintf(key, "prv.pid.%s.spawn.%llu", ppidkey, usec);
   db_write(key, pidkey);
-  
+
   free(pidkey);
   free(ppidkey);
 }
@@ -693,10 +720,25 @@ void db_write_prov_stat(long pid, char *stat) {
   char *pidkey = db_read_pid_key(pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
-  
+
   sprintf(key, "prv.pid.%s.stat.%llu", pidkey, usec);
   db_write(key, stat);
-  
+
+  free(pidkey);
+}
+
+void db_write_sock_action(long pid, int sockfd, \
+                       const char *buf, size_t len_param, int flags, \
+                       size_t len_result, int action) {
+  char key[KEYLEN];
+  char *pidkey = db_read_pid_key(pid);
+  if (pidkey == NULL) return;
+  ull_t usec = getusec();
+
+  sprintf(key, "prv.pid.%s.sock.%d.%d.%ld.%d.%ld.%llu", \
+          pidkey, action, sockfd, len_param, flags, len_result, usec);
+  db_nwrite(key, buf, len_result);
+
   free(pidkey);
 }
 
@@ -705,23 +747,23 @@ void db_write_prov_stat(long pid, char *stat) {
  * primary key of processes:
  * pid.$pid -> $(pid.usec)
  * with prv.pid.$(pid.usec).parent -> $(ppid.usec)
- * 
+ *
  * IO provenance:
  * prv.iopid.$(pid.usec).$action.$usec -> $filepath // tuple (pid, action, time, filepath)
  * prv.iofile.$filepath.$(pid.usec).$usec -> $action
- * 
+ *
  * Exec provenance:
  * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)
  * prv.pid.$(pid.usec).[path, pwd, args, start] -> corresponding value of EXECVE
  * prv.pid.$(pid.usec).ok -> success (>0, = usec) or not exists
  * prv.pid.$(pid.usec).lexit -> $usec
  * prv.pid.$(pid.usec).stat.$usec -> $fullstring // every 1 sec?
- * 
+ *
  * prv.pid.$(ppid.usec).spawn.$usec -> $(pid.usec)
- * 
+ *
  * Exec info:
  * info.($pid.usec).$time -> $stats_list
- * 
+ *
  * === summary graph ===
  * prv.pid.$(pid.usec).actualpid -> $(pid.usec)       // if a "real" process
  * prv.pid.$(pid.usec).actualpid -> $(actualpid.usec) // if spawn
@@ -729,4 +771,4 @@ void db_write_prov_stat(long pid, char *stat) {
  * prv.pid.$(actualppid.usec).actualexec.$usec -> $(actualpid.usec)
  * prv.iopid.$(actualppid.usec).actual.$action.$usec -> $filepath
  */
- 
+

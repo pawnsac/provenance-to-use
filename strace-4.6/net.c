@@ -1559,7 +1559,7 @@ int
 sys_connect(tcp)
 struct tcb *tcp;
 {
-  CDE_begin_socket_bind_or_connect(tcp); // pgbovine  
+  CDE_begin_socket_bind_or_connect(tcp); // pgbovine
   CDEnet_connect(tcp);
 	return 0;
 }
@@ -1639,7 +1639,7 @@ sys_sendto(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-	  CDEnet_sendto(tcp);
+	  //CDEnet_sendto(tcp);
 // 		tprintf("sendto %ld, ", tcp->u_arg[0]);
 // 		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
 // 		tprintf(", %lu, ", tcp->u_arg[2]);
@@ -1650,7 +1650,8 @@ struct tcb *tcp;
 // 		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
 // 		/* to length */
 // 		tprintf(", %lu\n", tcp->u_arg[5]);
-	}
+	} else
+    CDEnet_sendto(tcp);
 	return 0;
 }
 
@@ -1685,7 +1686,7 @@ struct tcb *tcp;
 // 			tprintf("%#lx", tcp->u_arg[1]);
 // 		else
 // 			printstr(tcp, tcp->u_arg[1], tcp->u_rval);
-// 
+//
 // 		tprintf(", %lu, ", tcp->u_arg[2]);
 // 		printflags(msg_flags, tcp->u_arg[3], "MSG_???");
 	}
@@ -1698,9 +1699,9 @@ struct tcb *tcp;
 {
 	int fromlen;
 	if (entering(tcp)) {
-  	CDEnet_recvfrom(tcp);
 // 		tprintf("%ld, ", tcp->u_arg[0]);
 	} else {
+	  CDEnet_recvfrom(tcp);
 // 		if (syserror(tcp)) {
 // 			tprintf("%#lx, %lu, %lu, %#lx, %#lx",
 // 				tcp->u_arg[1], tcp->u_arg[2], tcp->u_arg[3],

@@ -22,6 +22,7 @@ CDEnet is currently licensed under GPL v3:
 // headers copied from net.c
 
 #include "defs.h"
+#include "cdenet.h"
 
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -179,7 +180,7 @@ int N_SIN = 1;
 struct sockaddr_in sin_key[1];
 struct sockaddr_in sin_value[1];
 
-void CDEnet_sin_dict_load() { 
+void CDEnet_sin_dict_load() {
   // TODO: implement by loading from a config file or from a server
   sin_key[0].sin_family = AF_INET;
   inet_aton("128.135.250.118", &(sin_key[0].sin_addr)); // gabri ip adress
@@ -189,7 +190,7 @@ void CDEnet_sin_dict_load() {
 }
 
 // return 1 if converted, 0 if keep intact
-int CDEnet_convert_sin(struct sockaddr_in *sin) { 
+int CDEnet_convert_sin(struct sockaddr_in *sin) {
   // TODO: check against a dictionary, alter ip and port, and consider using inet_pton
   int i;
   for (i=0; i<N_SIN; i++) {
@@ -271,7 +272,7 @@ int getsockinfo(struct tcb *tcp, long addr, int addrlen, socketdata_t *psock)
 		memcpy(&addrbuf.sa6.sin6_addr, &psock->ip.ipv6, 16);
 		break;
 #endif
- 
+
   /* Quan - not handle AF_IPX AF_APACKET AF_NETLINK */
 	/* AF_AX25 AF_APPLETALK AF_NETROM AF_BRIDGE AF_AAL5
 	AF_X25 AF_ROSE etc. still need to be done */
@@ -296,60 +297,71 @@ void printSockInfo(struct tcb* tcp, const char *op, \
 }
 
 void CDEnet_bind(struct tcb* tcp) {
+  // int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
   socketdata_t sock;
   int sk = tcp->u_rval;
   if (!entering(tcp)) {
     if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
       printSockInfo(tcp, "BIND", sock.port, sock.ip.ipv4, sk);
-    }		  
+    }
 	}
 }
 void CDEnet_connect(struct tcb* tcp) {
+  // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
   socketdata_t sock;
   if (entering(tcp)) {
 		if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-		  print_newsock_prov(tcp, "CONNECT", 0, 0, sock.port, sock.ip.ipv4, tcp->u_rval);
-		}		  
+		  print_newsock_prov(tcp, "CONNECT", 0, 0, sock.port, sock.ip.ipv4, tcp->u_arg[0]);
+		}
 	}
 }
+
+int socket_data_handle(struct tcb* tcp, int action) {
+  int len = tcp->u_rval;
+  char *buf = malloc(len);
+  if (umoven(tcp, tcp->u_arg[1], len, buf) < 0) {
+		return -1;
+	}
+	print_sock_action(tcp, tcp->u_arg[0], buf, tcp->u_arg[2], tcp->u_arg[3], len, action);
+	return 0;
+}
+
+/* receiving side
+ * ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+ * size_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+                        struct sockaddr *src_addr, socklen_t *addrlen);
+ * ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
+ */
+
+void CDEnet_recv(struct tcb* tcp) {
+  socket_data_handle(tcp, SOCK_RECV);
+}
+void CDEnet_recvfrom(struct tcb* tcp) {
+  socket_data_handle(tcp, SOCK_RECVFROM);
+}
 void CDEnet_recvmsg(struct tcb* tcp) { //TODO
-  socketdata_t sock;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, "RECVMSG", sock.port, sock.ip.ipv4);
-  }
+  printf("RECVMSG TODO");
 }
-void CDEnet_recvfrom(struct tcb* tcp) { //TODO
-  socketdata_t sock;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, "RECVFROM", sock.port, sock.ip.ipv4);
-  }
+
+/* sending side
+ * ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+ *
+ * ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+ *                     const struct sockaddr *dest_addr, socklen_t addrlen);
+ *                     // require: dest_addr == NULL && addrlen == 0
+ * ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
+ */
+void CDEnet_send(struct tcb* tcp) { //TODO
+  socket_data_handle(tcp, SOCK_SEND);
 }
-void CDEnet_recv(struct tcb* tcp) { //TODO
-  socketdata_t sock;
-  
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, "RECV", sock.port, sock.ip.ipv4);
-  }
+void CDEnet_sendto(struct tcb* tcp) {
+  socket_data_handle(tcp, SOCK_SENDTO);
 }
 void CDEnet_sendmsg(struct tcb* tcp) { //TODO
-  socketdata_t sock;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, "SENDMSG", sock.port, sock.ip.ipv4);
-  }
+  printf("SENDMSG TODO");
 }
-void CDEnet_sendto(struct tcb* tcp) { //TODO
-  socketdata_t sock;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, "SENDTO", sock.port, sock.ip.ipv4);
-  }
-}
-void CDEnet_send(struct tcb* tcp) { //TODO
-  socketdata_t sock;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, "SEND", sock.port, sock.ip.ipv4);
-  }
-}
-void CDEnet_accept(struct tcb* tcp) { 
+
+void CDEnet_accept(struct tcb* tcp) {
   // done, but should be ignore, since we only care of the return of accept
   // which is handled in accept_exit
   print_act_prov(tcp, "ACCEPT");
