@@ -58,9 +58,9 @@ void init_prov();
 
 void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name);
 void print_spawn_prov(struct tcb *tcp);
-void print_sock_prov(struct tcb *tcp, const char* op, unsigned int port, unsigned long ipv4);
+void print_sock_prov(struct tcb *tcp, int action, unsigned int port, unsigned long ipv4);
 void print_act_prov(struct tcb *tcp, const char* action);
-void print_newsock_prov(struct tcb *tcp, const char* op, \
+void print_newsock_prov(struct tcb *tcp, int action, \
   unsigned int s_port, unsigned long s_ipv4, \
   unsigned int d_port, unsigned long d_ipv4, int sk);
 
@@ -74,7 +74,7 @@ void db_write_exec_prov(long ppid, long pid, const char *filename_abspath, \
 void db_write_execdone_prov(long ppid, long pid);
 void db_write_lexit_prov(long pid);
 void db_write_spawn_prov(long ppid, long pid);
-void db_write_prov_stat(long pid, char *stat);
+void db_write_prov_stat(long pid, const char* label, char *stat);
 void db_write_sock_action(long pid, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
                        size_t len_result, int action);
@@ -330,12 +330,12 @@ void print_act_prov(struct tcb *tcp, const char *action) {
   }
 }
 
-void print_sock_prov(struct tcb *tcp, const char *op, unsigned int port, unsigned long ipv4) {
-  print_newsock_prov(tcp, op, 0, 0, port, ipv4, 0);
+void print_sock_prov(struct tcb *tcp, int action, unsigned int port, unsigned long ipv4) {
+  print_newsock_prov(tcp, action, 0, 0, port, ipv4, 0);
 }
-void print_newsock_prov(struct tcb *tcp, const char *op, \
-  unsigned int s_port, unsigned long s_ipv4, \
-  unsigned int d_port, unsigned long d_ipv4, int sk) {
+void print_newsock_prov(struct tcb *tcp, int action, \
+    unsigned int s_port, unsigned long s_ipv4, \
+    unsigned int d_port, unsigned long d_ipv4, int sk) {
   struct in_addr s_in, d_in;
   char saddr[32], daddr[32];
   s_in.s_addr = s_ipv4;
@@ -343,10 +343,10 @@ void print_newsock_prov(struct tcb *tcp, const char *op, \
   d_in.s_addr = d_ipv4;
   strcpy(daddr, inet_ntoa(d_in));
   if (CDE_provenance_mode) {
-    fprintf(CDE_provenance_logfile, "%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
-        op, s_port, saddr, d_port, daddr, sk);
-    printf("%d %u %s %u %s %u %s %d\n", (int)time(0), tcp->pid, \
-        op, s_port, saddr, d_port, daddr, sk);
+    fprintf(CDE_provenance_logfile, "%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
+        action, s_port, saddr, d_port, daddr, sk);
+    printf("%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
+        action, s_port, saddr, d_port, daddr, sk);
     // TODO: db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
   }
 }
@@ -363,6 +363,8 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
     }
     printf("'\n");
   }
+  fprintf(CDE_provenance_logfile, "%d %u SOCK %d %u %d %u %d\n", (int)time(0), tcp->pid, \
+        sockfd, len_param, flags, len_result, action);
   db_write_sock_action(tcp->pid, sockfd, buf, len_param, flags, \
                        len_result, action);
 }
@@ -393,7 +395,13 @@ void print_curr_prov(pidlist_t *pidlist_p) {
 %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
     fclose(f);
     fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
-    db_write_prov_stat(pidlist_p->pv[i], buff);
+    db_write_prov_stat(pidlist_p->pv[i], "stat", buff);
+    sprintf(buff, "/proc/%d/io", pidlist_p->pv[i]);
+    f = fopen(buff, "r");
+    if (f==NULL) continue;
+    if (fgets(buff, 1024, f) != NULL)
+      db_write_prov_stat(pidlist_p->pv[i], "io", buff);
+    fclose(f);
   }
   pthread_mutex_unlock(&mut_pidlist);
 }
@@ -715,13 +723,13 @@ void db_write_spawn_prov(long ppid, long pid) {
   free(ppidkey);
 }
 
-void db_write_prov_stat(long pid, char *stat) {
+void db_write_prov_stat(long pid,  const char* label,char *stat) {
   char key[KEYLEN];
   char *pidkey = db_read_pid_key(pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
 
-  sprintf(key, "prv.pid.%s.stat.%llu", pidkey, usec);
+  sprintf(key, "prv.pid.%s.%s.%llu", pidkey, label, usec);
   db_write(key, stat);
 
   free(pidkey);
@@ -735,8 +743,8 @@ void db_write_sock_action(long pid, int sockfd, \
   if (pidkey == NULL) return;
   ull_t usec = getusec();
 
-  sprintf(key, "prv.pid.%s.sock.%d.%d.%ld.%d.%ld.%llu", \
-          pidkey, action, sockfd, len_param, flags, len_result, usec);
+  sprintf(key, "prv.pid.%s.sock.%llu.%d.%d.%ld.%d.%ld", \
+          pidkey, usec, action, sockfd, len_param, flags, len_result);
   db_nwrite(key, buf, len_result);
 
   free(pidkey);
@@ -748,9 +756,12 @@ void db_write_sock_action(long pid, int sockfd, \
  * pid.$pid -> $(pid.usec)
  * with prv.pid.$(pid.usec).parent -> $(ppid.usec)
  *
- * IO provenance:
+ * IO provenance: (note: should change to prv.pid.$(pid.usec).io.$action.$usec)
  * prv.iopid.$(pid.usec).$action.$usec -> $filepath // tuple (pid, action, time, filepath)
  * prv.iofile.$filepath.$(pid.usec).$usec -> $action
+ * 
+ * Network provenance:
+ * prv.pid.$(pid.usec).sock.$usec.$action.$sockfd.$len_param.$flags.$len_resutl -> $memoryblock
  *
  * Exec provenance:
  * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)

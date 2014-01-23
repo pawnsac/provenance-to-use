@@ -18,5 +18,14 @@ void print_rename_prov(struct tcb *tcp, int renameat);
 void print_exec_prov(struct tcb *tcp);
 void print_execdone_prov(struct tcb *tcp);
 
+void print_act_prov(struct tcb *tcp, const char *action);
+void print_sock_prov(struct tcb *tcp, int action, 
+    unsigned int port, unsigned long ipv4);
+void print_newsock_prov(struct tcb *tcp, int action,
+    unsigned int s_port, unsigned long s_ipv4,
+    unsigned int d_port, unsigned long d_ipv4, int sk);
+void print_sock_action(struct tcb *tcp, int sockfd,
+    const char *buf, size_t len_param, int flags,
+    size_t len_result, int action);
 
 #endif // _PROVENANCE_H

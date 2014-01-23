@@ -495,7 +495,7 @@ int
 sys_openat(struct tcb *tcp)
 {
   if (entering(tcp)) {
-    CDE_begin_standard_fileop(tcp, "sys_openat");
+    CDE_begin_at_fileop(tcp, "sys_openat");
   } else {
     print_open_prov(tcp, "sys_openat");
   }
@@ -553,10 +553,10 @@ sys_creat(struct tcb *tcp)
 {
   // modified by pgbovine
   CDE_standard_fileop_macro(tcp);
-  
+
   // int creat(const char *pathname, mode_t mode);
   print_syscall_write_prov_macro(tcp, 0);
-    
+
   return 0;
 
   /*
@@ -597,10 +597,10 @@ int
 sys_access(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
-  
+
   // int access(const char *pathname, int mode);
   // print_syscall_readmeta_prov_macro(tcp, 0);
-  
+
   return 0;
 
 	//return decode_access(tcp, 0);
@@ -611,10 +611,10 @@ int
 sys_faccessat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
-  
+
   // int faccessat(int dirfd, const char *pathname, int mode, int flags);
   // print_syscall_readmeta_prov_macro(tcp, 1);
-  
+
   return 0;
 
   /*
@@ -753,10 +753,10 @@ int
 sys_truncate(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
-  
+
   // int truncate(const char *path, off_t length);
   print_syscall_write_prov_macro(tcp, 0);
-  
+
   return 0;
 
   /*
@@ -774,10 +774,10 @@ int
 sys_truncate64(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
-  
+
   // int truncate(const char *path, off_t length);
   print_syscall_write_prov_macro(tcp, 0);
-  
+
   return 0;
 
   /*
@@ -2484,7 +2484,7 @@ int
 sys_chown(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
-  
+
   // int chown(const char *path, uid_t owner, gid_t group);
   // print_syscall_write_prov_macro(tcp, 0);
 
@@ -2505,11 +2505,11 @@ int
 sys_fchownat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
-  
+
   // int fchownat(int dirfd, const char *pathname,
   //                  uid_t owner, gid_t group, int flags);
   // print_syscall_write_prov_macro(tcp, 1);
-  
+
   return 0;
 
   /*
@@ -2551,10 +2551,10 @@ int
 sys_chmod(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
-  
+
   // int chmod(const char *path, mode_t mode);
   // print_syscall_write_prov_macro(tcp, 0);
-  
+
   return 0;
 
 	//return decode_chmod(tcp, 0);
@@ -2565,10 +2565,10 @@ int
 sys_fchmodat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
-  
+
   // int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
   // print_syscall_write_prov_macro(tcp, 1);
-  
+
   return 0;
 
   /*
@@ -2732,10 +2732,10 @@ int
 sys_mknod(struct tcb *tcp)
 {
   CDE_standard_fileop_macro(tcp); // pgbovine
-  
+
   // int mknod(const char *pathname, mode_t mode, dev_t dev);
   print_syscall_write_prov_macro(tcp, 0);
-  
+
   return 0;
 
 	//return decode_mknod(tcp, 0);
@@ -2746,10 +2746,10 @@ int
 sys_mknodat(struct tcb *tcp)
 {
   CDE_at_fileop_macro(tcp); // pgbovine
-  
+
   // int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);
   print_syscall_write_prov_macro(tcp, 1);
-  
+
   return 0;
 
   /*
