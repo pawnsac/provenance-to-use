@@ -2,9 +2,10 @@
 
 PREFIX ?= /usr/local
 
-all: strace-4.6/Makefile okapi
+all: strace-4.6/Makefile okapi snappy-1.1.1/Makefile leveldb-1.14.0/Makefile
 	cd readelf-mini && make
-	cd leveldb-1.14.0 && make
+	cd snappy-1.1.1 && make
+	cd leveldb-1.14.0 && export CXXFLAGS=-I../snappy-1.1.1 && make
 	cd strace-4.6 && make
 	mv -f strace-4.6/strace ./ptu
 	cp ptu ptu-ex
@@ -14,6 +15,9 @@ install: all
 
 strace-4.6/Makefile:
 	cd strace-4.6 && ./configure
+	
+snappy-1.1.1/Makefile:
+	cd snappy-1.1.1 && ./configure --disable-shared --enable-static --with-pic
 
 clean:
 	cd readelf-mini && make clean

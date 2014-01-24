@@ -14,7 +14,7 @@ ARCH		= @arch@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = $(WARN_CFLAGS)
 AM_CPPFLAGS = -I$(srcdir)/$(OS)/$(ARCH) -I$(srcdir)/$(OS) -I$(builddir)/$(OS)
-LDADD = ../readelf-mini/libreadelf-mini.a ../leveldb-1.14.0/libleveldb.a $(INTLLIBS)
+LDADD = ../readelf-mini/libreadelf-mini.a -L ../leveldb-1.14.0 -L ../snappy-1.1.1 -lleveldb -lsnappy $(INTLLIBS)
 #LDFLAGS = -pthread
 LINK=$(CXX) -pthread -static-libgcc  -static-libstdc++ -o $@
 
