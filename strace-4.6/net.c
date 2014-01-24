@@ -31,6 +31,7 @@
  */
 
 #include "defs.h"
+#include "cdenet.h"
 
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -1550,8 +1551,12 @@ int
 sys_bind(tcp)
 struct tcb *tcp;
 {
-  CDE_begin_socket_bind_or_connect(tcp); // pgbovine
-  CDEnet_bind(tcp);
+	CDE_begin_socket_bind_or_connect(tcp); // pgbovine
+	if (entering(tcp)) {
+		CDEnet_begin_bind(tcp);
+	} else {
+		CDEnet_end_bind(tcp);
+	}
 	return 0;
 }
 
@@ -1559,8 +1564,12 @@ int
 sys_connect(tcp)
 struct tcb *tcp;
 {
-  CDE_begin_socket_bind_or_connect(tcp); // pgbovine
-  CDEnet_connect(tcp);
+	CDE_begin_socket_bind_or_connect(tcp); // pgbovine
+	if (entering(tcp)) {
+		CDEnet_begin_connect(tcp);
+	} else {
+		CDEnet_end_connect(tcp);
+	}
 	return 0;
 }
 
@@ -1569,8 +1578,10 @@ sys_listen(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-  	CDEnet_listen(tcp);
+		CDEnet_begin_listen(tcp);
 // 		tprintf("listen %ld, %lu\n", tcp->u_arg[0], tcp->u_arg[1]);
+	} else {
+		CDEnet_end_listen(tcp);
 	}
 	return 0;
 }
@@ -1579,11 +1590,14 @@ static int
 do_accept(struct tcb *tcp, int flags_arg)
 {
 	if (entering(tcp)) {
-	  CDEnet_accept(tcp);
-// 		tprintf("accept %ld, \n", tcp->u_arg[0]);
-		return 0;
+		CDEnet_begin_accept(tcp);
+	} else {
+		CDEnet_end_accept(tcp);
 	}
-	CDEnet_accept_exit(tcp);
+	//~ if (entering(tcp)) {
+		//~ tprintf("accept %ld, \n", tcp->u_arg[0]);
+		//~ return 0;
+	//~ }
 // 	if (!tcp->u_arg[2])
 // 		tprintf("%#lx, NULL", tcp->u_arg[1]);
 // 	else {
@@ -1624,12 +1638,14 @@ sys_send(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-	  CDEnet_send(tcp);
+		CDEnet_begin_send(tcp);
 // 		tprintf("send %ld, ", tcp->u_arg[0]);
 // 		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
 // 		tprintf(", %lu, ", tcp->u_arg[2]);
 // 		/* flags */
 // 		printflags(msg_flags, tcp->u_arg[3], "MSG_???\n");
+	} else {
+		CDEnet_end_send(tcp);
 	}
 	return 0;
 }
@@ -1639,6 +1655,7 @@ sys_sendto(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
+		CDEnet_begin_send(tcp);
 	  //CDEnet_sendto(tcp);
 // 		tprintf("sendto %ld, ", tcp->u_arg[0]);
 // 		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
@@ -1650,8 +1667,9 @@ struct tcb *tcp;
 // 		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
 // 		/* to length */
 // 		tprintf(", %lu\n", tcp->u_arg[5]);
-	} else
-    CDEnet_sendto(tcp);
+	} else {
+		CDEnet_end_send(tcp);
+	}
 	return 0;
 }
 
@@ -1662,12 +1680,14 @@ sys_sendmsg(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-	  CDEnet_sendmsg(tcp);
+	  CDEnet_begin_sendmsg(tcp);
 // 		tprintf("sendmsg %ld, ", tcp->u_arg[0]);
 // 		printmsghdr(tcp, tcp->u_arg[1]);
 // 		/* flags */
 // 		tprintf(", ");
 // 		printflags(msg_flags, tcp->u_arg[2], "MSG_???\n");
+	} else {
+		CDEnet_end_sendmsg(tcp);
 	}
 	return 0;
 }
@@ -1679,9 +1699,10 @@ sys_recv(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-	  CDEnet_recv(tcp);
+		CDEnet_begin_recv(tcp);
 // 		tprintf("%ld, ", tcp->u_arg[0]);
 	} else {
+		CDEnet_end_recv(tcp);
 // 		if (syserror(tcp))
 // 			tprintf("%#lx", tcp->u_arg[1]);
 // 		else
@@ -1697,11 +1718,15 @@ int
 sys_recvfrom(tcp)
 struct tcb *tcp;
 {
-	int fromlen;
 	if (entering(tcp)) {
-// 		tprintf("%ld, ", tcp->u_arg[0]);
+		CDEnet_begin_recv(tcp);
 	} else {
-	  CDEnet_recvfrom(tcp);
+		CDEnet_end_recv(tcp);
+	}
+//	int fromlen;
+//	if (entering(tcp)) {
+// 		tprintf("%ld, ", tcp->u_arg[0]);
+//	} else {
 // 		if (syserror(tcp)) {
 // 			tprintf("%#lx, %lu, %lu, %#lx, %#lx",
 // 				tcp->u_arg[1], tcp->u_arg[2], tcp->u_arg[3],
@@ -1734,7 +1759,7 @@ struct tcb *tcp;
 // 		printsock(tcp, tcp->u_arg[4], tcp->u_arg[5]);
 // 		/* from length */
 // 		tprintf(", [%u]", fromlen);
-	}
+//	}
 	return 0;
 }
 
@@ -1745,9 +1770,13 @@ sys_recvmsg(tcp)
 struct tcb *tcp;
 {
 	if (entering(tcp)) {
-	  CDEnet_recvmsg(tcp);
-// 		tprintf("recvmsg %ld, ", tcp->u_arg[0]);
+		CDEnet_begin_recvmsg(tcp);
 	} else {
+		CDEnet_end_recvmsg(tcp);
+	}
+//	if (entering(tcp)) {
+// 		tprintf("recvmsg %ld, ", tcp->u_arg[0]);
+//	} else {
 // 		if (syserror(tcp) || !verbose(tcp))
 // 			tprintf("%#lx", tcp->u_arg[1]);
 // 		else
@@ -1755,7 +1784,7 @@ struct tcb *tcp;
 // 		/* flags */
 // 		tprintf(", ");
 // 		printflags(msg_flags, tcp->u_arg[2], "MSG_???\n");
-	}
+//	}
 	return 0;
 }
 
@@ -1763,48 +1792,49 @@ struct tcb *tcp;
 int
 sys_recvmmsg(struct tcb *tcp)
 {
-	static char str[128];
+	//~ static char str[128];
 	if (entering(tcp)) {
-
-		tprintf("recvmsg_l %ld, ", tcp->u_arg[0]);
-		if (verbose(tcp)) {
-			sprint_timespec(str, tcp, tcp->u_arg[4]);
-			tcp->auxstr = strdup(str);
-		} else {
-			tprintf("%#lx, %ld, ", tcp->u_arg[1], tcp->u_arg[2]);
-			printflags(msg_flags, tcp->u_arg[3], "MSG_???");
-			tprintf(", ");
-			print_timespec(tcp, tcp->u_arg[4]);
-		}
-		tprintf("\n");
+		CDEnet_begin_recvmsg(tcp);
+		//~ tprintf("recvmsg_l %ld, ", tcp->u_arg[0]);
+		//~ if (verbose(tcp)) {
+			//~ sprint_timespec(str, tcp, tcp->u_arg[4]);
+			//~ tcp->auxstr = strdup(str);
+		//~ } else {
+			//~ tprintf("%#lx, %ld, ", tcp->u_arg[1], tcp->u_arg[2]);
+			//~ printflags(msg_flags, tcp->u_arg[3], "MSG_???");
+			//~ tprintf(", ");
+			//~ print_timespec(tcp, tcp->u_arg[4]);
+		//~ }
+		//~ tprintf("\n");
 		return 0;
 	} else {
-		if (verbose(tcp) || 1) {
-			if (syserror(tcp))
-				tprintf("%#lx", tcp->u_arg[1]);
-			else
-				printmmsghdr(tcp, tcp->u_arg[1]);
-			tprintf(", %ld, ", tcp->u_arg[2]);
-			/* flags */
-			printflags(msg_flags, tcp->u_arg[3], "MSG_???");
-			/* timeout on entrance */
-			tprintf(", %s", tcp->auxstr ? tcp->auxstr : "{...}");
-			free((void *) tcp->auxstr);
-			tcp->auxstr = NULL;
-		}
-		if (syserror(tcp))
-			return 0;
-		if (tcp->u_rval == 0) {
-			tcp->auxstr = "Timeout";
-			return RVAL_STR;
-		}
-		if (!verbose(tcp) && 0)
-			return 0;
-		/* timeout on exit */
-		strcpy(str, "left ");
-		sprint_timespec(str + strlen(str), tcp, tcp->u_arg[4]);
-		tcp->auxstr = str;
-		tprintf("\n");
+		CDEnet_end_recvmsg(tcp);
+		//~ if (verbose(tcp) || 1) {
+			//~ if (syserror(tcp))
+				//~ tprintf("%#lx", tcp->u_arg[1]);
+			//~ else
+				//~ printmmsghdr(tcp, tcp->u_arg[1]);
+			//~ tprintf(", %ld, ", tcp->u_arg[2]);
+			//~ /* flags */
+			//~ printflags(msg_flags, tcp->u_arg[3], "MSG_???");
+			//~ /* timeout on entrance */
+			//~ tprintf(", %s", tcp->auxstr ? tcp->auxstr : "{...}");
+			//~ free((void *) tcp->auxstr);
+			//~ tcp->auxstr = NULL;
+		//~ }
+		//~ if (syserror(tcp))
+			//~ return 0;
+		//~ if (tcp->u_rval == 0) {
+			//~ tcp->auxstr = "Timeout";
+			//~ return RVAL_STR;
+		//~ }
+		//~ if (!verbose(tcp) && 0)
+			//~ return 0;
+		//~ /* timeout on exit */
+		//~ strcpy(str, "left ");
+		//~ sprint_timespec(str + strlen(str), tcp, tcp->u_arg[4]);
+		//~ tcp->auxstr = str;
+		//~ tprintf("\n");
 		return RVAL_STR;
 	}
 }

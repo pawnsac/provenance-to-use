@@ -398,9 +398,13 @@ void print_curr_prov(pidlist_t *pidlist_p) {
     db_write_prov_stat(pidlist_p->pv[i], "stat", buff);
     sprintf(buff, "/proc/%d/io", pidlist_p->pv[i]);
     f = fopen(buff, "r");
-    if (f==NULL) continue;
-    if (fgets(buff, 1024, f) != NULL)
-      db_write_prov_stat(pidlist_p->pv[i], "io", buff);
+    if (f==NULL) continue; 
+    
+    int iostat = fread(buff, 1, 1024, f);
+    if (iostat > 0) {
+      buff[iostat] = 0;
+      db_write_prov_stat(pidlist_p->pv[i], "iostat", buff);
+    }
     fclose(f);
   }
   pthread_mutex_unlock(&mut_pidlist);
@@ -772,8 +776,9 @@ void db_write_sock_action(long pid, int sockfd, \
  *
  * prv.pid.$(ppid.usec).spawn.$usec -> $(pid.usec)
  *
- * Exec info:
- * info.($pid.usec).$time -> $stats_list
+ * Exec statistic:
+ * prv.pid.$(pid.usec).stat.$usec -> $(content of /proc/$pid/stat)
+ * prv.pid.$(pid.usec).iostat.$usec -> $(content of /proc/$pid/io)
  *
  * === summary graph ===
  * prv.pid.$(pid.usec).actualpid -> $(pid.usec)       // if a "real" process

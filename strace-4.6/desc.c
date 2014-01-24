@@ -431,12 +431,16 @@ sys_flock(struct tcb *tcp)
 }
 #endif /* LOCK_SH */
 
+extern void CDEnet_close(struct tcb *tcp);
 int
 sys_close(struct tcb *tcp)
 {
 	if (entering(tcp)) {
-		printfd(tcp, tcp->u_arg[0]);
+		CDEnet_close(tcp);
 	}
+	//~ if (entering(tcp)) {
+		//~ printfd(tcp, tcp->u_arg[0]);
+	//~ }
 	return 0;
 }
 

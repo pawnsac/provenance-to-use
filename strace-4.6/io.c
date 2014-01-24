@@ -46,19 +46,26 @@
 #define sys_pwrite64	sys_pwrite
 #endif
 
+extern void CDEnet_read(struct tcb* tcp);
+extern void CDEnet_write(struct tcb* tcp);
+
 int
 sys_read(struct tcb *tcp)
 {
 	if (entering(tcp)) {
-		printfd(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-	} else {
-		if (syserror(tcp))
-			tprintf("%#lx", tcp->u_arg[1]);
-		else
-			printstr(tcp, tcp->u_arg[1], tcp->u_rval);
-		tprintf(", %lu", tcp->u_arg[2]);
+		CDEnet_read(tcp);
+		// TODO quanpt - similar to CDEnet_recv
 	}
+	//~ if (entering(tcp)) {
+		//~ printfd(tcp, tcp->u_arg[0]);
+		//~ tprintf(", ");
+	//~ } else {
+		//~ if (syserror(tcp))
+			//~ tprintf("%#lx", tcp->u_arg[1]);
+		//~ else
+			//~ printstr(tcp, tcp->u_arg[1], tcp->u_rval);
+		//~ tprintf(", %lu", tcp->u_arg[2]);
+	//~ }
 	return 0;
 }
 
@@ -66,11 +73,15 @@ int
 sys_write(struct tcb *tcp)
 {
 	if (entering(tcp)) {
-		printfd(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-		printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
-		tprintf(", %lu", tcp->u_arg[2]);
+		CDEnet_write(tcp);
+		// TODO quanpt - similar to CDEnet_send
 	}
+	//~ if (entering(tcp)) {
+		//~ printfd(tcp, tcp->u_arg[0]);
+		//~ tprintf(", ");
+		//~ printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
+		//~ tprintf(", %lu", tcp->u_arg[2]);
+	//~ }
 	return 0;
 }
 

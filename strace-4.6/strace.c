@@ -878,7 +878,7 @@ main(int argc, char *argv[])
     "chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
     "faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
     "mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,"
-    "send,sendto,sendmsg,recv,recvfrom,recvmsg,accept,listen");//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
+    "send,sendto,sendmsg,recv,recvfrom,recvmsg,accept,listen,close,read,write");//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
 	qualify(tmp);
   free(tmp);
 

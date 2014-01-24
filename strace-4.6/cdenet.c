@@ -292,7 +292,7 @@ void printSockInfo(struct tcb* tcp, int op, \
   localAddr.sin_port = 0;
   localAddr.sin_addr.s_addr = 0;
 
-  if (op != SOCK_BIND && op != SOCK_ACCEPT_EXIT) {
+  if (op != SOCK_BIND && op != SOCK_ACCEPT) {
     if (getsockname(sk, (struct sockaddr*)&localAddr, &len)<0)
       printf("error: %s on %d\n", strerror(errno), sk);
   }
@@ -300,7 +300,7 @@ void printSockInfo(struct tcb* tcp, int op, \
       localAddr.sin_addr.s_addr, d_port, d_ipv4, sk);
 }
 
-void CDEnet_bind(struct tcb* tcp) {
+void CDEnet_begin_bind(struct tcb* tcp) {
   // int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
   socketdata_t sock;
   int sk = tcp->u_rval;
@@ -310,7 +310,10 @@ void CDEnet_bind(struct tcb* tcp) {
     }
   }
 }
-void CDEnet_connect(struct tcb* tcp) {
+void CDEnet_end_bind(struct tcb* tcp) { // TODO
+}
+
+void CDEnet_begin_connect(struct tcb* tcp) {
   // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
   socketdata_t sock;
   if (entering(tcp)) {
@@ -318,6 +321,8 @@ void CDEnet_connect(struct tcb* tcp) {
       print_newsock_prov(tcp, SOCK_CONNECT, 0, 0, sock.port, sock.ip.ipv4, tcp->u_arg[0]);
     }
   }
+}
+void CDEnet_end_connect(struct tcb* tcp) { // TODO
 }
 
 int socket_data_handle(struct tcb* tcp, int action) {
@@ -337,14 +342,20 @@ int socket_data_handle(struct tcb* tcp, int action) {
  * ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
  */
 
-void CDEnet_recv(struct tcb* tcp) {
-  socket_data_handle(tcp, SOCK_RECV);
+void CDEnet_begin_recv(struct tcb* tcp) { // TODO
 }
-void CDEnet_recvfrom(struct tcb* tcp) {
-  socket_data_handle(tcp, SOCK_RECVFROM);
+void CDEnet_end_recv(struct tcb* tcp) {
+  if (CDE_exec_mode) {
+  } else {
+    socket_data_handle(tcp, SOCK_RECV);
+  }
 }
-void CDEnet_recvmsg(struct tcb* tcp) { //TODO
-  printf("RECVMSG TODO");
+
+void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
+  printf("BEGIN RECVMSG TODO");
+}
+void CDEnet_end_recvmsg(struct tcb* tcp) { //TODO
+  printf("END RECVMSG TODO");
 }
 
 /* sending side
@@ -355,32 +366,75 @@ void CDEnet_recvmsg(struct tcb* tcp) { //TODO
  *                     // require: dest_addr == NULL && addrlen == 0
  * ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
  */
-void CDEnet_send(struct tcb* tcp) { //TODO
-  socket_data_handle(tcp, SOCK_SEND);
+
+void CDEnet_begin_send(struct tcb* tcp) { // TODO
 }
-void CDEnet_sendto(struct tcb* tcp) {
-  socket_data_handle(tcp, SOCK_SENDTO);
-}
-void CDEnet_sendmsg(struct tcb* tcp) { //TODO
-  printf("SENDMSG TODO");
+void CDEnet_end_send(struct tcb* tcp) {
+  if (CDE_exec_mode) {
+  } else {
+    socket_data_handle(tcp, SOCK_SEND);
+  }
 }
 
-void CDEnet_accept(struct tcb* tcp) {
+void CDEnet_begin_sendmsg(struct tcb* tcp) { //TODO
+  printf("BEGIN SENDMSG TODO");
+}
+void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
+  printf("END SENDMSG TODO");
+}
+
+void CDEnet_begin_accept(struct tcb* tcp) { // TODO
   // ignore! No value is set up yet (ip, port, etc.)
   // we only care of the return of accept
   // which is handled in accept_exit
 }
-void CDEnet_accept_exit(struct tcb* tcp) {
+void CDEnet_end_accept(struct tcb* tcp) {
   socketdata_t sock;
   int sk = tcp->u_rval;
   if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
     printSockInfo(tcp, SOCK_ACCEPT, sock.port, sock.ip.ipv4, sk);
   }
 }
-void CDEnet_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
+
+void CDEnet_begin_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
   socketdata_t sock;
   if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
     print_sock_prov(tcp, SOCK_LISTEN, sock.port, sock.ip.ipv4);
   }
 }
+void CDEnet_end_listen(struct tcb* tcp) { // TODO
+}
 
+void CDEnet_read(struct tcb* tcp) {
+  // ssize_t read(int fd, void *buf, size_t count);
+  printf("void CDEnet_read(struct tcb* tcp)\n");
+}
+
+void CDEnet_write(struct tcb* tcp) {
+  // ssize_t write(int fd, const void *buf, size_t count);
+  printf("void CDEnet_write(struct tcb* tcp)\n");
+}
+
+void CDEnet_close(struct tcb* tcp) {
+  // int close(int fd);
+  printf("void CDEnet_close(struct tcb* tcp)\n");
+}
+
+
+// sample code from systrace
+//~ static void
+//~ linux_abortsyscall(pid_t pid)
+//~ {
+	//~ struct user_regs_struct regs;
+	//~ int res = ptrace(PTRACE_GETREGS, pid, NULL, &regs);
+	//~ if (res == -1) {
+		//~ /* We might have killed the process in the mean time */
+		//~ if (errno == ESRCH)
+			//~ return;
+		//~ err(1, "%s: ptrace getregs", __func__);
+	//~ }
+	//~ SYSCALL_NUM(&regs) = 0xbadca11;
+	//~ res = ptrace(PTRACE_SETREGS, pid, NULL, &regs);
+	//~ if (res == -1)
+		//~ err(1, "%s: ptrace getregs", __func__);
+//~ }
