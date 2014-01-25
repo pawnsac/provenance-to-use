@@ -48,6 +48,15 @@ leveldb_options_t *options;
 leveldb_writeoptions_t *woptions;
 leveldb_readoptions_t *roptions;
 
+typedef struct socketdata {
+  unsigned short saf;
+  unsigned int port;
+  union ipdata {
+    unsigned long ipv4;
+    unsigned char ipv6[16];   /* IPv6 address */
+  } ip;
+} socketdata_t;
+
 typedef unsigned long long int ull_t;
 
 extern int string_quote(const char *instr, char *outstr, int len, int size);
@@ -338,16 +347,31 @@ void print_newsock_prov(struct tcb *tcp, int action, \
     unsigned int d_port, unsigned long d_ipv4, int sk) {
   struct in_addr s_in, d_in;
   char saddr[32], daddr[32];
-  s_in.s_addr = s_ipv4;
-  strcpy(saddr, inet_ntoa(s_in));
-  d_in.s_addr = d_ipv4;
-  strcpy(daddr, inet_ntoa(d_in));
   if (CDE_provenance_mode) {
+    s_in.s_addr = s_ipv4;
+    strcpy(saddr, inet_ntoa(s_in));
+    d_in.s_addr = d_ipv4;
+    strcpy(daddr, inet_ntoa(d_in));
     fprintf(CDE_provenance_logfile, "%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         action, s_port, saddr, d_port, daddr, sk);
     printf("%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         action, s_port, saddr, d_port, daddr, sk);
-    // TODO: db_write_io_prov(tcp->pid, PRV_WRONLY, filename_abspath);
+    //db_write_newsock_prov(tcp->pid, action, filename_abspath);
+  }
+}
+
+void print_connect_prov(struct tcb *tcp, int sockfd, char* addr, int addr_len, long u_rval) {
+  if (CDE_provenance_mode) {
+    // TODO: db_write_newsock_prov(tcp->pid, sockfd, addr, addr_len, u_rval);
+    socketdata_t sock;
+    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+      struct in_addr s_in, d_in;
+      char daddr[32];
+      d_in.s_addr = sock.ip.ipv4;
+      strcpy(daddr, inet_ntoa(d_in));
+      fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %s %d\n", (int)time(0), tcp->pid, \
+          sock.port, daddr, sockfd);
+    }
   }
 }
 
@@ -470,7 +494,7 @@ void init_prov() {
     leveldb_options_set_create_if_missing(options, 1);
     db = leveldb_open(options, path, &err);
     if (err != NULL || db == NULL) {
-      fprintf(stderr, "leveldb open fail.\n");
+      fprintf(stderr, "Leveldb open fail!\n");
       exit(-1);
     }
     assert(db!=NULL);
@@ -750,6 +774,9 @@ void db_write_sock_action(long pid, int sockfd, \
   sprintf(key, "prv.pid.%s.sock.%llu.%d.%d.%ld.%d.%ld", \
           pidkey, usec, action, sockfd, len_param, flags, len_result);
   db_nwrite(key, buf, len_result);
+  sprintf(key, "prv.sock.%s.action.%llu.%d.%d.%ld.%d.%ld", \
+          pidkey, usec, action, sockfd, len_param, flags, len_result);
+  db_nwrite(key, buf, len_result);
 
   free(pidkey);
 }
@@ -766,6 +793,8 @@ void db_write_sock_action(long pid, int sockfd, \
  * 
  * Network provenance:
  * prv.pid.$(pid.usec).sock.$usec.$action.$sockfd.$len_param.$flags.$len_resutl -> $memoryblock
+ * prv.sock.$(pid.usec).fd.$sockfd.$usec.$action.$len_param.$flags.$len_resutl -> 
+ *    prv.pid.$(pid.usec).sock.$usec.$action.$sockfd.$len_param.$flags.$len_resutl
  *
  * Exec provenance:
  * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)

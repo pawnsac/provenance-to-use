@@ -107,8 +107,11 @@ extern void CDE_clear_options_arrays();
 extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
+// quanpt
 extern char CDE_provenance_mode;
 extern char CDE_bare_run;
+extern char CDE_nw_mode;
+extern char* DB_NAME;
 
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
@@ -890,7 +893,7 @@ main(int argc, char *argv[])
 #ifndef USE_PROCFS
 		"D"
 #endif
-		"a:e:o:O:S:u:E:i:p:")) != EOF) {
+		"a:e:o:O:S:u:E:i:p:N:")) != EOF) {
 		switch (c) {
 		case 'c':
       // pgbovine - hijack for -c option
@@ -950,8 +953,13 @@ main(int argc, char *argv[])
 			tflag++;
 			break;
 		case 'n':
-      // pgbovine - hijack for '-n' option
-      CDE_block_net_access = 1;
+			// pgbovine - hijack for '-n' option
+			CDE_block_net_access = 1;
+			break;
+		case 'N':
+			// quanpt - network simulation mode
+			CDE_nw_mode = 1;
+			DB_NAME = strdup(optarg);
 			break;
 		case 'T':
 			dtime++;
@@ -960,32 +968,32 @@ main(int argc, char *argv[])
 			xflag++;
 			break;
 		case 'v':
-      // pgbovine - hijack for the '-v' option
+			// pgbovine - hijack for the '-v' option
 			//qualify("abbrev=none");
-      CDE_verbose_mode = 1;
+			CDE_verbose_mode = 1;
 			break;
 		case 'V':
-			printf("CDE v0.1\n");
+			printf("PALLY v0.1\n");
 			exit(0);
 			break;
 		case 'z':
 			not_failing_only = 1;
 			break;
 		case 'a':
-      // quanpt - hijack for '-a' option
-      CDE_ROOT_NAME = strdup(optarg);
+			// quanpt - hijack for '-a' option
+			CDE_ROOT_NAME = strdup(optarg);
 			//acolumn = atoi(optarg);
 			break;
-    case 'b':
-      // quanpt - bare run to create provenance, not create package
-      CDE_bare_run = 1;
-      break;
+		case 'b':
+			// quanpt - bare run to create provenance, not create package
+			CDE_bare_run = 1;
+			break;
 		case 'e':
 			qualify(optarg);
 			break;
 		case 'o':
-      // pgbovine - hijack for the '-o' option
-      CDE_PACKAGE_DIR = strdup(optarg);
+			// pgbovine - hijack for the '-o' option
+			CDE_PACKAGE_DIR = strdup(optarg);
 			//outfname = strdup(optarg);
 			break;
 		case 'O':
@@ -1146,15 +1154,18 @@ main(int argc, char *argv[])
 	 */
 
 
-  // pgbovine - do all CDE initialization here after command-line options
-  // have been processed (argv[optind] is the name of the target program)
-  extern void CDE_init(char** argv, int optind);
-  CDE_init(argv, optind);
+	// pgbovine - do all CDE initialization here after command-line options
+	// have been processed (argv[optind] is the name of the target program)
+	extern void CDE_init(char** argv, int optind);
+	CDE_init(argv, optind);
 
-  // quanpt
-  extern void initprov();
-  //if (!CDE_exec_mode) init_prov();
-  init_prov();
+	// quanpt
+	extern void initprov();
+	init_prov();
+	//if (!CDE_exec_mode) init_prov();
+	extern void init_nwdb();
+	if (CDE_nw_mode && CDE_exec_mode && !CDE_provenance_mode)
+		init_nwdb();
 
 
 	/* STARTUP_CHILD must be called before the signal handlers get

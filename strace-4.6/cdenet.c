@@ -24,6 +24,7 @@ CDEnet is currently licensed under GPL v3:
 #include "defs.h"
 #include "provenance.h"
 #include "cdenet.h"
+#include "../leveldb-1.14.0/include/leveldb/c.h"
 
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -171,10 +172,21 @@ static const struct xlat af_packet_types[] = {
 
 // variables from cde.c
 extern int CDE_exec_mode;
-extern int CDE_block_net_access;
+extern int CDE_provenance_mode;
 
 // function from cde.c
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
+
+// global parameters
+char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
+char* DB_NAME;
+extern char* cde_pseudo_pkg_dir;
+extern char* CDE_ROOT_NAME;
+
+leveldb_t *db;
+leveldb_options_t *options;
+leveldb_writeoptions_t *woptions;
+leveldb_readoptions_t *roptions;
 
 // TODO: read from external file / socket on initialization
 int N_SIN = 1;
@@ -313,16 +325,23 @@ void CDEnet_begin_bind(struct tcb* tcp) {
 void CDEnet_end_bind(struct tcb* tcp) { // TODO
 }
 
-void CDEnet_begin_connect(struct tcb* tcp) {
-  // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-  socketdata_t sock;
-  if (entering(tcp)) {
-    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-      print_newsock_prov(tcp, SOCK_CONNECT, 0, 0, sock.port, sock.ip.ipv4, tcp->u_arg[0]);
-    }
-  }
+// int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+void CDEnet_begin_connect(struct tcb* tcp) { // TODO
 }
 void CDEnet_end_connect(struct tcb* tcp) { // TODO
+  // might also use getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+  char addrbuf[128];
+  if (CDE_provenance_mode) {
+    memset(addrbuf, 0, sizeof(addrbuf));
+    if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0)
+      return;
+    print_connect_prov(tcp, tcp->u_arg[0], addrbuf, tcp->u_arg[2], tcp->u_rval);
+  }
+  //~ socketdata_t sock;
+  //~ if (CDE_provenance_mode)
+    //~ if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+      //~ //print_newsock_prov(tcp, SOCK_CONNECT, 0, 0, sock.port, sock.ip.ipv4, tcp->u_arg[0]);
+    //~ }
 }
 
 int socket_data_handle(struct tcb* tcp, int action) {
@@ -407,17 +426,39 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
 
 void CDEnet_read(struct tcb* tcp) {
   // ssize_t read(int fd, void *buf, size_t count);
-  printf("void CDEnet_read(struct tcb* tcp)\n");
+  //~ printf("void CDEnet_read(struct tcb* tcp)\n");
 }
 
 void CDEnet_write(struct tcb* tcp) {
   // ssize_t write(int fd, const void *buf, size_t count);
-  printf("void CDEnet_write(struct tcb* tcp)\n");
+  //~ printf("void CDEnet_write(struct tcb* tcp)\n");
 }
 
 void CDEnet_close(struct tcb* tcp) {
   // int close(int fd);
-  printf("void CDEnet_close(struct tcb* tcp)\n");
+  //~ printf("void CDEnet_close(struct tcb* tcp)\n");
+}
+
+void init_nwdb() {
+  char path[PATH_MAX];
+  char *err = NULL;
+  sprintf(path, "%s/%s", cde_pseudo_pkg_dir, DB_NAME);
+  if (access(path, R_OK)==-1) {
+    fprintf(stderr, "Network provenance database does not exist!\n");
+    exit(-1);
+  }
+  options = leveldb_options_create();
+  leveldb_options_set_create_if_missing(options, 0);
+  db = leveldb_open(options, path, &err);
+  if (err != NULL || db == NULL) {
+    fprintf(stderr, "Leveldb open fail!\n");
+    exit(-1);
+  }
+  assert(db!=NULL);
+  woptions = leveldb_writeoptions_create();
+  roptions = leveldb_readoptions_create();
+  /* reset error var */
+  leveldb_free(err); err = NULL;
 }
 
 
