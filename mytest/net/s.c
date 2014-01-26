@@ -24,7 +24,7 @@ int main(int argc , char *argv[])
     {
         printf("Could not create socket");
     }
-    puts("Socket created");
+    printf("Socket created %d\n", socket_desc);
 
     //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
@@ -47,34 +47,42 @@ int main(int argc , char *argv[])
     puts("Waiting for incoming connections...");
     c = sizeof(struct sockaddr_in);
 
-    //accept connection from an incoming client
-    client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-    if (client_sock < 0)
-    {
-        perror("accept failed");
-        return 1;
-    }
-    puts("Connection accepted");
+    char exitnow = 0;
+    while (!exitnow) {
+        //accept connection from an incoming client
+        client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+        if (client_sock < 0)
+        {
+            perror("accept failed");
+            return 1;
+        }
+        puts("Connection accepted");
 
 
-    //Receive a message from client
-    while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
-    {
-        //Send the message back to client
-        sprintf(reply_message, "I got: %s", client_message);
-        write(client_sock , reply_message , strlen(reply_message));
-        bzero(client_message, 2000);
-        bzero(reply_message, 2000);
-    }
+        //Receive a message from client
+        while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
+        {
+            //Send the message back to client
+            sprintf(reply_message, "I got: %s", client_message);
+            //write(client_sock , reply_message , strlen(reply_message));
+            send(client_sock , reply_message , strlen(reply_message), 0);
+            exitnow = strcmp(client_message, "_exit") == 0 ? 1 : 0;
+            printf("%d %s\n", read_size, client_message);
+            
+            bzero(client_message, 2000);
+            bzero(reply_message, 2000);
+        }
 
-    if(read_size == 0)
-    {
-        puts("Client disconnected");
-        fflush(stdout);
-    }
-    else if(read_size == -1)
-    {
-        perror("recv failed");
+        if(read_size == 0)
+        {
+            puts("Client disconnected");
+            fflush(stdout);
+        }
+        else if(read_size == -1)
+        {
+            perror("recv failed");
+        }
+        close(client_sock);
     }
 
     return 0;
