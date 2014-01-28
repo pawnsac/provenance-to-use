@@ -7,3 +7,5 @@ ss:ss.c
 	gcc ss.c -o ss -lpthread
 clean:
 	rm -rf cde-package cde.options c s ss
+p:
+	python printdb.py

@@ -21,6 +21,7 @@ CDEnet is currently licensed under GPL v3:
 
 // headers copied from net.c
 
+#include "config.h"
 #include "defs.h"
 #include "provenance.h"
 #include "cdenet.h"
@@ -57,7 +58,6 @@ CDEnet is currently licensed under GPL v3:
 #include <linux/shm.h>
 #include <sys/stat.h>
 #include <sys/param.h>
-
 
 #if defined(HAVE_SIN6_SCOPE_ID_LINUX)
 #define in6_addr in6_addr_libc
@@ -170,23 +170,98 @@ static const struct xlat af_packet_types[] = {
 #endif /* defined(AF_PACKET) */
 // end of copy from net.c
 
+// adapted from systrace
+
+enum LINUX_CALL_TYPES {
+	LINUX64 = 0,
+	LINUX32 = 1,
+	LINUX_NUM_VERSIONS = 2
+};
+
+static enum LINUX_CALL_TYPES
+linux_call_type(long codesegment) 
+{
+	if (codesegment == 0x33)
+		return (LINUX64);
+	else if (codesegment == 0x23)
+		return (LINUX32);
+        else {
+		fprintf(stderr, "%s:%d: unknown code segment %lx\n",
+		    __FILE__, __LINE__, codesegment);
+		assert(0);
+	}
+}
+
+#ifdef X86_64
+#define ISLINUX32(x)		(linux_call_type((x)->cs) == LINUX32)
+#define SYSCALL_NUM(x)		(x)->orig_rax
+#define SET_RETURN_CODE(x, v)	(x)->rax = (v)
+#define RETURN_CODE(x)		(ISLINUX32(x) ? (long)(int)(x)->rax : (x)->rax)
+#define ARGUMENT_0(x)		(ISLINUX32(x) ? (x)->rbx : (x)->rdi)
+#define ARGUMENT_1(x)		(ISLINUX32(x) ? (x)->rcx : (x)->rsi)
+#define ARGUMENT_2(x)		(ISLINUX32(x) ? (x)->rdx : (x)->rdx)
+#define ARGUMENT_3(x)		(ISLINUX32(x) ? (x)->rsi : (x)->rcx)
+#define ARGUMENT_4(x)		(ISLINUX32(x) ? (x)->rdi : (x)->r8)
+#define ARGUMENT_5(x)		(ISLINUX32(x) ? (x)->rbp : (x)->r9)
+#define SET_ARGUMENT_0(x, v)	if (ISLINUX32(x)) (x)->rbx = (v); else (x)->rdi = (v)
+#define SET_ARGUMENT_1(x, v)	if (ISLINUX32(x)) (x)->rcx = (v); else (x)->rsi = (v)
+#define SET_ARGUMENT_2(x, v)	if (ISLINUX32(x)) (x)->rdx = (v); else (x)->rdx = (v)
+#define SET_ARGUMENT_3(x, v)	if (ISLINUX32(x)) (x)->rsi = (v); else (x)->rcx = (v)
+#define SET_ARGUMENT_4(x, v)	if (ISLINUX32(x)) (x)->rdi = (v); else (x)->r8 = (v)
+#define SET_ARGUMENT_5(x, v)	if (ISLINUX32(x)) (x)->rbp = (v); else (x)->r9 = (v)
+#else
+#define SYSCALL_NUM(x)		(x)->orig_eax
+#define SET_RETURN_CODE(x, v)	(x)->eax = (v)
+#define RETURN_CODE(x)		(x)->eax
+#define ARGUMENT_0(x)		(x)->ebx
+#define ARGUMENT_1(x)		(x)->ecx
+#define ARGUMENT_2(x)		(x)->edx
+#define ARGUMENT_3(x)		(x)->esi
+#define ARGUMENT_4(x)		(x)->edi
+#define ARGUMENT_5(x)		(x)->ebp
+#define SET_ARGUMENT_0(x, v)	(x)->ebx = (v)
+#define SET_ARGUMENT_1(x, v)	(x)->ecx = (v)
+#define SET_ARGUMENT_2(x, v)	(x)->edx = (v)
+#define SET_ARGUMENT_3(x, v)	(x)->esi = (v)
+#define SET_ARGUMENT_4(x, v)	(x)->edi = (v)
+#define SET_ARGUMENT_5(x, v)	(x)->ebp = (v)
+#endif /* !X86_64 */
+
 // variables from cde.c
 extern int CDE_exec_mode;
 extern int CDE_provenance_mode;
 
 // function from cde.c
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
+#define EXITIF(x) do { \
+  if (x) { \
+    fprintf(stderr, "Fatal error in %s [%s:%d]\n", __FUNCTION__, __FILE__, __LINE__); \
+    exit(1); \
+  } \
+} while(0)
 
 // global parameters
 char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
 char* DB_NAME;
-extern char* cde_pseudo_pkg_dir;
+extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 extern char* CDE_ROOT_NAME;
 
-leveldb_t *db;
-leveldb_options_t *options;
-leveldb_writeoptions_t *woptions;
-leveldb_readoptions_t *roptions;
+leveldb_t *netdb, *tempdb;
+leveldb_options_t *netdb_options;
+leveldb_writeoptions_t *netdb_woptions;
+leveldb_readoptions_t *netdb_roptions;
+char* netdb_root;
+
+void mydb_nwrite(leveldb_t *mydb, leveldb_writeoptions_t *mywoptions, 
+    const char *key, const char *value, int len);
+void mydb_write(leveldb_t *mydb, leveldb_writeoptions_t *mywoptions, 
+    const char *key, const char *value);
+char* mydb_readc(leveldb_t *mydb, leveldb_readoptions_t *myroptions, const char *key);
+long mydb_getSockCounterInc(leveldb_t *mydb, leveldb_readoptions_t *myroptions, 
+    leveldb_writeoptions_t *mywoptions, char* pidkey);
+int mydb_getNthSock(leveldb_t *mydb, leveldb_readoptions_t *myroptions, char* pidkey, int n);
+
+char* getMappedPid(long pid);
 
 // TODO: read from external file / socket on initialization
 int N_SIN = 1;
@@ -326,7 +401,16 @@ void CDEnet_end_bind(struct tcb* tcp) { // TODO
 }
 
 // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-void CDEnet_begin_connect(struct tcb* tcp) { // TODO
+//     on connection or binding succeeds, zero is returned; on error, -1 is returned.
+void CDEnet_begin_connect(struct tcb* tcp) {
+  if (CDE_nw_mode) {
+    // deny the syscall and return my own network socket
+    struct user_regs_struct regs;
+    long pid = tcp->pid;
+    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+    SYSCALL_NUM(&regs) = 0xbadca11;
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+  }
 }
 void CDEnet_end_connect(struct tcb* tcp) { // TODO
   // might also use getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
@@ -337,11 +421,28 @@ void CDEnet_end_connect(struct tcb* tcp) { // TODO
       return;
     print_connect_prov(tcp, tcp->u_arg[0], addrbuf, tcp->u_arg[2], tcp->u_rval);
   }
-  //~ socketdata_t sock;
-  //~ if (CDE_provenance_mode)
-    //~ if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-      //~ //print_newsock_prov(tcp, SOCK_CONNECT, 0, 0, sock.port, sock.ip.ipv4, tcp->u_arg[0]);
-    //~ }
+  if (CDE_nw_mode) {
+    char *pidkey = mydb_read_pid_key(tempdb, netdb_roptions, tcp->pid);
+    int sockn = mydb_getSockCounterInc(tempdb, netdb_roptions, netdb_woptions, pidkey);
+    char* prov_pid = getMappedPid(tcp->pid);	// convert this pid to corresponding prov_pid
+    int sock = mydb_getNthSock(netdb, netdb_roptions, prov_pid, sockn);	// get the nth sock
+    
+    struct user_regs_struct regs;
+    long pid = tcp->pid;
+    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+    if (sock < 0) {
+      SET_RETURN_CODE(&regs, -1);		// return -1 to u_rval
+      // set errno?
+    } else {
+      SET_RETURN_CODE(&regs, 0);		// return 0 to u_rval
+      setConnectedSock(tcp->u_arg[0], sock);	// map this sock number to given sock in tcp
+    }
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+  }
+}
+
+void setConnectedSock(int sock, int prov_sock) {
+  printf("%d -> %d\n", sock, prov_sock);
 }
 
 int socket_data_handle(struct tcb* tcp, int action) {
@@ -439,28 +540,76 @@ void CDEnet_close(struct tcb* tcp) {
   //~ printf("void CDEnet_close(struct tcb* tcp)\n");
 }
 
+/* =============
+ * Database info extraction methods
+ * =============
+ */
 void init_nwdb() {
   char path[PATH_MAX];
   char *err = NULL;
+  
   sprintf(path, "%s/%s", cde_pseudo_pkg_dir, DB_NAME);
   if (access(path, R_OK)==-1) {
     fprintf(stderr, "Network provenance database does not exist!\n");
     exit(-1);
   }
-  options = leveldb_options_create();
-  leveldb_options_set_create_if_missing(options, 0);
-  db = leveldb_open(options, path, &err);
-  if (err != NULL || db == NULL) {
+  netdb_options = leveldb_options_create();
+  leveldb_options_set_create_if_missing(netdb_options, 0);
+  netdb = leveldb_open(netdb_options, path, &err);
+  
+  if (err != NULL || netdb == NULL) {
     fprintf(stderr, "Leveldb open fail!\n");
     exit(-1);
   }
-  assert(db!=NULL);
-  woptions = leveldb_writeoptions_create();
-  roptions = leveldb_readoptions_create();
+  
+  assert(netdb!=NULL);
+  netdb_woptions = leveldb_writeoptions_create();
+  netdb_roptions = leveldb_readoptions_create();
+  
   /* reset error var */
   leveldb_free(err); err = NULL;
+  
+  /* read in root pid */
+  netdb_root = mydb_readc(netdb, netdb_roptions, "meta.root");
+  assert(netdb_root != NULL);
+  
+  if (CDE_nw_mode) {
+    /* create temp db for current execution graph */
+    sprintf(path, "%s/%s.tempXXXXXX", cde_pseudo_pkg_dir, DB_NAME);
+    if (mkdtemp(path) == NULL) {
+      fprintf(stderr, "Cannot create temp db!\n");
+      exit(-1);
+    }
+    leveldb_options_set_create_if_missing(netdb_options, 1);
+    tempdb = leveldb_open(netdb_options, path, &err);
+    assert(tempdb!=NULL);
+    leveldb_free(err); err = NULL;
+    // TODO write current pid as root pid
+  }
 }
 
+
+// get the corresponding pid from traced execution
+// some graph algorithm is needed here
+// @input current pid
+// @return pidkey from db
+// TODO
+char* getMappedPid(long pid) {
+  // STUB method for now - return first child of root
+  // TODO: need a cache for this operation as well
+  char key[KEYLEN];
+  char *read;
+  size_t read_len;
+  
+  sprintf(key, "prv.pid.%s.actualexec.", netdb_root);
+  leveldb_iterator_t *it = leveldb_create_iterator(netdb, netdb_roptions);
+  leveldb_iter_seek(it, key, strlen(key));
+  
+  read = (char*) leveldb_iter_value(it, &read_len);
+  read = realloc(read, read_len+1);
+  read[read_len] = 0;
+  return read;
+}
 
 // sample code from systrace
 //~ static void

@@ -8,6 +8,10 @@ enum provenance_type {
   PRV_ACTION=65,
   PRV_INVALID=127};
 
+#ifndef KEYLEN
+#define KEYLEN (1024)
+#endif
+
 void print_syscall_read_prov(struct tcb *tcp, const char *syscall_name, int pos);
 void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos);
 void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posread, int poswrite);
@@ -27,5 +31,6 @@ void print_newsock_prov(struct tcb *tcp, int action,
 void print_sock_action(struct tcb *tcp, int sockfd,
     const char *buf, size_t len_param, int flags,
     size_t len_result, int action);
-
+void print_connect_prov(struct tcb *tcp, 
+    int sockfd, char* addr, int addr_len, long u_rval);
 #endif // _PROVENANCE_H
