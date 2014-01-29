@@ -116,7 +116,7 @@ am_strace_OBJECTS = strace.$(OBJEXT) syscall.$(OBJEXT) count.$(OBJEXT) \
 strace_OBJECTS = $(am_strace_OBJECTS)
 strace_LDADD = $(LDADD)
 strace_DEPENDENCIES = ../readelf-mini/libreadelf-mini.a \
-	../leveldb-1.14.0 ../snappy-1.1.1
+	../leveldb-1.14.0 ../snappy-1.1.1/.libs
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
     $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
@@ -374,7 +374,7 @@ ARCH = @arch@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = $(WARN_CFLAGS)
 AM_CPPFLAGS = -I$(srcdir)/$(OS)/$(ARCH) -I$(srcdir)/$(OS) -I$(builddir)/$(OS)
-LDADD = ../readelf-mini/libreadelf-mini.a -L ../leveldb-1.14.0 -L ../snappy-1.1.1 -lleveldb -lsnappy $(INTLLIBS)
+LDADD = ../readelf-mini/libreadelf-mini.a -L ../leveldb-1.14.0 -L ../snappy-1.1.1/.libs -lleveldb -lsnappy $(INTLLIBS)
 #LDFLAGS = -pthread
 LINK = $(CXX) -pthread -static-libgcc  -static-libstdc++ -o $@
 strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \

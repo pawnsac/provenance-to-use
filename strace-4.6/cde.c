@@ -70,6 +70,7 @@ __asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 depen
 char CDE_exec_mode;
 extern char CDE_provenance_mode; // quanpt
 extern char CDE_bare_run; // quanpt
+extern char CDE_nw_mode; // quanpt
 char CDE_verbose_mode = 0; // -v option
 char* CDE_ROOT_NAME = NULL;
 // only valid if !CDE_exec_mode
@@ -2028,7 +2029,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
 done:
-  if (CDE_provenance_mode) {
+  if (CDE_provenance_mode || CDE_nw_mode) {
     if (CDE_verbose_mode)
       vbprintf("  will %sbe captured in provenance.\n", is_runable_count > 0 ? "NOT " : "");
     if (is_runable_count==0)

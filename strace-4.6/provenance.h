@@ -12,6 +12,8 @@ enum provenance_type {
 #define KEYLEN (1024)
 #endif
 
+typedef unsigned long long int ull_t;
+
 void print_syscall_read_prov(struct tcb *tcp, const char *syscall_name, int pos);
 void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos);
 void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posread, int poswrite);
@@ -33,4 +35,13 @@ void print_sock_action(struct tcb *tcp, int sockfd,
     size_t len_result, int action);
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval);
+    
+#include "../leveldb-1.14.0/include/leveldb/c.h"
+typedef struct {
+  leveldb_t *db;
+  leveldb_options_t *options;
+  leveldb_writeoptions_t *woptions;
+  leveldb_readoptions_t *roptions;
+} lvldb_t;
+
 #endif // _PROVENANCE_H

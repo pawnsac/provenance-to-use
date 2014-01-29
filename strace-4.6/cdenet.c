@@ -230,9 +230,11 @@ linux_call_type(long codesegment)
 // variables from cde.c
 extern int CDE_exec_mode;
 extern int CDE_provenance_mode;
+extern int CDE_verbose_mode;
 
 // function from cde.c
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
+extern void vbprintf(const char *fmt, ...);
 #define EXITIF(x) do { \
   if (x) { \
     fprintf(stderr, "Fatal error in %s [%s:%d]\n", __FUNCTION__, __FILE__, __LINE__); \
@@ -246,20 +248,16 @@ char* DB_NAME;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 extern char* CDE_ROOT_NAME;
 
-leveldb_t *netdb, *tempdb;
-leveldb_options_t *netdb_options;
-leveldb_writeoptions_t *netdb_woptions;
-leveldb_readoptions_t *netdb_roptions;
+lvldb_t *netdb, *currdb;
 char* netdb_root;
 
-void mydb_nwrite(leveldb_t *mydb, leveldb_writeoptions_t *mywoptions, 
-    const char *key, const char *value, int len);
-void mydb_write(leveldb_t *mydb, leveldb_writeoptions_t *mywoptions, 
-    const char *key, const char *value);
-char* mydb_readc(leveldb_t *mydb, leveldb_readoptions_t *myroptions, const char *key);
-long mydb_getSockCounterInc(leveldb_t *mydb, leveldb_readoptions_t *myroptions, 
-    leveldb_writeoptions_t *mywoptions, char* pidkey);
-int mydb_getNthSock(leveldb_t *mydb, leveldb_readoptions_t *myroptions, char* pidkey, int n);
+void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len);
+void db_write(lvldb_t *mydb, const char *key, const char *value);
+char* db_readc(lvldb_t *mydb, const char *key);
+ull_t db_getSockCounterInc(lvldb_t *mydb, char* pidkey);
+int db_getNthSockResult(lvldb_t *mydb, char* pidkey, int n);
+char* db_read_pid_key(lvldb_t *mydb, long pid);
+void db_write_root(lvldb_t *mydb);
 
 char* getMappedPid(long pid);
 
@@ -387,6 +385,15 @@ void printSockInfo(struct tcb* tcp, int op, \
       localAddr.sin_addr.s_addr, d_port, d_ipv4, sk);
 }
 
+void setConnectedSock(lvldb_t *mydb, int pid, int sock, ull_t sockid) {
+  char key[KEYLEN];
+  sprintf(key, "pid.%d.sock.%d", pid, sock);
+  if (CDE_verbose_mode) {
+    vbprintf("[%ld-exec] map current connected sock %d -> %d\n", sock, sockid);
+  }
+  db_nwrite(currdb, key, (char*) &sockid, sizeof(ull_t));
+}
+
 void CDEnet_begin_bind(struct tcb* tcp) {
   // int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
   socketdata_t sock;
@@ -400,19 +407,24 @@ void CDEnet_begin_bind(struct tcb* tcp) {
 void CDEnet_end_bind(struct tcb* tcp) { // TODO
 }
 
+void denySyscall(long pid) {
+  struct user_regs_struct regs;
+  EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+  if (CDE_verbose_mode) {
+    vbprintf("[%ld-prov] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
+  }
+  SYSCALL_NUM(&regs) = 0xbadca11;
+  EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+}
+
 // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 //     on connection or binding succeeds, zero is returned; on error, -1 is returned.
 void CDEnet_begin_connect(struct tcb* tcp) {
   if (CDE_nw_mode) {
-    // deny the syscall and return my own network socket
-    struct user_regs_struct regs;
-    long pid = tcp->pid;
-    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-    SYSCALL_NUM(&regs) = 0xbadca11;
-    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    denySyscall(tcp->pid);
   }
 }
-void CDEnet_end_connect(struct tcb* tcp) { // TODO
+void CDEnet_end_connect(struct tcb* tcp) {
   // might also use getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
   char addrbuf[128];
   if (CDE_provenance_mode) {
@@ -421,28 +433,26 @@ void CDEnet_end_connect(struct tcb* tcp) { // TODO
       return;
     print_connect_prov(tcp, tcp->u_arg[0], addrbuf, tcp->u_arg[2], tcp->u_rval);
   }
-  if (CDE_nw_mode) {
-    char *pidkey = mydb_read_pid_key(tempdb, netdb_roptions, tcp->pid);
-    int sockn = mydb_getSockCounterInc(tempdb, netdb_roptions, netdb_woptions, pidkey);
+  if (CDE_nw_mode) { // return my own network socket connect result from netdb
+    char *pidkey = db_read_pid_key(currdb, tcp->pid);
+    ull_t sockid = db_getSockCounterInc(currdb, pidkey);
     char* prov_pid = getMappedPid(tcp->pid);	// convert this pid to corresponding prov_pid
-    int sock = mydb_getNthSock(netdb, netdb_roptions, prov_pid, sockn);	// get the nth sock
+    int u_rval = db_getNthSockResult(netdb, prov_pid, sockid);	// get the nth sock
     
     struct user_regs_struct regs;
     long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-    if (sock < 0) {
-      SET_RETURN_CODE(&regs, -1);		// return -1 to u_rval
-      // set errno?
+    SET_RETURN_CODE(&regs, u_rval);
+    if (u_rval < 0) {
+      // set errno? TODO
     } else {
-      SET_RETURN_CODE(&regs, 0);		// return 0 to u_rval
-      setConnectedSock(tcp->u_arg[0], sock);	// map this sock number to given sock in tcp
+      setConnectedSock(currdb, pid, tcp->u_arg[0], sockid);	// map this sock number to given sock in tcp
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    
+    free(prov_pid);
+    free(pidkey);
   }
-}
-
-void setConnectedSock(int sock, int prov_sock) {
-  printf("%d -> %d\n", sock, prov_sock);
 }
 
 int socket_data_handle(struct tcb* tcp, int action) {
@@ -488,11 +498,16 @@ void CDEnet_end_recvmsg(struct tcb* tcp) { //TODO
  */
 
 void CDEnet_begin_send(struct tcb* tcp) { // TODO
+  if (CDE_nw_mode) {
+    denySyscall(tcp->pid);
+  }
 }
 void CDEnet_end_send(struct tcb* tcp) {
-  if (CDE_exec_mode) {
-  } else {
+  if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_SEND);
+  }
+  if (CDE_nw_mode) {
+    
   }
 }
 
@@ -553,24 +568,26 @@ void init_nwdb() {
     fprintf(stderr, "Network provenance database does not exist!\n");
     exit(-1);
   }
-  netdb_options = leveldb_options_create();
-  leveldb_options_set_create_if_missing(netdb_options, 0);
-  netdb = leveldb_open(netdb_options, path, &err);
+  
+  netdb = malloc(sizeof(lvldb_t));
+  netdb->options = leveldb_options_create();
+  leveldb_options_set_create_if_missing(netdb->options, 0);
+  netdb->db = leveldb_open(netdb->options, path, &err);
   
   if (err != NULL || netdb == NULL) {
     fprintf(stderr, "Leveldb open fail!\n");
     exit(-1);
   }
   
-  assert(netdb!=NULL);
-  netdb_woptions = leveldb_writeoptions_create();
-  netdb_roptions = leveldb_readoptions_create();
+  assert(netdb->db!=NULL);
+  netdb->woptions = leveldb_writeoptions_create();
+  netdb->roptions = leveldb_readoptions_create();
   
   /* reset error var */
   leveldb_free(err); err = NULL;
   
   /* read in root pid */
-  netdb_root = mydb_readc(netdb, netdb_roptions, "meta.root");
+  netdb_root = db_readc(netdb, "meta.root");
   assert(netdb_root != NULL);
   
   if (CDE_nw_mode) {
@@ -580,11 +597,16 @@ void init_nwdb() {
       fprintf(stderr, "Cannot create temp db!\n");
       exit(-1);
     }
-    leveldb_options_set_create_if_missing(netdb_options, 1);
-    tempdb = leveldb_open(netdb_options, path, &err);
-    assert(tempdb!=NULL);
+    currdb = malloc(sizeof(lvldb_t));
+    currdb->options = leveldb_options_create();
+    leveldb_options_set_create_if_missing(currdb->options, 1);
+    currdb->db = leveldb_open(currdb->options, path, &err);
+    assert(currdb->db!=NULL);
     leveldb_free(err); err = NULL;
-    // TODO write current pid as root pid
+    currdb->woptions = leveldb_writeoptions_create();
+    currdb->roptions = leveldb_readoptions_create();
+    
+    db_write_root(currdb);
   }
 }
 
@@ -597,18 +619,19 @@ void init_nwdb() {
 char* getMappedPid(long pid) {
   // STUB method for now - return first child of root
   // TODO: need a cache for this operation as well
-  char key[KEYLEN];
+  char key[KEYLEN], *value;
   char *read;
   size_t read_len;
   
   sprintf(key, "prv.pid.%s.actualexec.", netdb_root);
-  leveldb_iterator_t *it = leveldb_create_iterator(netdb, netdb_roptions);
+  leveldb_iterator_t *it = leveldb_create_iterator(netdb->db, netdb->roptions);
   leveldb_iter_seek(it, key, strlen(key));
   
-  read = (char*) leveldb_iter_value(it, &read_len);
-  read = realloc(read, read_len+1);
-  read[read_len] = 0;
-  return read;
+  read = leveldb_iter_value(it, &read_len);
+  value = malloc(read_len + 1);
+  memcpy(value, read, read_len);
+  value[read_len] = '\0';
+  return value;
 }
 
 // sample code from systrace
