@@ -259,13 +259,13 @@ void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
 char* db_read_pid_key(lvldb_t *mydb, long pid);
 void db_write_root(lvldb_t *mydb);
 void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
-ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
+char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
 
-void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
+void db_setSockConnectId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
 ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey);
-ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, ull_t sockid, int action);
+ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action);
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, ull_t sockid, ull_t sendid, size_t *presult);
+    char* pidkey, char* sockid, ull_t sendid, size_t *presult);
 int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
 ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
 
@@ -471,7 +471,7 @@ void CDEnet_end_connect(struct tcb* tcp) {
     if (u_rval < 0) {
       // set errno? TODO
     } else {
-      db_setSockId(currdb, pidkey, sockfd, sockid);	// map this sock number to given sock in tcp
+      db_setSockConnectId(currdb, pidkey, sockfd, sockid);	// map this sock number to given sock in tcp
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
@@ -511,8 +511,8 @@ void CDEnet_end_recv(struct tcb* tcp) {
   }
   if (CDE_nw_mode) {
     long pid = tcp->pid;
-    char *pidkey = db_read_pid_key(currdb, pid);
-    ull_t sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
+    char* pidkey = db_read_pid_key(currdb, pid);
+    char* sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     size_t u_rval;
@@ -530,6 +530,7 @@ void CDEnet_end_recv(struct tcb* tcp) {
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
     free(prov_pid);
+    free(sockid);
     free(pidkey);
   }
 }
@@ -557,15 +558,15 @@ void CDEnet_begin_send(struct tcb* tcp) {
 }
 
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, ull_t sockid, ull_t pkgid, size_t *presult) {
+    char* pidkey, char* sockid, ull_t pkgid, size_t *presult) {
   char key[KEYLEN];
   ull_t res;
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
-  sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu", pidkey, sockid, action, pkgid);
+  sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", pidkey, sockid, action, pkgid);
   db_read_ull(mydb, key, &res);
   *presult = (int) res;
   if (action == SOCK_RECV) {
-    sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu.buff", \
+    sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
           pidkey, sockid, action, pkgid);
     return db_nread(mydb, key, presult);
   }
@@ -577,8 +578,8 @@ void CDEnet_end_send(struct tcb* tcp) {
     socket_data_handle(tcp, SOCK_SEND);
   }
   if (CDE_nw_mode) {
-    char *pidkey = db_read_pid_key(currdb, tcp->pid);
-    ull_t sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
+    char* pidkey = db_read_pid_key(currdb, tcp->pid);
+    char* sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     size_t u_rval;
@@ -594,6 +595,7 @@ void CDEnet_end_send(struct tcb* tcp) {
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
     free(prov_pid);
+    free(sockid);
     free(pidkey);
   }
 }

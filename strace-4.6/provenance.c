@@ -847,7 +847,7 @@ void db_write_prov_stat(lvldb_t *mydb, long pid,  const char* label,char *stat) 
  */
 // setup
 
-void db_setupSockCounter(lvldb_t *mydb, char *pidkey, int sockfd, char* ch_sockid) {
+void _db_setupSockCounter(lvldb_t *mydb, char *pidkey, int sockfd, char* ch_sockid) {
   char key[KEYLEN];
   ull_t zero = 0;
   // prv.pid.$(pid.usec).skid.$sockid.act.$action -> $n
@@ -859,30 +859,40 @@ void db_setupSockCounter(lvldb_t *mydb, char *pidkey, int sockfd, char* ch_socki
 void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t listenid, ull_t acceptid) {
   char ch_sockid[KEYLEN];
   sprintf(ch_sockid, "%llu_%llu", listenid, acceptid);
-  db_setupSockCounter(mydb, pidkey, sockfd, ch_sockid);
+  _db_setupSockCounter(mydb, pidkey, sockfd, ch_sockid);
 }
 void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid) {
   char ch_sockid[KEYLEN];
   sprintf(ch_sockid, "%llu", sockid);
-  db_setupSockCounter(mydb, pidkey, sockfd, ch_sockid);
+  _db_setupSockCounter(mydb, pidkey, sockfd, ch_sockid);
 }
 
-// action
-void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid) {
+void _db_setSockId(lvldb_t *mydb, char* pidkey, int sock, char* ch_sockid) {
   char key[KEYLEN];
   sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
   if (CDE_verbose_mode) {
-    vbprintf("[xxxx] setSockId pidkey %s, sock %d -> sockid %d\n", 
-        pidkey, sock, sockid);
+    vbprintf("[xxxx] setSockId pidkey %s, sock %d -> sockid %s\n", 
+        pidkey, sock, ch_sockid);
   }
-  db_nwrite(mydb, key, (char*) &sockid, sizeof(ull_t));
+  db_nwrite(mydb, key, ch_sockid, sizeof(ch_sockid));
+}
+void db_setSockConnectId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid) {
+  char ch_sockid[KEYLEN];
+  sprintf(ch_sockid, "%llu", sockid);
+  _db_setSockId(mydb, pidkey, sock, ch_sockid);
+}
+void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, ull_t listenid, ull_t acceptid) {
+  char ch_sockid[KEYLEN];
+  sprintf(ch_sockid, "%llu_%llu", listenid, acceptid);
+  _db_setSockId(mydb, pidkey, sock, ch_sockid);
 }
 
-ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
+// action
+
+char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
   char key[KEYLEN];
-  ull_t sockid;
   sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
-  db_read_ull(mydb, key, &sockid);
+  char* sockid = db_readc(mydb, key);
   if (CDE_verbose_mode) {
     vbprintf("[xxx] getSockId pidkey %s, sock %d -> sockid %llu\n", 
         pidkey, sock, sockid);
@@ -890,9 +900,9 @@ ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
   return sockid;
 }
 
-ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, ull_t sockid, int action) {
+ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action) {
   char key[KEYLEN];
-  sprintf(key, "prv.pid.%s.skid.%llu.act.%d", pidkey, sockid, action);
+  sprintf(key, "prv.pid.%s.skid.%s.act.%d", pidkey, sockid, action);
   return db_getCounterInc(mydb, key);
 }
 
@@ -900,8 +910,8 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
                        size_t len_result, int action) {
   char key[KEYLEN];
-  char *pidkey = db_read_pid_key(mydb, pid);
-  ull_t sockid = db_getSockId(mydb, pidkey, sockfd);
+  char* pidkey = db_read_pid_key(mydb, pid);
+  char* sockid = db_getSockId(mydb, pidkey, sockfd);
   ull_t pkgid = db_getPkgCounterInc(mydb, pidkey, sockid, action);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
@@ -914,16 +924,17 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
   db_nwrite(mydb, key, buf, len_result);
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$pkgid -> $syscall_result
-  sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu", \
+  sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", \
           pidkey, sockid, action, pkgid);
   ull_t result = len_result;
   db_nwrite(mydb, key, (char*) &result, sizeof(ull_t));
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$pkgid.buff -> $buff
-  sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu.buff", \
+  sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
           pidkey, sockid, action, pkgid);
   db_nwrite(mydb, key, buf, len_result);
-
+  
+  free(sockid);
   free(pidkey);
 }
 
@@ -959,7 +970,7 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
   sprintf(idkey, "prv.pid.%s.sockid.%llu", pidkey, sockn);
   db_write(mydb, idkey, key);
   
-  db_setSockId(mydb, pidkey, sockfd, sockn);
+  db_setSockConnectId(mydb, pidkey, sockfd, sockn);
   db_setupSockConnectCounter(mydb, pidkey, sockfd, sockn);
   
   free(pidkey);
