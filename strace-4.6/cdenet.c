@@ -251,6 +251,10 @@ extern char* CDE_ROOT_NAME;
 lvldb_t *netdb, *currdb;
 char* netdb_root;
 
+void print_connect_prov(struct tcb *tcp, 
+    int sockfd, char* addr, int addr_len, long u_rval);
+void print_accept_prov(struct tcb *tcp);
+
 void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len);
 char* db_nread(lvldb_t *mydb, const char *key, size_t *plen);
 void db_write(lvldb_t *mydb, const char *key, const char *value);
@@ -268,6 +272,7 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
     char* pidkey, char* sockid, ull_t sendid, size_t *presult);
 int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
 ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
+void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
 
 char* getMappedPid(char* pidkey);
 
@@ -614,6 +619,10 @@ void CDEnet_begin_accept(struct tcb* tcp) { // TODO
   // ignore! No value is set up yet (ip, port, etc.)
   // we only care of the return of accept
   // which is handled in accept_exit
+  if (CDE_nw_mode) {
+    denySyscall(tcp->pid);
+    printf("here");
+  }
 }
 void CDEnet_end_accept(struct tcb* tcp) {
   if (CDE_provenance_mode) {

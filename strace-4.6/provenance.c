@@ -90,7 +90,8 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
     int sockfd, char* addr, int addr_len, long u_rval);
 void db_write_listen_prov(lvldb_t *mydb, int pid, 
     int sock, int backlog, int result);
-void db_setupListenCounter(lvldb_t *mydb, long pid);
+void db_setupListenCounter(lvldb_t *mydb, char* pidkey);
+void db_setupConnectCounter(lvldb_t *mydb, char* pidkey);
 
 void db_write_root(lvldb_t *mydb);
     
@@ -207,7 +208,6 @@ void print_exec_prov(struct tcb *tcp) {
     }
     if (CDE_nw_mode) {
       db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
-      db_setupListenCounter(currdb, tcp->pid);
     }
     free(filename_abspath);
     free(opened_filename);
@@ -605,6 +605,7 @@ void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len) {
 
   if (err != NULL) {
     vbprintf("DB - Write FAILED: '%s' -> '%s'\n", key, value);
+    print_trace();
   }
 
   leveldb_free(err); err = NULL;
@@ -618,6 +619,7 @@ char* db_nread(lvldb_t *mydb, const char *key, size_t *plen) {
 
   if (err != NULL) {
     vbprintf("DB - Read FAILED: '%s'\n", key);
+    print_trace();
   }
 
   leveldb_free(err); err = NULL;
@@ -647,6 +649,7 @@ char* db_readc(lvldb_t *mydb, const char *key) {
 
   if (err != NULL) {
     vbprintf("DB - Read FAILED: '%s'\n", key);
+    print_trace();
     return NULL;
   }
   read = realloc(read, read_len+1);
@@ -666,6 +669,7 @@ void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
 
   if (err != NULL || read == NULL) {
     vbprintf("DB - Read FAILED: '%s'\n", key);
+    print_trace();
     return;
   }
 
@@ -787,16 +791,14 @@ void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid) {
   char *pidkey=db_read_pid_key(mydb, pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
-  ull_t zero = 0;
 
   // create (successful) exec relation
   sprintf(key, "prv.pid.%s.ok", pidkey);
   sprintf(value, "%llu", usec);
   db_write(mydb, key, value);
   
-  // create sock counter
-  sprintf(key, "prv.pid.%s.sockn", pidkey);
-  db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
+  db_setupConnectCounter(mydb, pidkey);
+  db_setupListenCounter(mydb, pidkey);
 
   free(pidkey);
 }
@@ -941,6 +943,12 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
 /* =====
  * connect socket
  */
+void db_setupConnectCounter(lvldb_t *mydb, char* pidkey) {
+  char key[KEYLEN];
+  ull_t zero = 0;
+  sprintf(key, "prv.pid.%s.sockn", pidkey);
+  db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
+}
 ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey) {
   char key[KEYLEN];
   sprintf(key, "prv.pid.%s.sockn", pidkey);
@@ -980,15 +988,8 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
  * listen socket
  * int listen(int sockfd, int backlog);
  */
-void print_listen_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode) {
-    db_write_listen_prov(provdb, tcp->pid, 
-        tcp->u_arg[0], tcp->u_arg[1], tcp->u_rval);
-  }
-}
-void db_setupListenCounter(lvldb_t *mydb, long pid) {
+void db_setupListenCounter(lvldb_t *mydb, char* pidkey) {
   char key[KEYLEN];
-  char* pidkey = db_read_pid_key(mydb, pid);
   sprintf(key, "prv.pid.%s.listenn", pidkey);
   ull_t zero = 0;
   db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
@@ -996,7 +997,9 @@ void db_setupListenCounter(lvldb_t *mydb, long pid) {
 ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey) {
   char key[KEYLEN];
   sprintf(key, "prv.pid.%s.listenn", pidkey);
-  return db_getCounterInc(mydb, key);;
+  ull_t res = db_getCounterInc(mydb, key);
+  printf("%llu\n", res);
+  return res;
 }
 void db_write_listen_prov(lvldb_t *mydb, int pid, int sock, int backlog, int result) {
   char key[KEYLEN],value[KEYLEN];
@@ -1005,6 +1008,12 @@ void db_write_listen_prov(lvldb_t *mydb, int pid, int sock, int backlog, int res
   sprintf(key, "prv.pid.%s.listenid.%llu", pidkey, listenn);
   sprintf(value, "%d.%d.%d", result, sock, backlog);
   db_write(mydb, key, value);
+}
+void print_listen_prov(struct tcb *tcp) {
+  if (CDE_provenance_mode) {
+    db_write_listen_prov(provdb, tcp->pid, 
+        tcp->u_arg[0], tcp->u_arg[1], tcp->u_rval);
+  }
 }
 int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id) {
   char key[KEYLEN], *value;
