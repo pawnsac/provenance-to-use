@@ -86,8 +86,11 @@ void db_write_prov_stat(lvldb_t *mydb, long pid, const char* label, char *stat);
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
     const char *buf, size_t len_param, int flags, \
     size_t len_result, int action);
-void db_write_newsock_prov(lvldb_t *mydb, long pid, 
+void db_write_connect_prov(lvldb_t *mydb, long pid, 
     int sockfd, char* addr, int addr_len, long u_rval);
+void db_write_listen_prov(lvldb_t *mydb, int pid, 
+    int sock, int backlog, int result);
+    
 void db_write_root(lvldb_t *mydb);
     
 ull_t getusec();
@@ -368,14 +371,21 @@ void print_newsock_prov(struct tcb *tcp, int action, \
         action, s_port, saddr, d_port, daddr, sk);
     printf("%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         action, s_port, saddr, d_port, daddr, sk);
-    //db_write_newsock_prov(tcp->pid, action, filename_abspath);
+    //db_write_connect_prov(tcp->pid, action, filename_abspath);
+  }
+}
+
+void print_listen_prov(struct tcb *tcp) {
+  if (CDE_provenance_mode) {
+    db_write_listen_prov(provdb, tcp->pid, 
+        tcp->u_arg[0], tcp->u_arg[1], tcp->u_rval);
   }
 }
 
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval) {
   if (CDE_provenance_mode) {
-    db_write_newsock_prov(provdb, tcp->pid, sockfd, addr, addr_len, u_rval);
+    db_write_connect_prov(provdb, tcp->pid, sockfd, addr, addr_len, u_rval);
     socketdata_t sock;
     if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
       struct in_addr d_in;
@@ -391,7 +401,7 @@ void print_connect_prov(struct tcb *tcp,
 void print_sock_action(struct tcb *tcp, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
                        size_t len_result, int action) {
-  if (1) {
+  if (0) {
     int i;
     printf("sock %d action %d size %ld res %ld: '", \
            sockfd, action, len_param, len_result);
@@ -685,20 +695,14 @@ void db_write_root(lvldb_t *mydb) {
   db_write(mydb, "meta.root", pidkey);
 }
 
-ull_t db_getSockCounterInc(lvldb_t *mydb, char* pidkey) {
-  char key[KEYLEN];
+ull_t db_getCounterInc(lvldb_t *mydb, char* key) {
   ull_t read;
-
-  sprintf(key, "prv.pid.%s.sockn", pidkey);
   db_read_ull(mydb, key, &read);
-  
   if (CDE_verbose_mode) {
-    vbprintf("[xxxx-prov] db_getSockCounterInc %s %llu\n", pidkey, read);
+    vbprintf("[xxxx-prov] db_getCounterInc %s -> %llu\n", key, read);
   }
-
   read++;
   db_nwrite(mydb, key, (char*)&read, sizeof(ull_t));
-  
   return read - 1;
 }
 
@@ -843,6 +847,9 @@ void db_write_prov_stat(lvldb_t *mydb, long pid,  const char* label,char *stat) 
   free(pidkey);
 }
 
+/* =====
+ * read/write socket
+ */
 void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid) {
   char key[KEYLEN];
   sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
@@ -867,20 +874,8 @@ ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
 
 ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, ull_t sockid, int action) {
   char key[KEYLEN];
-  ull_t read;
-
   sprintf(key, "prv.pid.%s.skid.%llu.act.%d", pidkey, sockid, action);
-  db_read_ull(mydb, key, &read);
-  
-  if (CDE_verbose_mode) {
-    vbprintf("[xxxx] db_getPkgCounterInc pidkey %s, sockid %llu, action %d, read %llu\n", 
-      pidkey, sockid, action, read);
-  }
-
-  read++;
-  db_nwrite(mydb, key, (char*)&read, sizeof(ull_t));
-  
-  return read - 1; 
+  return db_getCounterInc(mydb, key);
 }
 
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
@@ -914,7 +909,16 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
   free(pidkey);
 }
 
-void db_write_newsock_n(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid) {
+/* =====
+ * connect socket
+ */
+ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey) {
+  char key[KEYLEN];
+  sprintf(key, "prv.pid.%s.sockn", pidkey);
+  return db_getCounterInc(mydb, key);
+}
+
+void db_setupConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid) {
   char key[KEYLEN];
   
   // prv.pid.$(pid.usec).sk2id.$sockfd -> $n
@@ -929,7 +933,7 @@ void db_write_newsock_n(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid) {
   db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
 }
 
-void db_write_newsock_prov(lvldb_t *mydb, long pid, 
+void db_write_connect_prov(lvldb_t *mydb, long pid, 
     int sockfd, char* addr, int addr_len, long u_rval) {
   char key[KEYLEN], idkey[KEYLEN];
   char *pidkey = db_read_pid_key(mydb, pid);
@@ -942,14 +946,46 @@ void db_write_newsock_prov(lvldb_t *mydb, long pid,
   db_nwrite(mydb, key, addr, addr_len);
   
   // prv.pid.$(pid.usec).sockid.$n -> $key[1]
-  ull_t sockn = db_getSockCounterInc(mydb, pidkey);
+  ull_t sockn = db_getConnectCounterInc(mydb, pidkey);
   sprintf(idkey, "prv.pid.%s.sockid.%llu", pidkey, sockn);
   db_write(mydb, idkey, key);
   
   db_setSockId(mydb, pidkey, sockfd, sockn);
-  db_write_newsock_n(mydb, pidkey, sockfd, sockn);
+  db_setupConnectCounter(mydb, pidkey, sockfd, sockn);
+  
+  free(pidkey);
 }
-
+/* =====
+ * listen socket
+ */
+void db_setupListenCounter(lvldb_t *mydb, char* pidkey) {
+  char key[KEYLEN];
+  sprintf(key, "prv.pid.%s.listenn", pidkey);
+  ull_t zero = 0;
+  db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
+}
+ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey) {
+  char key[KEYLEN];
+  sprintf(key, "prv.pid.%s.listenn", pidkey);
+  return db_getCounterInc(mydb, key);
+}
+void db_write_listen_prov(lvldb_t *mydb, int pid, int sock, int backlog, int result) {
+  char key[KEYLEN],value[KEYLEN];
+  char *pidkey = db_read_pid_key(mydb, pid);
+  ull_t listenn = db_getListenCounterInc(mydb, pidkey);
+  sprintf(key, "prv.pid.%s.listenid.%llu", pidkey, listenn);
+  sprintf(value, "%d.%d.%d", result, sock, backlog);
+  db_write(mydb, key, value);
+}
+int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id) {
+  char key[KEYLEN], *value;
+  size_t len;
+  int result;
+  sprintf(key, "prv.pid.%s.listenid.%llu", pidkey, id);
+  value = db_nread(mydb, key, &len);
+  sscanf(value, "%d", &result);
+  return result;
+}
 
 /*
  * primary key of processes:
@@ -974,6 +1010,10 @@ void db_write_newsock_prov(lvldb_t *mydb, long pid,
  * prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval -> $(addr) [1]
  * prv.pid.$(pid.usec).sockid.$n -> $key[1]
  * prv.pid.$(pid.usec).sk2id.$sockfd -> $n // temporary of "active" sockfd
+ * 
+ * Per listen request:
+ * prv.pid.$(pid.usec).listenn -> $n
+ * prv.pid.$(pid.usec).listenid.$n -> $result.$sockfd.$backlog
  *
  ******** 
  * Exec provenance:

@@ -258,14 +258,16 @@ char* db_readc(lvldb_t *mydb, const char *key);
 void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
 char* db_read_pid_key(lvldb_t *mydb, long pid);
 void db_write_root(lvldb_t *mydb);
-void db_write_newsock_n(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
+void db_setupConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
 ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
 
 void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
-ull_t db_getSockCounterInc(lvldb_t *mydb, char* pidkey);
+ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey);
 ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, ull_t sockid, int action);
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
     char* pidkey, ull_t sockid, ull_t sendid, size_t *presult);
+int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
+ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
 
 char* getMappedPid(char* pidkey);
 
@@ -457,7 +459,7 @@ void CDEnet_end_connect(struct tcb* tcp) {
   }
   if (CDE_nw_mode) { // return my own network socket connect result from netdb
     char *pidkey = db_read_pid_key(currdb, tcp->pid);
-    ull_t sockid = db_getSockCounterInc(currdb, pidkey);
+    ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     int u_rval = db_getSockResult(netdb, prov_pid, sockid); // get the result of a connect call
     
@@ -474,7 +476,7 @@ void CDEnet_end_connect(struct tcb* tcp) {
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
     // init variables for this socket
-    db_write_newsock_n(currdb, pidkey, sockfd, sockid);
+    db_setupConnectCounter(currdb, pidkey, sockfd, sockid);
     
     free(prov_pid);
     free(pidkey);
@@ -616,13 +618,43 @@ void CDEnet_end_accept(struct tcb* tcp) {
   }
 }
 
+// int listen(int sockfd, int backlog)
+// On success, zero is returned.  On error, -1 is returned,
+//   and errno is set appropriately.
 void CDEnet_begin_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
-  socketdata_t sock;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    print_sock_prov(tcp, SOCK_LISTEN, sock.port, sock.ip.ipv4);
+  //~ if (CDE_provenance_mode) {
+    //~ socketdata_t sock;
+    //~ if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+      //~ print_sock_prov(tcp, SOCK_LISTEN, sock.port, sock.ip.ipv4);
+    //~ }
+  //~ }
+  if (CDE_nw_mode) {
+    denySyscall(tcp->pid);
   }
 }
 void CDEnet_end_listen(struct tcb* tcp) { // TODO
+  if (CDE_provenance_mode) {
+    print_listen_prov(tcp);
+  }
+  if (CDE_nw_mode) {
+    char *pidkey = db_read_pid_key(currdb, tcp->pid);
+    ull_t id = db_getListenCounterInc(currdb, pidkey);
+    char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
+    int u_rval = db_getListenResult(netdb, prov_pid, id); // get recorded result
+    
+    // return recorded result
+    struct user_regs_struct regs;
+    long pid = tcp->pid;
+    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+    SET_RETURN_CODE(&regs, u_rval);
+    if (u_rval < 0) {
+      // set errno? TODO
+    }
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    
+    free(prov_pid);
+    free(pidkey);
+  }
 }
 
 void CDEnet_read(struct tcb* tcp) {

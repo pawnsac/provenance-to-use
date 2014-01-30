@@ -35,6 +35,7 @@ void print_sock_action(struct tcb *tcp, int sockfd,
     size_t len_result, int action);
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval);
+void print_listen_prov(struct tcb *tcp);
     
 #include "../leveldb-1.14.0/include/leveldb/c.h"
 typedef struct {
