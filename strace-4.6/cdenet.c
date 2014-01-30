@@ -252,18 +252,20 @@ lvldb_t *netdb, *currdb;
 char* netdb_root;
 
 void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len);
+char* db_nread(lvldb_t *mydb, const char *key, size_t *plen);
 void db_write(lvldb_t *mydb, const char *key, const char *value);
 char* db_readc(lvldb_t *mydb, const char *key);
 void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
 char* db_read_pid_key(lvldb_t *mydb, long pid);
 void db_write_root(lvldb_t *mydb);
 void db_write_newsock_n(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
+ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
 
 void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
 ull_t db_getSockCounterInc(lvldb_t *mydb, char* pidkey);
 ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, ull_t sockid, int action);
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, ull_t sockid, ull_t sendid, int *result);
+    char* pidkey, ull_t sockid, ull_t sendid, size_t *presult);
 
 char* getMappedPid(char* pidkey);
 
@@ -417,6 +419,9 @@ void denySyscall(long pid) {
 // int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 //     on connection or binding succeeds, zero is returned; on error, -1 is returned.
 void CDEnet_begin_connect(struct tcb* tcp) {
+  if (CDE_verbose_mode) {
+    vbprintf("[%ld] CDEnet_begin_connect\n", tcp->pid);
+  }
   if (CDE_nw_mode) {
     denySyscall(tcp->pid);
   }
@@ -503,20 +508,23 @@ void CDEnet_end_recv(struct tcb* tcp) {
     socket_data_handle(tcp, SOCK_RECV);
   }
   if (CDE_nw_mode) {
-    char *pidkey = db_read_pid_key(currdb, tcp->pid);
-    ull_t sockid = 0; // STUB
+    long pid = tcp->pid;
+    char *pidkey = db_read_pid_key(currdb, pid);
+    ull_t sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
-    int u_rval;
-    char *buf = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval); // get recorded result
+    size_t u_rval;
+    char *buff = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval); // get recorded result
     
     struct user_regs_struct regs;
-    long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
-    if (u_rval < 0) {
+    if (u_rval <= 0) {
       // set errno? TODO
+    } else { // successed call, copy to buffer as well
+      memcpy_to_child(pid, (char*) tcp->u_arg[1], buff, u_rval);
     }
+    if (buff != NULL) leveldb_free(buff);
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
     free(prov_pid);
@@ -545,29 +553,33 @@ void CDEnet_begin_send(struct tcb* tcp) {
     denySyscall(tcp->pid);
   }
 }
+
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, ull_t sockid, ull_t sendid, int *result) {
+    char* pidkey, ull_t sockid, ull_t pkgid, size_t *presult) {
   char key[KEYLEN];
   ull_t res;
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
-  sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu", pidkey, sockid, SOCK_SEND, sendid);
+  sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu", pidkey, sockid, action, pkgid);
   db_read_ull(mydb, key, &res);
-  *result = (int) res;
+  *presult = (int) res;
   if (action == SOCK_RECV) {
-    
+    sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu.buff", \
+          pidkey, sockid, action, pkgid);
+    return db_nread(mydb, key, presult);
   }
   return NULL; // SOCK_SEND and "other?" cases
 }
+
 void CDEnet_end_send(struct tcb* tcp) {
   if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_SEND);
   }
   if (CDE_nw_mode) {
     char *pidkey = db_read_pid_key(currdb, tcp->pid);
-    ull_t sockid = 0; // STUB, should based on currdb
+    ull_t sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
-    int u_rval;
+    size_t u_rval;
     db_getSendRecvResult(netdb, SOCK_SEND, prov_pid, sockid, sendid, &u_rval); // get recorded result
     
     struct user_regs_struct regs;

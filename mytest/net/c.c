@@ -39,6 +39,7 @@ int main(int argc , char *argv[])
         //keep communicating with server
         int i=2;
         while (i-- > 0) {
+            int res;
             printf("Enter message : ");
             scanf("%s" , message);
 
@@ -50,13 +51,15 @@ int main(int argc , char *argv[])
             }
 
             //Receive a reply from the server
-            if( recv(sock , server_reply , 2000 , 0) < 0)
+            res = recv(sock , server_reply , 2000 , 0);
+            if( res < 0)
             {
                 puts("recv failed");
                 break;
             }
 
-            puts("Server reply :");
+            printf("Server reply [%d]:", res);
+            server_reply[res] = '\0';
             puts(server_reply);
             bzero(server_reply, 2000);
         }
