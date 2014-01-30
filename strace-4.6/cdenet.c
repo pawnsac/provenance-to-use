@@ -258,7 +258,7 @@ char* db_readc(lvldb_t *mydb, const char *key);
 void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
 char* db_read_pid_key(lvldb_t *mydb, long pid);
 void db_write_root(lvldb_t *mydb);
-void db_setupConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
+void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
 ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
 
 void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
@@ -476,7 +476,7 @@ void CDEnet_end_connect(struct tcb* tcp) {
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
     // init variables for this socket
-    db_setupConnectCounter(currdb, pidkey, sockfd, sockid);
+    db_setupSockConnectCounter(currdb, pidkey, sockfd, sockid);
     
     free(prov_pid);
     free(pidkey);
@@ -605,16 +605,22 @@ void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
   printf("END SENDMSG TODO");
 }
 
+// int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+// Return accepted socket fd and fill addr, addrlen
+// On error, -1 is returned, and errno is set appropriately.
 void CDEnet_begin_accept(struct tcb* tcp) { // TODO
   // ignore! No value is set up yet (ip, port, etc.)
   // we only care of the return of accept
   // which is handled in accept_exit
 }
 void CDEnet_end_accept(struct tcb* tcp) {
-  socketdata_t sock;
-  int sk = tcp->u_rval;
-  if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-    printSockInfo(tcp, SOCK_ACCEPT, sock.port, sock.ip.ipv4, sk);
+  if (CDE_provenance_mode) {
+    socketdata_t sock;
+    int sk = tcp->u_rval;
+    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+      printSockInfo(tcp, SOCK_ACCEPT, sock.port, sock.ip.ipv4, sk);
+    }
+    print_accept_prov(tcp);
   }
 }
 
@@ -647,8 +653,10 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
     long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
-    if (u_rval < 0) {
+    if (u_rval <= 0) {
       // set errno? TODO
+    } else {
+      db_setListenId(currdb, pidkey, tcp->u_arg[0], id);
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     

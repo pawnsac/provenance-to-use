@@ -56,7 +56,7 @@ int main(int argc , char *argv[])
             perror("accept failed");
             return 1;
         }
-        puts("Connection accepted");
+        printf("Connection accepted %d\n", client_sock);
 
 
         //Receive a message from client
