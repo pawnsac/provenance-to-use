@@ -11,6 +11,7 @@
 
 #include "defs.h"
 #include "provenance.h"
+#include "cdenet.h"
 #include "../leveldb-1.14.0/include/leveldb/c.h"
 
 /* macros */
@@ -637,21 +638,22 @@ char* db_readc(lvldb_t *mydb, const char *key) {
   return read;
 }
 
-long* db_readl(lvldb_t *mydb, const char *key) {
+void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
   char *err = NULL;
-  long *read;
+  ull_t *read;
   size_t read_len;
 
-  read = (long*) leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
+  read = (ull_t*) leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
 
-  if (err != NULL) {
+  if (err != NULL || read == NULL) {
     vbprintf("DB - Read FAILED: '%s'\n", key);
-    return NULL;
+    return;
   }
 
   leveldb_free(err); err = NULL;
 
-  return read;
+  *pvalue = *read;
+  free(read);
 }
 
 // the initial PTU pid node
@@ -670,54 +672,26 @@ void db_write_root(lvldb_t *mydb) {
 }
 
 ull_t db_getSockCounterInc(lvldb_t *mydb, char* pidkey) {
-  char *err = NULL, key[KEYLEN];
-  ull_t *read, result;
-  size_t read_len;
+  char key[KEYLEN];
+  ull_t read;
 
   sprintf(key, "prv.pid.%s.sockn", pidkey);
-  read =(ull_t*) leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-
-  if (err != NULL) {
-    vbprintf("DB - Read FAILED: '%s'\n", key);
-    exit(-1);
-  }
-  leveldb_free(err); err = NULL;
-  result = *read;
+  db_read_ull(mydb, key, &read);
   
   if (CDE_verbose_mode) {
-    vbprintf("[xxxx-prov] db_getSockCounterInc %s %llu\n", pidkey, result);
+    vbprintf("[xxxx-prov] db_getSockCounterInc %s %llu\n", pidkey, read);
   }
 
-  (*read)++;
-  leveldb_put(mydb->db, mydb->woptions, key, strlen(key), (char*)read, sizeof(long), &err);
+  read++;
+  db_nwrite(mydb, key, (char*)&read, sizeof(ull_t));
   
-  free(read);
-  
-  return result;
+  return read - 1;
 }
 
 char* db_read_pid_key(lvldb_t *mydb, long pid) {
   char key[KEYLEN];
   sprintf(key, "pid.%ld", pid);
   return db_readc(mydb, key);
-}
-
-int db_getNthSockResult(lvldb_t *mydb, char* pidkey, int n) {
-  // prv.pid.$(pid.usec).sockid.$n
-  // prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval
-  char *err = NULL, key[KEYLEN];
-  char *read;
-  size_t read_len;
-  int u_rval;
-
-  sprintf(key, "prv.pid.%s.sockid.%d", pidkey, n);
-  read = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-  if (read == NULL) {
-    fprintf(stderr, "Cannot find key '%s'\n", key);
-    exit(-1);
-  }
-  sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
-  return u_rval;
 }
 
 void db_write_fmt(lvldb_t *mydb, const char *key, const char *fmt, ...) {
@@ -855,11 +829,50 @@ void db_write_prov_stat(lvldb_t *mydb, long pid,  const char* label,char *stat) 
   free(pidkey);
 }
 
+void db_setSockId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid) {
+  char key[KEYLEN];
+  sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
+  if (CDE_verbose_mode) {
+    vbprintf("[%ld] setSockId %d -> %d\n", sock, sockid);
+  }
+  db_nwrite(mydb, key, (char*) &sockid, sizeof(ull_t));
+}
+
+ull_t db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
+  char key[KEYLEN];
+  ull_t sockid;
+  sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
+  db_read_ull(mydb, key, &sockid);
+  if (CDE_verbose_mode) {
+    vbprintf("[%ld] getSockId %d -> %llu\n", sock, sockid);
+  }
+  return sockid;
+}
+
+ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, ull_t sockid, int action) {
+  char key[KEYLEN];
+  ull_t read;
+
+  sprintf(key, "prv.pid.%s.skid.%llu.act.%d", pidkey, sockid, action);
+  db_read_ull(mydb, key, &read);
+  
+  if (CDE_verbose_mode) {
+    vbprintf("[xxxx-prov] db_getPkgCounterInc %s %llu\n", pidkey, read);
+  }
+
+  read++;
+  db_nwrite(mydb, key, (char*)&read, sizeof(ull_t));
+  
+  return read - 1; 
+}
+
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
                        size_t len_result, int action) {
   char key[KEYLEN];
   char *pidkey = db_read_pid_key(mydb, pid);
+  ull_t sockid = db_getSockId(mydb, pidkey, sockfd);
+  ull_t counter = db_getPkgCounterInc(mydb, pidkey, sockid, action);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
 
@@ -869,8 +882,30 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
   sprintf(key, "prv.sock.%s.action.%llu.%d.%d.%ld.%d.%ld", \
           pidkey, usec, action, sockfd, len_param, flags, len_result);
   db_nwrite(mydb, key, buf, len_result);
+  
+  // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
+  sprintf(key, "prv.pid.%s.skid.%llu.act.%d.n.%llu", \
+          pidkey, sockid, action, counter);
+  ull_t result = len_result;
+  db_nwrite(mydb, key, (char*) &result, sizeof(ull_t));
+  printf("just do it: %s %llu\n", key, result);
 
   free(pidkey);
+}
+
+void db_write_newsock_n(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid) {
+  char key[KEYLEN];
+  
+  // prv.pid.$(pid.usec).sk2id.$sockfd -> $n
+  sprintf(key, "prv.pid.%s.sk2id.%d", pidkey, sockfd);
+  db_nwrite(mydb, key, (char*) &sockid, sizeof(ull_t));
+  
+  ull_t zero = 0;
+  // prv.pid.$(pid.usec).skid.$sockid.act.$action -> $n
+  sprintf(key, "prv.pid.%s.skid.%llu.act.%d", pidkey, sockid, SOCK_SEND);
+  db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
+  sprintf(key, "prv.pid.%s.skid.%llu.act.%d", pidkey, sockid, SOCK_RECV);
+  db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
 }
 
 void db_write_newsock_prov(lvldb_t *mydb, long pid, 
@@ -879,13 +914,19 @@ void db_write_newsock_prov(lvldb_t *mydb, long pid,
   char *pidkey = db_read_pid_key(mydb, pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
+  
+  // prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval -> $(addr) [1]
   sprintf(key, "prv.sock.%s.newfd.%llu.%d.%d.%lu", \
           pidkey, usec, sockfd, addr_len, u_rval);
   db_nwrite(mydb, key, addr, addr_len);
   
+  // prv.pid.$(pid.usec).sockid.$n -> $key[1]
   ull_t sockn = db_getSockCounterInc(mydb, pidkey);
   sprintf(idkey, "prv.pid.%s.sockid.%llu", pidkey, sockn);
   db_write(mydb, idkey, key);
+  
+  db_setSockId(mydb, pidkey, sockfd, sockn);
+  db_write_newsock_n(mydb, pidkey, sockfd, sockn);
 }
 
 
@@ -894,16 +935,26 @@ void db_write_newsock_prov(lvldb_t *mydb, long pid,
  * pid.$pid -> $(pid.usec)
  * with prv.pid.$(pid.usec).parent -> $(ppid.usec)
  *
+ ******** 
  * IO provenance: (note: should change to prv.pid.$(pid.usec).io.$action.$usec)
  * prv.iopid.$(pid.usec).$action.$usec -> $filepath // tuple (pid, action, time, filepath)
  * prv.iofile.$filepath.$(pid.usec).$usec -> $action
  * 
+ ******** 
  * Network provenance:
  * prv.pid.$(pid.usec).sockn -> #n // current sock counter
- * prv.pid.$(pid.usec).sock.$usec.$action.$sockfd.$len_param.$flags.$len_resutl -> $memoryblock
+ * 
+ * Per send/receive request:
+ * prv.pid.$(pid.usec).sock.$usec.$action.$sockfd.$len_param.$flags.$len_result -> $memoryblock
+ * prv.pid.$(pid.usec).skid.$sockid.act.$action -> $n
+ * prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
+ * 
+ * Per socket:
  * prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval -> $(addr) [1]
  * prv.pid.$(pid.usec).sockid.$n -> $key[1]
+ * prv.pid.$(pid.usec).sk2id.$sockfd -> $n // temporary of "active" sockfd
  *
+ ******** 
  * Exec provenance:
  * prv.pid.$(ppid.usec).exec.$usec -> $(pid.usec)
  * prv.pid.$(pid.usec).[path, pwd, args, start] -> corresponding value of EXECVE
@@ -913,6 +964,7 @@ void db_write_newsock_prov(lvldb_t *mydb, long pid,
  *
  * prv.pid.$(ppid.usec).spawn.$usec -> $(pid.usec)
  *
+ ******** 
  * Exec statistic:
  * prv.pid.$(pid.usec).stat.$usec -> $(content of /proc/$pid/stat)
  * prv.pid.$(pid.usec).iostat.$usec -> $(content of /proc/$pid/io)

@@ -7,6 +7,7 @@ cp ../../ptu cde-package/cde-exec
 ### start server
 ../../ptu ./s > /dev/null 2>&1 &
 #../../ptu ./s &
+#./s &
 sleep 0.5
 
 ### start client
