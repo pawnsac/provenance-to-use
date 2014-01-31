@@ -280,6 +280,8 @@ ull_t db_getAcceptCounterInc(lvldb_t *mydb, char* pidkey, ull_t listenid);
 void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
 void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd, 
     ull_t listenid, ull_t acceptid);
+void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, 
+    ull_t listenid, ull_t acceptid);
 
 char* getMappedPid(char* pidkey);
 
@@ -423,8 +425,8 @@ void CDEnet_end_bind(struct tcb* tcp) { // TODO
 void denySyscall(long pid) {
   struct user_regs_struct regs;
   EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-  if (CDE_verbose_mode) {
-    vbprintf("[%ld-prov] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
   }
   SYSCALL_NUM(&regs) = 0xbadca11;
   EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);

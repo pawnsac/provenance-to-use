@@ -970,7 +970,7 @@ main(int argc, char *argv[])
 		case 'v':
 			// pgbovine - hijack for the '-v' option
 			//qualify("abbrev=none");
-			CDE_verbose_mode = 1;
+			CDE_verbose_mode += 1;
 			break;
 		case 'V':
 			printf("PALLY v0.1\n");

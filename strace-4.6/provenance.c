@@ -692,7 +692,7 @@ void db_write_root(lvldb_t *mydb) {
 ull_t db_getCounterInc(lvldb_t *mydb, char* key) {
   ull_t read;
   db_read_ull(mydb, key, &read);
-  if (CDE_verbose_mode) {
+  if (CDE_verbose_mode>=2) {
     vbprintf("[xxxx] db_getCounterInc %s -> %llu\n", key, read);
   }
   read++;
@@ -867,7 +867,7 @@ void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t s
 void _db_setSockId(lvldb_t *mydb, char* pidkey, int sock, char* ch_sockid) {
   char key[KEYLEN];
   sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
-  if (CDE_verbose_mode) {
+  if (CDE_verbose_mode>=2) {
     vbprintf("[xxxx] setSockId pidkey %s, sock %d -> sockid %s\n", 
         pidkey, sock, ch_sockid);
   }
@@ -895,7 +895,7 @@ char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
     sprintf(key, "pid.%s.ac2id.%d", pidkey, sock);
     sockid = db_readc(mydb, key);
   }
-  if (CDE_verbose_mode) {
+  if (CDE_verbose_mode>=2) {
     vbprintf("[xxx] getSockId pidkey %s, sock %d -> sockid %s [%d]\n", 
         pidkey, sock, sockid, strlen(sockid));
   }
@@ -1005,7 +1005,7 @@ ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey) {
 void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid) {
   char key[KEYLEN];
   sprintf(key, "pid.%s.lssk2id.%d", pidkey, sock);
-  if (CDE_verbose_mode) {
+  if (CDE_verbose_mode>=2) {
     vbprintf("[xxxx] db_setListenId pidkey %s, sock %d -> listenid %d\n", 
         pidkey, sock, sockid);
   }
@@ -1016,7 +1016,7 @@ ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock) {
   ull_t sockid;
   sprintf(key, "pid.%s.lssk2id.%d", pidkey, sock);
   db_read_ull(mydb, key, &sockid);
-  if (CDE_verbose_mode) {
+  if (CDE_verbose_mode>=2) {
     vbprintf("[xxxx] db_getListenId pidkey %s, sock %d -> lssk2id %llu\n", 
         pidkey, sock, sockid);
   }
@@ -1104,7 +1104,7 @@ void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid) {
   sprintf(key, "prv.pid.%s.listenid.%llu.acceptn", pidkey, listenid);
   ull_t zero = 0;
   db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
-  if (CDE_verbose_mode) {
+  if (CDE_verbose_mode>=2) {
     vbprintf("[xxxx] db_setupAcceptCounter pidkey %s, listenid %llu\n", 
         pidkey, listenid);
   }
