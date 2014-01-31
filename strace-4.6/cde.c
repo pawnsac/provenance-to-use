@@ -242,6 +242,13 @@ static void CDE_create_toplevel_symlink_dirs(void);
 static void CDE_create_path_symlink_dirs(void);
 static void CDE_load_environment_vars(char*);
 
+// multiple repo support
+int get_repo_path_id(char* path);
+int is_cde_binary(const char *str);
+int detach(struct tcb *tcp, int sig);
+int is_in_another_repo(char* path, struct tcb* tcp);
+int is_a_repo_name(char* path);
+
 // verbose printf
 void vbprintf(const char *fmt, ...)
 {

@@ -1,6 +1,6 @@
 #!/bin/sh
 cp ../../ptu-ex cde-package/cde-exec
-rm -rf cde-package/provenance.cde-root.2.log_db.*
+rm -rf cde-package/provenance.cde-root.1.log_db.*
 
 ### start server
 cd cde-package/cde-root/home/quanpt/assi/cde/mytest/net

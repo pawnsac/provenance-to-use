@@ -256,6 +256,10 @@ extern void CDE_end_execve(struct tcb* tcp);
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern char CDE_provenance_mode;
 
+// quanpt
+extern FILE* CDE_provenance_logfile;
+extern void rm_pid_prov(pid_t pid);
+
 static const char *
 unalignctl_string (unsigned int ctl)
 {
@@ -450,10 +454,9 @@ struct tcb *tcp;
 	//printtrailer();
 
 	if (CDE_provenance_mode) {
-    extern FILE* CDE_provenance_logfile;
-    rm_pid_prov(tcp->pid);
-    fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
-  }
+		rm_pid_prov(tcp->pid);
+		fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
+	}
 
 	tcp_last = NULL; // swipe relevant code taken from printtrailer() to prevent errors
 	return 0;
@@ -873,6 +876,7 @@ handle_new_child(struct tcb *tcp, int pid, int bpt)
 	tcpchild->parent = tcp;
 
   CDE_init_tcb_dir_fields(tcpchild); // pgbovine - do it AFTER you init parent
+  void print_spawn_prov(struct tcb *tcp);
   print_spawn_prov(tcpchild); // quanpt
 
 	tcp->nchildren++;
@@ -1703,47 +1707,47 @@ struct tcb *tcp;
 #endif /* UNIXWARE */
 
 
-static void
-printargv(struct tcb *tcp, long addr)
-{
-	union {
-		unsigned int p32;
-		unsigned long p64;
-		char data[sizeof(long)];
-	} cp;
-	const char *sep;
-	int n = 0;
-
-	cp.p64 = 1;
-	for (sep = ""; !abbrev(tcp) || n < max_strlen / 2; sep = ", ", ++n) {
-		if (umoven(tcp, addr, personality_wordsize[current_personality],
-			   cp.data) < 0) {
-			tprintf("%#lx", addr);
-			return;
-		}
-		if (personality_wordsize[current_personality] == 4)
-			cp.p64 = cp.p32;
-		if (cp.p64 == 0)
-			break;
-		tprintf("%s", sep);
-		printstr(tcp, cp.p64, -1);
-		addr += personality_wordsize[current_personality];
-	}
-	if (cp.p64)
-		tprintf("%s...", sep);
-}
-
-static void
-printargc(const char *fmt, struct tcb *tcp, long addr)
-{
-	int count;
-	char *cp;
-
-	for (count = 0; umove(tcp, addr, &cp) >= 0 && cp != NULL; count++) {
-		addr += sizeof(char *);
-	}
-	tprintf(fmt, count, count == 1 ? "" : "s");
-}
+//~ static void
+//~ printargv(struct tcb *tcp, long addr)
+//~ {
+	//~ union {
+		//~ unsigned int p32;
+		//~ unsigned long p64;
+		//~ char data[sizeof(long)];
+	//~ } cp;
+	//~ const char *sep;
+	//~ int n = 0;
+//~ 
+	//~ cp.p64 = 1;
+	//~ for (sep = ""; !abbrev(tcp) || n < max_strlen / 2; sep = ", ", ++n) {
+		//~ if (umoven(tcp, addr, personality_wordsize[current_personality],
+			   //~ cp.data) < 0) {
+			//~ tprintf("%#lx", addr);
+			//~ return;
+		//~ }
+		//~ if (personality_wordsize[current_personality] == 4)
+			//~ cp.p64 = cp.p32;
+		//~ if (cp.p64 == 0)
+			//~ break;
+		//~ tprintf("%s", sep);
+		//~ printstr(tcp, cp.p64, -1);
+		//~ addr += personality_wordsize[current_personality];
+	//~ }
+	//~ if (cp.p64)
+		//~ tprintf("%s...", sep);
+//~ }
+//~ 
+//~ static void
+//~ printargc(const char *fmt, struct tcb *tcp, long addr)
+//~ {
+	//~ int count;
+	//~ char *cp;
+//~ 
+	//~ for (count = 0; umove(tcp, addr, &cp) >= 0 && cp != NULL; count++) {
+		//~ addr += sizeof(char *);
+	//~ }
+	//~ tprintf(fmt, count, count == 1 ? "" : "s");
+//~ }
 
 #if defined(SPARC) || defined(SPARC64) || defined(SUNOS4)
 int

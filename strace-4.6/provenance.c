@@ -612,16 +612,19 @@ void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len) {
   leveldb_free(err); err = NULL;
 }
 
+void db_readfailed(const char* key) {
+  vbprintf("DB - Read FAILED: '%s'\n", key);
+  print_trace();
+  assert(-1);
+}
+
 char* db_nread(lvldb_t *mydb, const char *key, size_t *plen) {
   char *err = NULL;
   assert(mydb->db!=NULL);
 
   char* res = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), plen, &err);
 
-  if (err != NULL) {
-    vbprintf("DB - Read FAILED: '%s'\n", key);
-    print_trace();
-  }
+  if (err != NULL) db_readfailed(key);
 
   leveldb_free(err); err = NULL;
   return res;
@@ -647,12 +650,8 @@ char* db_readc(lvldb_t *mydb, const char *key) {
   size_t read_len;
 
   read = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-
-  if (err != NULL) {
-    vbprintf("DB - Read FAILED: '%s'\n", key);
-    print_trace();
-    return NULL;
-  }
+  if (err != NULL) db_readfailed(key);
+  
   read = realloc(read, read_len+1);
   read[read_len] = 0;
 
@@ -667,12 +666,7 @@ void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
   size_t read_len;
 
   read = (ull_t*) leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-
-  if (err != NULL || read == NULL) {
-    vbprintf("DB - Read FAILED: '%s'\n", key);
-    print_trace();
-    return;
-  }
+  if (err != NULL) db_readfailed(key);
 
   leveldb_free(err); err = NULL;
 

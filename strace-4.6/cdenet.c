@@ -178,6 +178,7 @@ enum LINUX_CALL_TYPES {
 	LINUX_NUM_VERSIONS = 2
 };
 
+#ifdef X86_64
 static enum LINUX_CALL_TYPES
 linux_call_type(long codesegment) 
 {
@@ -191,6 +192,7 @@ linux_call_type(long codesegment)
 		assert(0);
 	}
 }
+#endif
 
 #ifdef X86_64
 #define ISLINUX32(x)		(linux_call_type((x)->cs) == LINUX32)
@@ -273,6 +275,11 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
 int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
 ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
 void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
+ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock);
+ull_t db_getAcceptCounterInc(lvldb_t *mydb, char* pidkey, ull_t listenid);
+void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
+void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd, 
+    ull_t listenid, ull_t acceptid);
 
 char* getMappedPid(char* pidkey);
 
@@ -626,6 +633,23 @@ void CDEnet_begin_accept(struct tcb* tcp) { // TODO
     denySyscall(tcp->pid);
   }
 }
+char* db_getAcceptResult(lvldb_t *mydb, char* pidkey, ull_t listenid, ull_t acceptid, 
+    socklen_t *paddrlen, int *presult) {
+  char key[KEYLEN];
+  char *addrbuf;
+  ull_t res;
+  size_t len;
+  
+  sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu.addr", pidkey, listenid, acceptid);
+  addrbuf = db_nread(mydb, key, &len);
+  *paddrlen = len;
+  
+  sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu", pidkey, listenid, acceptid);
+  db_read_ull(mydb, key, &res);
+  *presult = res;
+  
+  return addrbuf;
+}
 void CDEnet_end_accept(struct tcb* tcp) {
   if (CDE_provenance_mode) {
     //~ socketdata_t sock;
@@ -636,16 +660,32 @@ void CDEnet_end_accept(struct tcb* tcp) {
     print_accept_prov(tcp);
   }
   if (CDE_nw_mode) {
+    long pid = tcp->pid;
+    char *pidkey = db_read_pid_key(currdb, pid);
+    ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
+    ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
+    char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
+    int u_rval; // get the result of a accept call
+    socklen_t addrlen;
+    char *addr = db_getAcceptResult(netdb, prov_pid, listenid, acceptid, &addrlen, &u_rval);
+    
     // return recorded result
     struct user_regs_struct regs;
-    long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-    SET_RETURN_CODE(&regs, -1);
-    if (-1 <= 0) {
+    SET_RETURN_CODE(&regs, u_rval);
+    if (u_rval <= 0) {
       // set errno? TODO
     } else {
+      memcpy_to_child(pid, (char*) tcp->u_arg[1], addr, u_rval);
+      memcpy_to_child(pid, (char*) tcp->u_arg[2], (char*) &addrlen, sizeof(addrlen)); // TODO: big/little endian
+      db_setSockAcceptId(currdb, pidkey, u_rval, listenid, acceptid);
+      db_setupSockAcceptCounter(currdb, pidkey, u_rval, listenid, acceptid);
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    
+    free(addr);
+    free(prov_pid);
+    free(pidkey);
   }
 }
 
@@ -678,10 +718,11 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
     long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
-    if (u_rval <= 0) {
+    if (u_rval < 0) {
       // set errno? TODO
     } else {
       db_setListenId(currdb, pidkey, tcp->u_arg[0], id);
+      db_setupAcceptCounter(currdb, pidkey, id);
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
