@@ -1778,12 +1778,12 @@ err:
 #endif /* SUNOS4 */
 
 void print_trace (void) {
-	void *array[10];
+	void *array[20];
 	size_t size;
 	char **strings;
 	size_t i;
 
-	size = backtrace (array, 10);
+	size = backtrace (array, 20);
 	strings = backtrace_symbols (array, size);
 
 	printf ("Obtained %zd stack frames.\n", size);

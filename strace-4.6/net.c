@@ -1589,11 +1589,6 @@ struct tcb *tcp;
 static int
 do_accept(struct tcb *tcp, int flags_arg)
 {
-	if (entering(tcp)) {
-		CDEnet_begin_accept(tcp);
-	} else {
-		CDEnet_end_accept(tcp);
-	}
 	//~ if (entering(tcp)) {
 		//~ tprintf("accept %ld, \n", tcp->u_arg[0]);
 		//~ return 0;
@@ -1622,7 +1617,13 @@ do_accept(struct tcb *tcp, int flags_arg)
 int
 sys_accept(struct tcb *tcp)
 {
-	return do_accept(tcp, -1);
+	if (entering(tcp)) {
+		CDEnet_begin_accept(tcp);
+	} else {
+		CDEnet_end_accept(tcp);
+	}
+	return 0;
+	//~ return do_accept(tcp, -1);
 }
 
 #ifdef LINUX

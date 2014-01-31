@@ -5,7 +5,8 @@ rm -rf cde-package/provenance.cde-root.*
 cp ../../ptu cde-package/cde-exec
 
 ### start server
-../../ptu ./s &
+../../ptu $@ ./s &
+#valgrind ../../ptu $@ ./s &
 #../../ptu ./s &
 #./s &
 sleep 0.5
@@ -16,6 +17,7 @@ echo "msg1 msg2 hello world msg5 msg6" | ../../ptu ./c > /dev/null
 sleep 0.5
 
 ### exit server
+ps
 /bin/echo -ne "_exit" | telnet localhost 8888
 sleep 0.5
 

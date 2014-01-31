@@ -495,6 +495,9 @@ int socket_data_handle(struct tcb* tcp, int action) {
     return -1;
   }
   print_sock_action(tcp, tcp->u_arg[0], buf, tcp->u_arg[2], tcp->u_arg[3], len, action);
+  if (CDE_verbose_mode) {
+    vbprintf("[%d] socket_data_handle action %d\n", tcp->pid, action);
+  }
   return 0;
 }
 
@@ -621,17 +624,28 @@ void CDEnet_begin_accept(struct tcb* tcp) { // TODO
   // which is handled in accept_exit
   if (CDE_nw_mode) {
     denySyscall(tcp->pid);
-    printf("here");
   }
 }
 void CDEnet_end_accept(struct tcb* tcp) {
   if (CDE_provenance_mode) {
-    socketdata_t sock;
-    int sk = tcp->u_rval;
-    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-      printSockInfo(tcp, SOCK_ACCEPT, sock.port, sock.ip.ipv4, sk);
-    }
+    //~ socketdata_t sock;
+    //~ int sk = tcp->u_rval;
+    //~ if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+      //~ printSockInfo(tcp, SOCK_ACCEPT, sock.port, sock.ip.ipv4, sk);
+    //~ }
     print_accept_prov(tcp);
+  }
+  if (CDE_nw_mode) {
+    // return recorded result
+    struct user_regs_struct regs;
+    long pid = tcp->pid;
+    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+    SET_RETURN_CODE(&regs, -1);
+    if (-1 <= 0) {
+      // set errno? TODO
+    } else {
+    }
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
   }
 }
 
