@@ -282,6 +282,11 @@ void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd,
     ull_t listenid, ull_t acceptid);
 void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, 
     ull_t listenid, ull_t acceptid);
+void db_removeSockId(lvldb_t *mydb, char* pidkey, int sock);
+void db_setIgnoredSock(lvldb_t *mydb, int sockfd);
+int isIgnoredSock(lvldb_t *mydb, int sockfd);
+void db_remove_sock(lvldb_t *mydb, long pid, int sockfd);
+void print_sock_close(struct tcb *tcp);
 
 char* getMappedPid(char* pidkey);
 
@@ -324,9 +329,8 @@ typedef struct socketdata {
   } ip;
 } socketdata_t;
 
-int getsockinfo(struct tcb *tcp, long addr, int addrlen, socketdata_t *psock)
-{
-	union {
+int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
+	union sockaddr_t {
 		char pad[128];
 		struct sockaddr sa;
 		struct sockaddr_in sin;
@@ -343,25 +347,27 @@ int getsockinfo(struct tcb *tcp, long addr, int addrlen, socketdata_t *psock)
 #ifdef AF_NETLINK
 		struct sockaddr_nl nl;
 #endif
-	} addrbuf;
+	};
+	union sockaddr_t *addrbuf = (union sockaddr_t*) addr;
+	//union sockaddr_t *addrbuf;// = (union sockaddr_t*)addr;
 	char string_addr[100];
 
 	if (addr == 0) {
 		return -1;
 	}
 
-	if (addrlen < 2 || addrlen > sizeof(addrbuf))
-		addrlen = sizeof(addrbuf);
+	//~ if (addrlen < 2 || addrlen > sizeof(addrbuf))
+		//~ addrlen = sizeof(addrbuf);
+//~ 
+	//~ memset(&addrbuf, 0, sizeof(addrbuf));
+	//~ if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
+		//~ return -1;
+	//~ }
+	addrbuf->pad[sizeof(addrbuf->pad) - 1] = '\0';
 
-	memset(&addrbuf, 0, sizeof(addrbuf));
-	if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
-		return -1;
-	}
-	addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
+	psock->saf = addrbuf->sa.sa_family;
 
-	psock->saf = addrbuf.sa.sa_family;
-
-	switch (addrbuf.sa.sa_family) {
+	switch (addrbuf->sa.sa_family) {
 	case AF_UNIX:
 	  // AF_FILE is also a synonym for AF_UNIX
 	  // these are file operations
@@ -369,17 +375,19 @@ int getsockinfo(struct tcb *tcp, long addr, int addrlen, socketdata_t *psock)
 	case AF_INET:
 		//tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\")",
 			//ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
-		psock->port = ntohs(addrbuf.sin.sin_port);
-		psock->ip.ipv4 = addrbuf.sin.sin_addr.s_addr;
+		psock->port = ntohs(addrbuf->sin.sin_port);
+		psock->ip.ipv4 = addrbuf->sin.sin_addr.s_addr;
+		return 4;
 		break;
 #ifdef HAVE_INET_NTOP
 	case AF_INET6:
-		inet_ntop(AF_INET6, &addrbuf.sa6.sin6_addr, string_addr, sizeof(string_addr));
+		inet_ntop(AF_INET6, &addrbuf->sa6.sin6_addr, string_addr, sizeof(string_addr));
 		//tprintf("sin6_port=htons(%u), inet_pton(AF_INET6, \"%s\", &sin6_addr), sin6_flowinfo=%u",
 		//		ntohs(addrbuf.sa6.sin6_port), string_addr,
 		//		addrbuf.sa6.sin6_flowinfo);
-		psock->port = ntohs(addrbuf.sa6.sin6_port);
-		memcpy(&addrbuf.sa6.sin6_addr, &psock->ip.ipv6, 16);
+		psock->port = ntohs(addrbuf->sa6.sin6_port);
+		memcpy(&addrbuf->sa6.sin6_addr, &psock->ip.ipv6, 16);
+		return 6;
 		break;
 #endif
 
@@ -390,7 +398,7 @@ int getsockinfo(struct tcb *tcp, long addr, int addrlen, socketdata_t *psock)
 	default:
 		break;
 	}
-	return 0;
+	return -1;
 }
 
 void printSockInfo(struct tcb* tcp, int op, \
@@ -409,17 +417,20 @@ void printSockInfo(struct tcb* tcp, int op, \
       localAddr.sin_addr.s_addr, d_port, d_ipv4, sk);
 }
 
-void CDEnet_begin_bind(struct tcb* tcp) {
-  // int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+// int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+void CDEnet_begin_bind(struct tcb* tcp) { // nothing for now
+}
+void CDEnet_end_bind(struct tcb* tcp) {
   socketdata_t sock;
   int sk = tcp->u_rval;
-  if (!entering(tcp)) {
-    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-      printSockInfo(tcp, SOCK_BIND, sock.port, sock.ip.ipv4, sk);
-    }
+  char addrbuf[KEYLEN];
+  memset(addrbuf, 0, sizeof(addrbuf));
+  if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
+    return;
   }
-}
-void CDEnet_end_bind(struct tcb* tcp) { // TODO
+  if (getsockinfo(tcp, addrbuf, &sock)>=0) {
+    printSockInfo(tcp, SOCK_BIND, sock.port, sock.ip.ipv4, sk);
+  }
 }
 
 void denySyscall(long pid) {
@@ -439,6 +450,17 @@ void CDEnet_begin_connect(struct tcb* tcp) {
     vbprintf("[%ld] CDEnet_begin_connect\n", tcp->pid);
   }
   if (CDE_nw_mode) {
+    socketdata_t sock;
+    char addrbuf[KEYLEN];
+    memset(&addrbuf, 0, sizeof(addrbuf));
+    if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
+      return;
+    }
+    if (getsockinfo(tcp, addrbuf, &sock)>=0)
+      if (sock.port == 53) { // and other cases come here -TODO
+	db_setIgnoredSock(currdb, tcp->u_arg[0]);
+	return;
+      }
     denySyscall(tcp->pid);
   }
 }
@@ -462,16 +484,40 @@ int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
 }
 
 void CDEnet_end_connect(struct tcb* tcp) {
-  // might also use getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-  char addrbuf[128];
-  int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode) {
-    memset(addrbuf, 0, sizeof(addrbuf));
-    if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0)
-      return;
-    print_connect_prov(tcp, sockfd, addrbuf, tcp->u_arg[2], tcp->u_rval);
+  
+  long addr = tcp->u_arg[1];
+  int addrlen = tcp->u_arg[2];
+
+  union {
+    char pad[128];
+    struct sockaddr sa;
+    struct sockaddr_in sin;
+    struct sockaddr_un sau;
+  } addrbuf;
+
+  if (addr == 0) {
+    return;
   }
-  if (CDE_nw_mode) { // return my own network socket connect result from netdb
+
+  if (addrlen < 2 || addrlen > sizeof(addrbuf)) {
+    addrlen = sizeof(addrbuf);
+  }
+
+  memset(&addrbuf, 0, sizeof(addrbuf));
+  if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
+    return;
+  }
+  addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
+
+  int sockfd = tcp->u_arg[0];
+  //~ printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
+  if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
+    print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
+  }
+  if (CDE_nw_mode && addrbuf.sa.sa_family == AF_INET) { // return my own network socket connect result from netdb
+    
+    if (isIgnoredSock(currdb, sockfd)) return;
+    
     char *pidkey = db_read_pid_key(currdb, tcp->pid);
     ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
@@ -486,6 +532,7 @@ void CDEnet_end_connect(struct tcb* tcp) {
       // set errno? TODO
     } else {
       db_setSockConnectId(currdb, pidkey, sockfd, sockid);	// map this sock number to given sock in tcp
+      // TODO: keep the addrbuf.pad memory as well
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
@@ -518,18 +565,19 @@ int socket_data_handle(struct tcb* tcp, int action) {
  */
 
 void CDEnet_begin_recv(struct tcb* tcp) {
-  if (CDE_nw_mode) {
+  if (CDE_nw_mode && !isIgnoredSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
 }
 void CDEnet_end_recv(struct tcb* tcp) {
+  int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_RECV);
   }
-  if (CDE_nw_mode) {
+  if (CDE_nw_mode && !isIgnoredSock(currdb, sockfd)) {
     long pid = tcp->pid;
     char* pidkey = db_read_pid_key(currdb, pid);
-    char* sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
+    char* sockid = db_getSockId(currdb, pidkey, sockfd);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     size_t u_rval;
@@ -569,7 +617,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) { //TODO
  */
 
 void CDEnet_begin_send(struct tcb* tcp) {
-  if (CDE_nw_mode) {
+  if (CDE_nw_mode && !isIgnoredSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
 }
@@ -591,12 +639,13 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
 }
 
 void CDEnet_end_send(struct tcb* tcp) {
+  int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_SEND);
   }
-  if (CDE_nw_mode) {
+  if (CDE_nw_mode && !isIgnoredSock(currdb, sockfd)) {
     char* pidkey = db_read_pid_key(currdb, tcp->pid);
-    char* sockid = db_getSockId(currdb, pidkey, tcp->u_arg[0]);
+    char* sockid = db_getSockId(currdb, pidkey, sockfd);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     size_t u_rval;
@@ -654,11 +703,6 @@ char* db_getAcceptResult(lvldb_t *mydb, char* pidkey, ull_t listenid, ull_t acce
 }
 void CDEnet_end_accept(struct tcb* tcp) {
   if (CDE_provenance_mode) {
-    //~ socketdata_t sock;
-    //~ int sk = tcp->u_rval;
-    //~ if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-      //~ printSockInfo(tcp, SOCK_ACCEPT, sock.port, sock.ip.ipv4, sk);
-    //~ }
     print_accept_prov(tcp);
   }
   if (CDE_nw_mode) {
@@ -670,6 +714,10 @@ void CDEnet_end_accept(struct tcb* tcp) {
     int u_rval; // get the result of a accept call
     socklen_t addrlen;
     char *addr = db_getAcceptResult(netdb, prov_pid, listenid, acceptid, &addrlen, &u_rval);
+    if (u_rval > 0) { // create a sock
+      //u_rval = socket(AF_INET , SOCK_STREAM , 0);
+      u_rval = open("/dev/null", O_RDWR);
+    }
     
     // return recorded result
     struct user_regs_struct regs;
@@ -695,12 +743,6 @@ void CDEnet_end_accept(struct tcb* tcp) {
 // On success, zero is returned.  On error, -1 is returned,
 //   and errno is set appropriately.
 void CDEnet_begin_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
-  //~ if (CDE_provenance_mode) {
-    //~ socketdata_t sock;
-    //~ if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
-      //~ print_sock_prov(tcp, SOCK_LISTEN, sock.port, sock.ip.ipv4);
-    //~ }
-  //~ }
   if (CDE_nw_mode) {
     denySyscall(tcp->pid);
   }
@@ -733,19 +775,24 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
   }
 }
 
-void CDEnet_read(struct tcb* tcp) {
+void CDEnet_read(struct tcb* tcp) { // TODO
   // ssize_t read(int fd, void *buf, size_t count);
   //~ printf("void CDEnet_read(struct tcb* tcp)\n");
 }
 
-void CDEnet_write(struct tcb* tcp) {
+void CDEnet_write(struct tcb* tcp) { // TODO
   // ssize_t write(int fd, const void *buf, size_t count);
   //~ printf("void CDEnet_write(struct tcb* tcp)\n");
 }
 
+// int close(int fd);
 void CDEnet_close(struct tcb* tcp) {
-  // int close(int fd);
-  //~ printf("void CDEnet_close(struct tcb* tcp)\n");
+  if (CDE_provenance_mode) {
+    print_sock_close(tcp);
+  }
+  if (CDE_nw_mode) {
+    db_remove_sock(currdb, tcp->pid, tcp->u_arg[0]);
+  }
 }
 
 /* =============

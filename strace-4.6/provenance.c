@@ -24,6 +24,7 @@
 
 extern char* strcpy_from_child(struct tcb* tcp, long addr);
 extern void vbprintf(const char *fmt, ...);
+extern void print_trace (void);
 void rstrip(char *s);
 
 extern char CDE_exec_mode;
@@ -62,6 +63,8 @@ extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 extern char* canonicalize_path(char *path, char *relpath_base);
 
+int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock);
+
 void init_prov();
 
 void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name);
@@ -93,6 +96,8 @@ void db_write_listen_prov(lvldb_t *mydb, int pid,
 void db_setupListenCounter(lvldb_t *mydb, char* pidkey);
 void db_setupConnectCounter(lvldb_t *mydb, char* pidkey);
 void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
+void db_setIgnoredSock(lvldb_t *mydb, int sockfd);
+int isIgnoredSock(lvldb_t *mydb, int sockfd);
 
 void db_write_root(lvldb_t *mydb);
     
@@ -372,7 +377,7 @@ void print_newsock_prov(struct tcb *tcp, int action, \
     strcpy(daddr, inet_ntoa(d_in));
     fprintf(CDE_provenance_logfile, "%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
         action, s_port, saddr, d_port, daddr, sk);
-    //~ printf("%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, \
+    //~ printf("%d %u %d %u %s %u %s %d\n", (int)time(0), tcp->pid, 
         //~ action, s_port, saddr, d_port, daddr, sk);
     //db_write_connect_prov(tcp->pid, action, filename_abspath);
   }
@@ -380,10 +385,19 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval) {
-  if (CDE_provenance_mode) {
+  if (CDE_provenance_mode && !isIgnoredSock(provdb, sockfd)) {
+    
+    if (isIgnoredSock(provdb, sockfd)) return;
+    
     db_write_connect_prov(provdb, tcp->pid, sockfd, addr, addr_len, u_rval);
     socketdata_t sock;
-    if (getsockinfo(tcp, tcp->u_arg[1], tcp->u_arg[2], &sock)>=0) {
+    char addrbuf[KEYLEN];
+    memset(&addrbuf, 0, sizeof(addrbuf));
+    if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
+      return;
+    }
+
+    if (getsockinfo(tcp, addrbuf, &sock)>=0) {
       struct in_addr d_in;
       char daddr[32];
       d_in.s_addr = sock.ip.ipv4;
@@ -397,19 +411,21 @@ void print_connect_prov(struct tcb *tcp,
 void print_sock_action(struct tcb *tcp, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
                        size_t len_result, int action) {
-  if (0) {
-    int i;
-    printf("sock %d action %d size %ld res %ld: '", \
-           sockfd, action, len_param, len_result);
-    for (i=0; i<len_result; i++) {
-      printf("%c", buf[i]);
+  if (CDE_provenance_mode && !isIgnoredSock(provdb, sockfd)) {
+    if (0) {
+      int i;
+      printf("sock %d action %d size %ld res %ld: '", \
+             sockfd, action, len_param, len_result);
+      for (i=0; i<len_result; i++) {
+        printf("%c", buf[i]);
+      }
+      printf("'\n");
     }
-    printf("'\n");
+    fprintf(CDE_provenance_logfile, "%d %u SOCK %d %zu %d %zu %d\n", (int)time(0), tcp->pid, \
+          sockfd, len_param, flags, len_result, action);
+    db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
+                         len_result, action);
   }
-  fprintf(CDE_provenance_logfile, "%d %u SOCK %d %zu %d %zu %d\n", (int)time(0), tcp->pid, \
-        sockfd, len_param, flags, len_result, action);
-  db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
-                       len_result, action);
 }
 
 void print_curr_prov(pidlist_t *pidlist_p) {
@@ -884,6 +900,37 @@ void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, ull_t listenid, u
   _db_setSockId(mydb, pidkey, sock, ch_sockid);
 }
 
+void db_setIgnoredSock(lvldb_t *mydb, int sockfd) {
+  char key[KEYLEN];
+  sprintf(key, "sock.ignore.%d", sockfd);
+  db_write(mydb, key, "1");
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[xxxx] db_setIgnoredSock sock %d\n", sockfd);
+  }
+}
+void db_removeIgnoredSock(lvldb_t *mydb, int sockfd) {
+  char key[KEYLEN];
+  char *err = NULL;
+  sprintf(key, "sock.ignore.%d", sockfd);
+  leveldb_delete(mydb->db, mydb->woptions, key, strlen(key), &err);
+  leveldb_free(err); err = NULL;
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[xxxx] db_removeIgnoredSock sock %d\n", sockfd);
+  }
+}
+int isIgnoredSock(lvldb_t *mydb, int sockfd) {
+  char key[KEYLEN], *value;
+  sprintf(key, "sock.ignore.%d", sockfd);
+  value = db_readc(mydb, key);
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[xxxx] isIgnoredSock sock %d value %d\n", sockfd, value != NULL);
+  }
+  if (value != NULL) {
+    free(value);
+    return 1;
+  } else
+    return 0;
+}
 // action
 
 char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
@@ -900,6 +947,25 @@ char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
         pidkey, sock, sockid, strlen(sockid));
   }
   return sockid;
+}
+
+void db_removeSockId(lvldb_t *mydb, char* pidkey, int sock) {
+  char key[KEYLEN];
+  char *err = NULL, deleted = 0;
+  
+  sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
+  leveldb_delete(mydb->db, mydb->woptions, key, strlen(key), &err);
+  deleted += err == NULL ? 1 : 0;
+  leveldb_free(err); err = NULL;
+  
+  sprintf(key, "pid.%s.ac2id.%d", pidkey, sock);
+  leveldb_delete(mydb->db, mydb->woptions, key, strlen(key), &err);
+  deleted += err == NULL ? 1 : 0;
+  leveldb_free(err); err = NULL;
+  
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[xxx] db_removeSockId pidkey %s, sock %d deleted %d\n", pidkey, sock, deleted);
+  }
 }
 
 ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action) {
@@ -1107,6 +1173,23 @@ void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid) {
   if (CDE_verbose_mode>=2) {
     vbprintf("[xxxx] db_setupAcceptCounter pidkey %s, listenid %llu\n", 
         pidkey, listenid);
+  }
+}
+
+/* =====
+ * sock gets closed
+ */
+void db_remove_sock(lvldb_t *mydb, long pid, int sockfd) {
+  db_removeIgnoredSock(mydb, sockfd);
+  // remove the corresponding (if set) sockid in currdb
+  // to allow detection of socket or file fd
+  char *pidkey = db_read_pid_key(mydb, pid);
+  db_removeSockId(mydb, pidkey, sockfd);
+  free(pidkey);
+}
+void print_sock_close(struct tcb *tcp) {
+  if (CDE_provenance_mode) {
+    db_remove_sock(provdb, tcp->pid, tcp->u_arg[0]);
   }
 }
 
