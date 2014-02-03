@@ -435,7 +435,7 @@ extern void CDEnet_close(struct tcb *tcp);
 int
 sys_close(struct tcb *tcp)
 {
-	if (entering(tcp)) {
+	if (!entering(tcp)) {
 		CDEnet_close(tcp);
 	}
 	//~ if (entering(tcp)) {

@@ -38,13 +38,13 @@ int main(int argc , char *argv[])
         perror("bind failed. Error");
         return 1;
     }
-    puts("bind done");
+    printf("bind done\n");
 
     //Listen
     listen(socket_desc , 3);
 
     //Accept and incoming connection
-    puts("Waiting for incoming connections...");
+    printf("Waiting for incoming connections...\n");
     c = sizeof(struct sockaddr_in);
 
     char exitnow = 0;
@@ -75,14 +75,14 @@ int main(int argc , char *argv[])
 
         if(read_size == 0)
         {
-            puts("Client disconnected");
+            printf("Client disconnected\n");
             fflush(stdout);
         }
         else if(read_size == -1)
         {
             perror("recv failed");
         }
-        close(client_sock);
+        printf("close %d\n", close(client_sock));
     }
 
     return 0;

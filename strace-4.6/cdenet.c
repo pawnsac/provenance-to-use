@@ -253,42 +253,42 @@ extern char* CDE_ROOT_NAME;
 lvldb_t *netdb, *currdb;
 char* netdb_root;
 
-void print_connect_prov(struct tcb *tcp, 
+extern void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval);
-void print_accept_prov(struct tcb *tcp);
+extern void print_accept_prov(struct tcb *tcp);
 
-void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len);
-char* db_nread(lvldb_t *mydb, const char *key, size_t *plen);
-void db_write(lvldb_t *mydb, const char *key, const char *value);
-char* db_readc(lvldb_t *mydb, const char *key);
-void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
-char* db_read_pid_key(lvldb_t *mydb, long pid);
-void db_write_root(lvldb_t *mydb);
-void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
-char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
+extern void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len);
+extern char* db_nread(lvldb_t *mydb, const char *key, size_t *plen);
+extern void db_write(lvldb_t *mydb, const char *key, const char *value);
+extern char* db_readc(lvldb_t *mydb, const char *key);
+extern void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
+extern char* db_read_pid_key(lvldb_t *mydb, long pid);
+extern void db_write_root(lvldb_t *mydb);
+extern void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
+extern char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
 
-void db_setSockConnectId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
-ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey);
-ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action);
-char* db_getSendRecvResult(lvldb_t *mydb, int action, 
+extern void db_setSockConnectId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
+extern ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey);
+extern ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action);
+extern char* db_getSendRecvResult(lvldb_t *mydb, int action, 
     char* pidkey, char* sockid, ull_t sendid, size_t *presult);
-int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
-ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
-void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
-ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock);
-ull_t db_getAcceptCounterInc(lvldb_t *mydb, char* pidkey, ull_t listenid);
-void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
-void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd, 
+extern int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
+extern ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
+extern void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
+extern ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock);
+extern ull_t db_getAcceptCounterInc(lvldb_t *mydb, char* pidkey, ull_t listenid);
+extern void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
+extern void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd, 
     ull_t listenid, ull_t acceptid);
-void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, 
+extern void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, 
     ull_t listenid, ull_t acceptid);
-void db_removeSockId(lvldb_t *mydb, char* pidkey, int sock);
-void db_setIgnoredSock(lvldb_t *mydb, int sockfd);
-int isIgnoredSock(lvldb_t *mydb, int sockfd);
-void db_remove_sock(lvldb_t *mydb, long pid, int sockfd);
-void print_sock_close(struct tcb *tcp);
+extern void db_removeSockId(lvldb_t *mydb, char* pidkey, int sock);
+extern void db_setCapturedSock(lvldb_t *mydb, int sockfd);
+extern int db_isCapturedSock(lvldb_t *mydb, int sockfd);
+extern void db_remove_sock(lvldb_t *mydb, long pid, int sockfd);
+extern void print_sock_close(struct tcb *tcp);
 
-char* getMappedPid(char* pidkey);
+extern char* getMappedPid(char* pidkey);
 
 // TODO: read from external file / socket on initialization
 int N_SIN = 1;
@@ -457,8 +457,8 @@ void CDEnet_begin_connect(struct tcb* tcp) {
       return;
     }
     if (getsockinfo(tcp, addrbuf, &sock)>=0)
-      if (sock.port == 53) { // and other cases come here -TODO
-	db_setIgnoredSock(currdb, tcp->u_arg[0]);
+      if (sock.port != 53) { // and other cases come here -TODO
+	db_setCapturedSock(currdb, tcp->u_arg[0]);
 	return;
       }
     denySyscall(tcp->pid);
@@ -514,10 +514,8 @@ void CDEnet_end_connect(struct tcb* tcp) {
   if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
   }
-  if (CDE_nw_mode && addrbuf.sa.sa_family == AF_INET) { // return my own network socket connect result from netdb
-    
-    if (isIgnoredSock(currdb, sockfd)) return;
-    
+  if (CDE_nw_mode && addrbuf.sa.sa_family == AF_INET && db_isCapturedSock(currdb, sockfd)) { // return my own network socket connect result from netdb
+        
     char *pidkey = db_read_pid_key(currdb, tcp->pid);
     ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
@@ -545,14 +543,14 @@ void CDEnet_end_connect(struct tcb* tcp) {
 }
 
 int socket_data_handle(struct tcb* tcp, int action) {
-  int len = tcp->u_rval;
-  char *buf = malloc(len);
-  if (umoven(tcp, tcp->u_arg[1], len, buf) < 0) {
-    return -1;
-  }
-  print_sock_action(tcp, tcp->u_arg[0], buf, tcp->u_arg[2], tcp->u_arg[3], len, action);
-  if (CDE_verbose_mode) {
-    vbprintf("[%d] socket_data_handle action %d\n", tcp->pid, action);
+  int sockfd = tcp->u_arg[0];
+  if (CDE_provenance_mode) {
+    int len = tcp->u_rval;
+    char *buf = malloc(len);
+    if (umoven(tcp, tcp->u_arg[1], len, buf) < 0) {
+      return -1;
+    }
+    print_sock_action(tcp, sockfd, buf, tcp->u_arg[2], tcp->u_arg[3], len, action);
   }
   return 0;
 }
@@ -565,7 +563,7 @@ int socket_data_handle(struct tcb* tcp, int action) {
  */
 
 void CDEnet_begin_recv(struct tcb* tcp) {
-  if (CDE_nw_mode && !isIgnoredSock(currdb, tcp->u_arg[0])) {
+  if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
 }
@@ -574,7 +572,7 @@ void CDEnet_end_recv(struct tcb* tcp) {
   if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_RECV);
   }
-  if (CDE_nw_mode && !isIgnoredSock(currdb, sockfd)) {
+  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
     long pid = tcp->pid;
     char* pidkey = db_read_pid_key(currdb, pid);
     char* sockid = db_getSockId(currdb, pidkey, sockfd);
@@ -617,7 +615,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) { //TODO
  */
 
 void CDEnet_begin_send(struct tcb* tcp) {
-  if (CDE_nw_mode && !isIgnoredSock(currdb, tcp->u_arg[0])) {
+  if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
 }
@@ -643,7 +641,7 @@ void CDEnet_end_send(struct tcb* tcp) {
   if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_SEND);
   }
-  if (CDE_nw_mode && !isIgnoredSock(currdb, sockfd)) {
+  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
     char* pidkey = db_read_pid_key(currdb, tcp->pid);
     char* sockid = db_getSockId(currdb, pidkey, sockfd);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
@@ -718,6 +716,7 @@ void CDEnet_end_accept(struct tcb* tcp) {
       //u_rval = socket(AF_INET , SOCK_STREAM , 0);
       u_rval = open("/dev/null", O_RDWR);
     }
+    db_setCapturedSock(currdb, u_rval);
     
     // return recorded result
     struct user_regs_struct regs;
@@ -787,11 +786,12 @@ void CDEnet_write(struct tcb* tcp) { // TODO
 
 // int close(int fd);
 void CDEnet_close(struct tcb* tcp) {
+  int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode) {
     print_sock_close(tcp);
   }
-  if (CDE_nw_mode) {
-    db_remove_sock(currdb, tcp->pid, tcp->u_arg[0]);
+  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
+    db_remove_sock(currdb, tcp->pid, sockfd);
   }
 }
 
