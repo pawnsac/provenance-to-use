@@ -52,9 +52,12 @@ extern void CDEnet_write(struct tcb* tcp);
 int
 sys_read(struct tcb *tcp)
 {
+	tcp->u_arg[3] = 0;
 	if (entering(tcp)) {
-		CDEnet_read(tcp);
+		CDEnet_begin_recv(tcp);
 		// TODO quanpt - similar to CDEnet_recv
+	} else {
+		CDEnet_end_recv(tcp);
 	}
 	//~ if (entering(tcp)) {
 		//~ printfd(tcp, tcp->u_arg[0]);
@@ -72,9 +75,12 @@ sys_read(struct tcb *tcp)
 int
 sys_write(struct tcb *tcp)
 {
+	tcp->u_arg[3] = 0;
 	if (entering(tcp)) {
-		CDEnet_write(tcp);
+		CDEnet_begin_send(tcp);
 		// TODO quanpt - similar to CDEnet_send
+	} else {
+		CDEnet_end_send(tcp);
 	}
 	//~ if (entering(tcp)) {
 		//~ printfd(tcp, tcp->u_arg[0]);

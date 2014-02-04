@@ -647,9 +647,19 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
 void CDEnet_end_send(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode) {
-    socket_data_handle(tcp, SOCK_SEND);
+    if (socket_data_handle(tcp, SOCK_SEND) < 0) {
+      // TODO
+    }
   }
   if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
+    if (CDE_verbose_mode >= 3) {
+      char buff[KEYLEN];
+      if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], buff) < 0) {
+	return;
+      }
+      buff[tcp->u_arg[2]] = '\0';
+      vbprintf("[%d-net] CDEnet_end_send action %d [%d] '%s'\n", tcp->pid, SOCK_SEND, tcp->u_arg[2], buff);
+    }
     char* pidkey = db_read_pid_key(currdb, tcp->pid);
     char* sockid = db_getSockId(currdb, pidkey, sockfd);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
@@ -782,12 +792,24 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
   }
 }
 
-void CDEnet_read(struct tcb* tcp) { // TODO
+void CDEnet_begin_read(struct tcb* tcp) { // TODO
+  // ssize_t read(int fd, void *buf, size_t count);
+  //~ printf("void CDEnet_read(struct tcb* tcp)\n");
+}
+void CDEnet_end_read(struct tcb* tcp) { // TODO
   // ssize_t read(int fd, void *buf, size_t count);
   //~ printf("void CDEnet_read(struct tcb* tcp)\n");
 }
 
-void CDEnet_write(struct tcb* tcp) { // TODO
+// ssize_t write(int fd, const void *buf, size_t count);
+// On  success,  the  number  of  bytes  written is returned 
+// (zero indicates nothing was written). 
+// On error, -1 is returned.
+void CDEnet_begin_write(struct tcb* tcp) { // TODO
+  // ssize_t write(int fd, const void *buf, size_t count);
+  //~ printf("void CDEnet_write(struct tcb* tcp)\n");
+}
+void CDEnet_end_write(struct tcb* tcp) { // TODO
   // ssize_t write(int fd, const void *buf, size_t count);
   //~ printf("void CDEnet_write(struct tcb* tcp)\n");
 }

@@ -405,7 +405,7 @@ void print_connect_prov(struct tcb *tcp,
 }
 
 void print_sock_action(struct tcb *tcp, int sockfd, \
-                       const char *buf, size_t len_param, int flags, \
+                       char *buf, size_t len_param, int flags, \
                        size_t len_result, int action) {
   if (db_isCapturedSock(provdb, sockfd)) {
     if (0) {
@@ -421,8 +421,11 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
           sockfd, len_param, flags, len_result, action);
     db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
                          len_result, action);
-    if (CDE_verbose_mode) {
-      vbprintf("[%d-prov] socket_data_handle action %d\n", tcp->pid, action);
+    if (CDE_verbose_mode && action == SOCK_SEND) {
+      if (strlen(buf)>23) {
+        buf[20] = '.';buf[21] = '.';buf[22] = '.';buf[23] = '\0';
+      }
+      vbprintf("[%d-prov] socket_data_handle action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
     }
   }
 }
