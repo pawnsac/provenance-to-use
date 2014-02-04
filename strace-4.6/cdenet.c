@@ -179,7 +179,8 @@ enum LINUX_CALL_TYPES {
 };
 
 #ifdef X86_64
-static enum LINUX_CALL_TYPES
+//~ static enum LINUX_CALL_TYPES
+enum LINUX_CALL_TYPES
 linux_call_type(long codesegment) 
 {
 	if (codesegment == 0x33)
@@ -487,7 +488,8 @@ int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
     fprintf(stderr, "Cannot find key '%s'\n", key);
     exit(-1);
   }
-  sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
+  //~ sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
+  sscanf(read, "prv.sock.%*d.%*u.newfd.%*u.%*d.%*d.%d", &u_rval);
   return u_rval;
 }
 
@@ -890,7 +892,7 @@ char* getMappedPid(char* pidkey) {
   // STUB method for now - return first child of root
   // TODO: need a cache for this operation as well
   char key[KEYLEN], *value;
-  char *read;
+  const char *read;
   size_t read_len;
   
   sprintf(key, "prv.pid.%s.actualexec.", netdb_root);

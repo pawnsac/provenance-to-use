@@ -422,8 +422,9 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
     db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
                          len_result, action);
     if (CDE_verbose_mode && action == SOCK_SEND) {
-      if (strlen(buf)>23) {
-        buf[20] = '.';buf[21] = '.';buf[22] = '.';buf[23] = '\0';
+      #define NPRINT (100)
+      if (strlen(buf)>NPRINT+3) {
+        buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
       }
       vbprintf("[%d-prov] socket_data_handle action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
     }
@@ -452,8 +453,10 @@ void print_curr_prov(pidlist_t *pidlist_p) {
       rss= 0;
     else
       // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
-      sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu \
-%*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
+      //~ sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu "
+          //~ "%*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
+      sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u "
+          "%*u %*u %*u %*u %*u %*d %*d %*d %*d %*d %*d %*u %lu ", &rss);
     fclose(f);
     fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
     db_write_prov_stat(provdb, pidlist_p->pv[i], "stat", buff);
@@ -811,10 +814,16 @@ void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid) {
   char *pidkey=db_read_pid_key(mydb, pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
+  ull_t zero = 0;
 
   // create (successful) exec relation
   sprintf(key, "prv.pid.%s.ok", pidkey);
   sprintf(value, "%llu", usec);
+  db_write(mydb, key, value);
+  
+  // write number of child counter
+  sprintf(key, "prv.pid.%s.childn", pidkey);
+  sprintf(value, "%llu", zero);
   db_write(mydb, key, value);
   
   db_setupConnectCounter(mydb, pidkey);
