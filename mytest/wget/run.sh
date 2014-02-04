@@ -2,6 +2,7 @@
 
 ### prepare clean db and newest binary
 rm -rf cde-package/provenance.cde-root.*
+rm spim.pdf*
 cp ../../ptu cde-package/cde-exec
 
 ### start

@@ -437,7 +437,7 @@ void denySyscall(long pid) {
   struct user_regs_struct regs;
   EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
   if (CDE_verbose_mode>=2) {
-    vbprintf("[%ld] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
+    vbprintf("[%ld-net] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
   }
   SYSCALL_NUM(&regs) = 0xbadca11;
   EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
@@ -447,7 +447,7 @@ void denySyscall(long pid) {
 //     on connection or binding succeeds, zero is returned; on error, -1 is returned.
 void CDEnet_begin_connect(struct tcb* tcp) {
   if (CDE_verbose_mode) {
-    vbprintf("[%ld] CDEnet_begin_connect\n", tcp->pid);
+    vbprintf("[%ld-net] CDEnet_begin_connect\n", tcp->pid);
   }
   if (CDE_nw_mode) {
     socketdata_t sock;
@@ -456,12 +456,20 @@ void CDEnet_begin_connect(struct tcb* tcp) {
     if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
       return;
     }
-    if (getsockinfo(tcp, addrbuf, &sock)>=0)
-      if (sock.port != 53) { // and other cases come here -TODO
+    if (getsockinfo(tcp, addrbuf, &sock)>=0) {
+      if (sock.port != 53 && sock.port != 0) { // and other cases come here -TODO
 	db_setCapturedSock(currdb, tcp->u_arg[0]);
+	denySyscall(tcp->pid);
 	return;
       }
-    denySyscall(tcp->pid);
+      if (CDE_verbose_mode) {
+	vbprintf("[%ld-net]    sock %d port %d %d\n", tcp->pid, tcp->u_arg[0], sock.port);
+      }
+    } else {
+      if (CDE_verbose_mode) {
+	vbprintf("[%ld-net]    unknown sock %d port %d\n", tcp->pid, tcp->u_arg[0], sock.port);
+      }
+    }
   }
 }
 
