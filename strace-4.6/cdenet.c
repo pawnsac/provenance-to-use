@@ -26,6 +26,8 @@ CDEnet is currently licensed under GPL v3:
 #include "provenance.h"
 #include "cdenet.h"
 #include "../leveldb-1.14.0/include/leveldb/c.h"
+#include "const.h"
+#include "db.h"
 
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -257,36 +259,6 @@ char* netdb_root;
 extern void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval);
 extern void print_accept_prov(struct tcb *tcp);
-
-extern void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len);
-extern char* db_nread(lvldb_t *mydb, const char *key, size_t *plen);
-extern void db_write(lvldb_t *mydb, const char *key, const char *value);
-extern char* db_readc(lvldb_t *mydb, const char *key);
-extern void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
-extern char* db_read_pid_key(lvldb_t *mydb, long pid);
-extern void db_write_root(lvldb_t *mydb);
-extern void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t sockid);
-extern char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
-
-extern void db_setSockConnectId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
-extern ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey);
-extern ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action);
-extern char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, char* sockid, ull_t sendid, size_t *presult);
-extern int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
-extern ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey);
-extern void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
-extern ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock);
-extern ull_t db_getAcceptCounterInc(lvldb_t *mydb, char* pidkey, ull_t listenid);
-extern void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
-extern void db_setupSockAcceptCounter(lvldb_t *mydb, char *pidkey, int sockfd, 
-    ull_t listenid, ull_t acceptid);
-extern void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, 
-    ull_t listenid, ull_t acceptid);
-extern void db_removeSockId(lvldb_t *mydb, char* pidkey, int sock);
-extern void db_setCapturedSock(lvldb_t *mydb, int sockfd);
-extern int db_isCapturedSock(lvldb_t *mydb, int sockfd);
-extern void db_remove_sock(lvldb_t *mydb, long pid, int sockfd);
 extern void print_sock_close(struct tcb *tcp);
 
 extern char* getMappedPid(char* pidkey);
@@ -295,6 +267,27 @@ extern char* getMappedPid(char* pidkey);
 int N_SIN = 1;
 struct sockaddr_in sin_key[1];
 struct sockaddr_in sin_value[1];
+
+// local function signatures
+void CDEnet_begin_connect(struct tcb* tcp);
+void CDEnet_end_connect(struct tcb* tcp);
+void CDEnet_begin_bind(struct tcb *tcp);
+void CDEnet_end_bind(struct tcb *tcp);
+void CDEnet_begin_listen(struct tcb* tcp);
+void CDEnet_end_listen(struct tcb* tcp);
+void CDEnet_begin_accept(struct tcb* tcp);
+void CDEnet_end_accept(struct tcb* tcp);
+void CDEnet_begin_send(struct tcb* tcp);
+void CDEnet_end_send(struct tcb* tcp);
+void CDEnet_begin_recv(struct tcb* tcp);
+void CDEnet_end_recv(struct tcb* tcp);
+
+// delete these later
+void CDEnet_begin_sendmsg(struct tcb* tcp);
+void CDEnet_end_sendmsg(struct tcb* tcp);
+void CDEnet_begin_recvmsg(struct tcb* tcp);
+void CDEnet_end_recvmsg(struct tcb* tcp);
+
 
 void CDEnet_sin_dict_load() {
   // TODO: implement by loading from a config file or from a server
@@ -599,7 +592,7 @@ void CDEnet_end_recv(struct tcb* tcp) {
     } else { // successed call, copy to buffer as well
       memcpy_to_child(pid, (char*) tcp->u_arg[1], buff, u_rval);
     }
-    if (buff != NULL) leveldb_free(buff);
+    if (buff != NULL) free(buff);
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
     free(prov_pid);
@@ -628,22 +621,6 @@ void CDEnet_begin_send(struct tcb* tcp) {
   if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
-}
-
-char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, char* sockid, ull_t pkgid, size_t *presult) {
-  char key[KEYLEN];
-  ull_t res;
-  // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
-  sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", pidkey, sockid, action, pkgid);
-  db_read_ull(mydb, key, &res);
-  *presult = (int) res;
-  if (action == SOCK_RECV) {
-    sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
-          pidkey, sockid, action, pkgid);
-    return db_nread(mydb, key, presult);
-  }
-  return NULL; // SOCK_SEND and "other?" cases
 }
 
 void CDEnet_end_send(struct tcb* tcp) {
@@ -878,7 +855,7 @@ void init_nwdb() {
     currdb->woptions = leveldb_writeoptions_create();
     currdb->roptions = leveldb_readoptions_create();
     
-    db_write_root(currdb);
+    db_write_root(currdb, getpid());
   }
 }
 

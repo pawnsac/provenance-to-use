@@ -112,7 +112,7 @@ am_strace_OBJECTS = strace.$(OBJEXT) syscall.$(OBJEXT) count.$(OBJEXT) \
 	system.$(OBJEXT) term.$(OBJEXT) time.$(OBJEXT) proc.$(OBJEXT) \
 	scsi.$(OBJEXT) stream.$(OBJEXT) block.$(OBJEXT) cde.$(OBJEXT) \
 	okapi.$(OBJEXT) cdenet.$(OBJEXT) provenance.$(OBJEXT) \
-	multi.$(OBJEXT)
+	db.$(OBJEXT) multi.$(OBJEXT)
 strace_OBJECTS = $(am_strace_OBJECTS)
 strace_LDADD = $(LDADD)
 strace_DEPENDENCIES = ../readelf-mini/libreadelf-mini.a \
@@ -374,6 +374,7 @@ ARCH = @arch@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = $(WARN_CFLAGS)
 AM_CPPFLAGS = -I$(srcdir)/$(OS)/$(ARCH) -I$(srcdir)/$(OS) -I$(builddir)/$(OS)
+AM_LDFLAGS = -rdynamic
 LDADD = ../readelf-mini/libreadelf-mini.a -L ../leveldb-1.14.0 -L ../snappy-1.1.1/.libs -lleveldb -lsnappy $(INTLLIBS)
 #LDFLAGS = -pthread
 LINK = $(CXX) -pthread -static-libgcc  -static-libstdc++ -o $@
@@ -381,9 +382,9 @@ strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \
 		 io.c ioctl.c mem.c net.c process.c bjm.c quota.c \
 		 resource.c signal.c sock.c system.c term.c time.c \
                 proc.c scsi.c stream.c block.c cde.c okapi.c \
-		cdenet.c provenance.c multi.c
+		cdenet.c provenance.c db.c multi.c
 
-noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h multi.h
+noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h db.h multi.h
 EXTRA_DIST = $(man_MANS) errnoent.sh signalent.sh syscallent.sh ioctlsort.c \
 	     debian/changelog debian/compat debian/control debian/copyright \
 	     debian/rules debian/source/format debian/watch \
@@ -612,6 +613,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cde.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cdenet.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/count.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/db.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/desc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/file.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Po@am__quote@

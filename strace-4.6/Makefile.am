@@ -14,6 +14,7 @@ ARCH		= @arch@
 ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = $(WARN_CFLAGS)
 AM_CPPFLAGS = -I$(srcdir)/$(OS)/$(ARCH) -I$(srcdir)/$(OS) -I$(builddir)/$(OS)
+AM_LDFLAGS = -rdynamic
 LDADD = ../readelf-mini/libreadelf-mini.a -L ../leveldb-1.14.0 -L ../snappy-1.1.1/.libs -lleveldb -lsnappy $(INTLLIBS)
 #LDFLAGS = -pthread
 LINK=$(CXX) -pthread -static-libgcc  -static-libstdc++ -o $@
@@ -22,8 +23,8 @@ strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \
 		 io.c ioctl.c mem.c net.c process.c bjm.c quota.c \
 		 resource.c signal.c sock.c system.c term.c time.c \
                 proc.c scsi.c stream.c block.c cde.c okapi.c \
-		cdenet.c provenance.c multi.c
-noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h multi.h
+		cdenet.c provenance.c db.c multi.c
+noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h db.h multi.h
 
 EXTRA_DIST = $(man_MANS) errnoent.sh signalent.sh syscallent.sh ioctlsort.c \
 	     debian/changelog debian/compat debian/control debian/copyright \
