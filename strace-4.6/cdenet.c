@@ -520,8 +520,8 @@ void CDEnet_end_connect(struct tcb* tcp) {
   if (CDE_nw_mode && addrbuf.sa.sa_family == AF_INET && db_isCapturedSock(currdb, sockfd)) { // return my own network socket connect result from netdb
         
     char *pidkey = db_read_pid_key(currdb, tcp->pid);
-    ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
+    ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
     int u_rval = db_getSockResult(netdb, prov_pid, sockid); // get the result of a connect call
     
     // return recorded result
@@ -866,21 +866,64 @@ void init_nwdb() {
 // @return pidkey from netdb
 // TODO
 char* getMappedPid(char* pidkey) {
-  // STUB method for now - return first child of root
   // TODO: need a cache for this operation as well
-  char key[KEYLEN], *value;
+  char key[KEYLEN], *p;
   const char *read;
   size_t read_len;
+  ull_t childid;
+  int n=0, i;
+  ull_t idlist[100]; // enough?
   
-  sprintf(key, "prv.pid.%s.actualexec.", netdb_root);
+  p = pidkey;
+  while (p != NULL) {
+    sprintf(key, "prv.pid.%s.childid", p);
+    db_read_ull(currdb, key, &childid);
+    idlist[n++] = childid;
+    
+    sprintf(key, "prv.pid.%s.parent", p);
+    if (p != pidkey && p != NULL) free(p);
+    p = db_readc(currdb, key);
+  }
+  if (CDE_verbose_mode >= 2) {
+    printf("getMappedPid %s -> [%d] [", pidkey, n);  
+    for (i=0; i<n; i++) {
+      printf("%llu, ", idlist[i]);
+    }
+    printf("]\n");
+  }
+  
+  p = db_readc(netdb, "meta.root");
+  sprintf(key, "prv.pid.%s.actualexec.", p);
+  free(p);
   leveldb_iterator_t *it = leveldb_create_iterator(netdb->db, netdb->roptions);
   leveldb_iter_seek(it, key, strlen(key));
-  
+    
   read = leveldb_iter_value(it, &read_len);
-  value = malloc(read_len + 1);
-  memcpy(value, read, read_len);
-  value[read_len] = '\0';
-  return value;
+  p = malloc(read_len + 1);
+  memcpy(p, read, read_len);
+  p[read_len] = '\0';
+  n-=2; // skip the first root -> child that I just did
+  while (n>0) {
+    sprintf(key, "prv.pid.%s.child.%llu", p, idlist[n-1]);
+    n--;
+    free(p);
+    p = db_readc(netdb, key);
+  }
+  return p;
+  
+  //~ char *value;
+  //~ const char *read;
+  //~ size_t read_len;
+  //~ 
+  //~ sprintf(key, "prv.pid.%s.parent.", netdb_root);
+  //~ leveldb_iterator_t *it = leveldb_create_iterator(netdb->db, netdb->roptions);
+  //~ leveldb_iter_seek(it, key, strlen(key));
+    //~ 
+  //~ read = leveldb_iter_value(it, &read_len);
+  //~ value = malloc(read_len + 1);
+  //~ memcpy(value, read, read_len);
+  //~ value[read_len] = '\0';
+  //~ return value;
 }
 
 // sample code from systrace

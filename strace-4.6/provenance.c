@@ -323,9 +323,14 @@ void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posre
 }
 
 void print_spawn_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode) {
-    fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
-    db_write_spawn_prov(provdb, tcp->parent->pid, tcp->pid);
+  if (CDE_provenance_mode || CDE_nw_mode) {
+    if (CDE_provenance_mode) {
+      fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
+      db_write_spawn_prov(provdb, tcp->parent->pid, tcp->pid);
+    }
+    if (CDE_nw_mode) {
+      db_write_spawn_prov(currdb, tcp->parent->pid, tcp->pid);
+    }
   }
 }
 

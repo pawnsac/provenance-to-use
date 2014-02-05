@@ -62,13 +62,21 @@ def main():
   try:
     db = LevelDB(logfile+'_db', create_if_missing = False)
   except LevelDBError:
-    print "Error: can\'t find file " + logfile + " or read data\n"
-    sys.exit(-1)
+    try:
+      db = LevelDB(logfile, create_if_missing = False)
+    except LevelDBError:
+      print "Error: can\'t find file " + logfile + " or read data\n"
+      sys.exit(-1)
   
   # get root
   rootpid = db.Get('meta.root')
-  fullns = db.Get('meta.fullns')
-  agent = db.Get('meta.agent')
+  fullns = ""
+  agent = ""
+  try:
+    fullns = db.Get('meta.fullns')
+    agent = db.Get('meta.agent')
+  except:
+    pass
   
   # prepare graphic directory
   if not os.path.exists(dir):
