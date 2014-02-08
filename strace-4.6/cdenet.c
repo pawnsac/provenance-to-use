@@ -395,6 +395,10 @@ int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
 	return -1;
 }
 
+int isCurrCapturedSock(int sockfd) {
+  return db_isCapturedSock(currdb, sockfd);
+}
+
 void printSockInfo(struct tcb* tcp, int op, \
     unsigned int d_port, unsigned long d_ipv4, int sk) {
   struct sockaddr_in localAddr;
@@ -422,9 +426,8 @@ void CDEnet_end_bind(struct tcb* tcp) {
   if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
     return;
   }
-  if (getsockinfo(tcp, addrbuf, &sock)>=0) {
-    printSockInfo(tcp, SOCK_BIND, sock.port, sock.ip.ipv4, sk);
-  }
+  getsockinfo(tcp, addrbuf, &sock);
+  printSockInfo(tcp, SOCK_BIND, sock.port, sock.ip.ipv4, sk);
 }
 
 void denySyscall(long pid) {
@@ -450,19 +453,14 @@ void CDEnet_begin_connect(struct tcb* tcp) {
     if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
       return;
     }
-    if (getsockinfo(tcp, addrbuf, &sock)>=0) {
-      if (sock.port != 53 && sock.port != 0) { // and other cases come here -TODO
-	db_setCapturedSock(currdb, tcp->u_arg[0]);
-	denySyscall(tcp->pid);
-	return;
-      }
-      if (CDE_verbose_mode) {
-	vbprintf("[%ld-net]    sock %d port %d %d\n", tcp->pid, tcp->u_arg[0], sock.port);
-      }
-    } else {
-      if (CDE_verbose_mode) {
-	vbprintf("[%ld-net]    unknown sock %d port %d\n", tcp->pid, tcp->u_arg[0], sock.port);
-      }
+    getsockinfo(tcp, addrbuf, &sock);
+    if (sock.port != 53) { // and other cases come here -TODO
+      db_setCapturedSock(currdb, tcp->u_arg[0]);
+      denySyscall(tcp->pid);
+      return;
+    }
+    if (CDE_verbose_mode) {
+      vbprintf("[%ld-net]    sock %d port %d %d\n", tcp->pid, tcp->u_arg[0], sock.port);
     }
   }
 }
@@ -549,11 +547,16 @@ int socket_data_handle(struct tcb* tcp, int action) {
   int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode) {
     int len = tcp->u_rval;
-    char *buf = malloc(len);
-    if (umoven(tcp, tcp->u_arg[1], len, buf) < 0) {
-      return -1;
+    char *buf = NULL;
+    if (len >0) {
+      buf = malloc(len);
+      if (umoven(tcp, tcp->u_arg[1], len, buf) < 0) {
+	free(buf);
+	return -1;
+      }
     }
     print_sock_action(tcp, sockfd, buf, tcp->u_arg[2], tcp->u_arg[3], len, action);
+    if (buf != NULL) free(buf);
   }
   return 0;
 }
@@ -581,31 +584,63 @@ void CDEnet_end_recv(struct tcb* tcp) {
     char* sockid = db_getSockId(currdb, pidkey, sockfd);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
-    size_t u_rval;
+    ull_t u_rval;
     char *buff = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval); // get recorded result
-    
     struct user_regs_struct regs;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     if (u_rval <= 0) {
       // set errno? TODO
     } else { // successed call, copy to buffer as well
+      //~ printf("mem: %zd %d\n %s", u_rval, u_rval > 0, buff);
       memcpy_to_child(pid, (char*) tcp->u_arg[1], buff, u_rval);
     }
-    if (buff != NULL) free(buff);
-    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
+    if (buff != NULL) free(buff);
     free(prov_pid);
     free(sockid);
     free(pidkey);
   }
 }
 
+//~ struct iovec {                    /* Scatter/gather array items */
+   //~ void  *iov_base;              /* Starting address */
+   //~ size_t iov_len;               /* Number of bytes to transfer */
+//~ };
+//~ 
+//~ struct msghdr {
+   //~ void         *msg_name;       /* optional address */
+   //~ socklen_t     msg_namelen;    /* size of address */
+   //~ struct iovec *msg_iov;        /* scatter/gather array */
+   //~ size_t        msg_iovlen;     /* # elements in msg_iov */
+   //~ void         *msg_control;    /* ancillary data, see below */
+   //~ size_t        msg_controllen; /* ancillary data buffer len */
+   //~ int           msg_flags;      /* flags on received message */
+//~ };
 void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
-  printf("BEGIN RECVMSG TODO");
+  printf("BEGIN RECVMSG TODO\n");
 }
-void CDEnet_end_recvmsg(struct tcb* tcp) { //TODO
-  printf("END RECVMSG TODO");
+void CDEnet_end_recvmsg(struct tcb* tcp) {
+  long pid = tcp->pid;
+  int sockfd = tcp->u_arg[0];
+  long addr = tcp->u_arg[1];
+  if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
+    int len = tcp->u_rval;
+    struct msghdr mh;
+    if (umoven(tcp, tcp->u_arg[1], sizeof(struct msghdr), (char*) &mh) < 0) return;
+    printf("namelen %d iovlen %zu controllen %zu flags %d\n", 
+	mh.msg_namelen, mh.msg_iovlen, mh.msg_controllen, mh.msg_flags);
+  }
+  if (CDE_nw_mode && isCurrCapturedSock(sockfd)) {
+    printf("BEGIN RECVMSG TODO\n");
+    //~ long pid = tcp->pid;
+    //~ char* pidkey = db_read_pid_key(currdb, pid);
+    //~ char* sockid = db_getSockId(currdb, pidkey, sockfd);
+    //~ int sockfd = tcp->u_arg[0];
+    //~ long addr = tcp->u_arg[1];
+    //~ ssize_t result = tcp->u_rval;
+  }
 }
 
 /* sending side
@@ -643,9 +678,8 @@ void CDEnet_end_send(struct tcb* tcp) {
     char* sockid = db_getSockId(currdb, pidkey, sockfd);
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
-    size_t u_rval;
+    ull_t u_rval;
     db_getSendRecvResult(netdb, SOCK_SEND, prov_pid, sockid, sendid, &u_rval); // get recorded result
-    
     struct user_regs_struct regs;
     long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
@@ -662,10 +696,10 @@ void CDEnet_end_send(struct tcb* tcp) {
 }
 
 void CDEnet_begin_sendmsg(struct tcb* tcp) { //TODO
-  printf("BEGIN SENDMSG TODO");
+  printf("BEGIN SENDMSG TODO\n");
 }
 void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
-  printf("END SENDMSG TODO");
+  printf("END SENDMSG TODO\n");
 }
 
 // int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);

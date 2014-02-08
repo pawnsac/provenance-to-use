@@ -366,18 +366,17 @@ void print_connect_prov(struct tcb *tcp,
     int sockfd, char* addrbuf, int addr_len, long u_rval) {
   if (CDE_provenance_mode) {
     socketdata_t sock;
-    if (getsockinfo(tcp, addrbuf, &sock)>=0) {
-      if (sock.port != 53 && sock.port != 0) { // and other cases come here -TODO
-        db_setCapturedSock(provdb, sockfd);
-        
-        db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval);
-        struct in_addr d_in;
-        char daddr[32];
-        d_in.s_addr = sock.ip.ipv4;
-        strcpy(daddr, inet_ntoa(d_in));
-        fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %ld %d\n", (int)time(0), tcp->pid, \
-            sock.port, (long) daddr, sockfd);
-      }
+    getsockinfo(tcp, addrbuf, &sock);
+    if (sock.port != 53) { // and other cases come here -TODO
+      db_setCapturedSock(provdb, sockfd);
+      
+      db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval);
+      struct in_addr d_in;
+      char daddr[32];
+      d_in.s_addr = sock.ip.ipv4;
+      strcpy(daddr, inet_ntoa(d_in));
+      fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %ld %d\n", (int)time(0), tcp->pid, \
+          sock.port, (long) daddr, sockfd);
     }
   }
 }
@@ -545,7 +544,8 @@ void init_prov() {
     db_write(provdb, "meta.namespace", CDE_ROOT_NAME);
     db_write_fmt(provdb, "meta.subns", "%d", subns);
     db_write(provdb, "meta.fullns", fullns);
-    db_write(provdb, "meta.parentns", getenv("CDE_PROV_NAMESPACE"));
+    char *parentns = getenv("CDE_PROV_NAMESPACE");
+    db_write(provdb, "meta.parentns", parentns == NULL ? "(null)" : parentns);
 
     db_write_root(provdb, getpid());
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
@@ -624,4 +624,8 @@ void print_sock_close(struct tcb *tcp) {
   if (CDE_provenance_mode && db_isCapturedSock(provdb, sockfd)) {
     db_remove_sock(provdb, tcp->pid, sockfd);
   }
+}
+
+int isProvCapturedSock(int sockfd) {
+  return db_isCapturedSock(provdb, sockfd);
 }

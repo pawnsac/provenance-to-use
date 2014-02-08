@@ -13,7 +13,7 @@ typedef struct {
 } lvldb_t;
 #endif // _typedef_lvldb_t
 
-typedef unsigned long long int ull_t;
+typedef long long int ull_t;
 
 // basic operations
 void db_write(lvldb_t *mydb, const char *key, const char *value);
@@ -47,7 +47,7 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
     size_t len_result, int action);
 ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action);
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, char* sockid, ull_t pkgid, size_t *presult);
+    char* pidkey, char* sockid, ull_t pkgid, ull_t *presult);
 
 // sock connect
 void db_write_connect_prov(lvldb_t *mydb, long pid, 

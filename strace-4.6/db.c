@@ -23,8 +23,8 @@ static ull_t getusec() {
   return usec;
 }
 
-void db_readfailed(const char* key) {
-  vbprintf("[xxxx-db] DB - Read FAILED: '%s'\n", key);
+void db_readfailed(const char* key, int readlen) {
+  vbprintf("[xxxx-db] DB - Read FAILED: '%s' %d\n", key, readlen);
   print_trace();
 }
 
@@ -52,7 +52,7 @@ char* db_nread(lvldb_t *mydb, const char *key, size_t *plen) {
 
   char* res = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), plen, &err);
 
-  if (err != NULL) db_readfailed(key);
+  if (err != NULL) db_readfailed(key, *plen);
 
   leveldb_free(err); err = NULL;
   return res;
@@ -78,7 +78,7 @@ char* db_readc(lvldb_t *mydb, const char *key) {
   size_t read_len;
 
   read = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-  if (err != NULL) db_readfailed(key);
+  if (err != NULL) db_readfailed(key, read_len);
   
   if (read == NULL)
     return NULL;
@@ -95,14 +95,13 @@ void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
   ull_t *read;
   size_t read_len;
 
-  read = (ull_t*) leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-  if (err != NULL) db_readfailed(key);
+  read = (void*) leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
+  if (err != NULL) db_readfailed(key, read_len);
 
   leveldb_free(err); err = NULL;
-  if (read == NULL) {
-    db_readfailed(key);
+  if (read == NULL || read_len != sizeof(ull_t)) {
+    db_readfailed(key, read_len);
   }
-
   *pvalue = *read;
   free(read);
 }
@@ -433,6 +432,10 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
   char key[KEYLEN];
   char* pidkey = db_read_pid_key(mydb, pid);
   char* sockid = db_getSockId(mydb, pidkey, sockfd);
+  if (sockid == NULL) {
+    free(pidkey);
+    return;
+  }
   ull_t pkgid = db_getPkgCounterInc(mydb, pidkey, sockid, action);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
@@ -550,6 +553,7 @@ void db_write_listen_prov(lvldb_t *mydb, int pid, int sock, int backlog, int res
   sprintf(value, "%d.%d.%d", result, sock, backlog);
   db_write(mydb, key, value);
   db_setupAcceptCounter(mydb, pidkey, listenn);
+  free(pidkey);
 }
 int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id) {
   char key[KEYLEN], *value;
@@ -624,17 +628,16 @@ void db_remove_sock(lvldb_t *mydb, long pid, int sockfd) {
 }
 
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, char* sockid, ull_t pkgid, size_t *presult) {
+    char* pidkey, char* sockid, ull_t pkgid, ull_t *presult) {
   char key[KEYLEN];
-  ull_t res;
+  size_t len;
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", pidkey, sockid, action, pkgid);
-  db_read_ull(mydb, key, &res);
-  *presult = (int) res;
+  db_read_ull(mydb, key, presult);
   if (action == SOCK_RECV) {
     sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
           pidkey, sockid, action, pkgid);
-    return db_nread(mydb, key, presult);
+    return db_nread(mydb, key, &len); // len might be != *presult in the case "-1"
   }
   return NULL; // SOCK_SEND and "other?" cases
 }

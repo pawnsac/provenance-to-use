@@ -1,7 +1,7 @@
 #ifndef _PROVENANCE_H
 #define _PROVENANCE_H
 
-typedef unsigned long long int ull_t;
+typedef long long int ull_t;
 
 void print_syscall_read_prov(struct tcb *tcp, const char *syscall_name, int pos);
 void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos);
@@ -25,5 +25,6 @@ void print_sock_action(struct tcb *tcp, int sockfd,
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval);
 void print_listen_prov(struct tcb *tcp);
+int isProvCapturedSock(int sockfd);
 
 #endif // _PROVENANCE_H
