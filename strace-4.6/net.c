@@ -1553,9 +1553,9 @@ struct tcb *tcp;
 {
 	CDE_begin_socket_bind_or_connect(tcp); // pgbovine
 	if (entering(tcp)) {
-		CDEnet_begin_bind(tcp);
+		CDEnet_begin_bindconnect(tcp, 0);
 	} else {
-		CDEnet_end_bind(tcp);
+		CDEnet_end_bindconnect(tcp, 0);
 	}
 	return 0;
 }
@@ -1566,9 +1566,9 @@ struct tcb *tcp;
 {
 	CDE_begin_socket_bind_or_connect(tcp); // pgbovine
 	if (entering(tcp)) {
-		CDEnet_begin_connect(tcp);
+		CDEnet_begin_bindconnect(tcp, 1);
 	} else {
-		CDEnet_end_connect(tcp);
+		CDEnet_end_bindconnect(tcp, 1);
 	}
 	return 0;
 }

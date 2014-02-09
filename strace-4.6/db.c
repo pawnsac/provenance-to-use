@@ -130,7 +130,7 @@ void db_write_root(lvldb_t *mydb, long pid) {
 ull_t db_getCounterInc(lvldb_t *mydb, char* key) {
   ull_t read;
   db_read_ull(mydb, key, &read);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_getCounterInc %s -> %llu\n", key, read);
   }
   read++;
@@ -141,7 +141,7 @@ ull_t db_getCounterInc(lvldb_t *mydb, char* key) {
 char* db_read_pid_key(lvldb_t *mydb, long pid) {
   char key[KEYLEN];
   sprintf(key, "pid.%ld", pid);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_read_pid_key %d\n", pid);
   }
   return db_readc(mydb, key);
@@ -211,7 +211,7 @@ void db_setupChildCounter(lvldb_t *mydb, char* ppidkey, char* pidkey) {
   sprintf(key, "prv.pid.%s.childn", pidkey);
   db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
   
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_setupChildCounter %s %s -> %llu\n", ppidkey, pidkey, childn);
   }
 }
@@ -256,7 +256,7 @@ void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid) {
   db_write(mydb, key, value);
   
   db_setupChildCounter(mydb, ppidkey, pidkey);
-  
+
   db_setupConnectCounter(mydb, pidkey);
   db_setupListenCounter(mydb, pidkey);
 
@@ -290,6 +290,9 @@ void db_write_spawn_prov(lvldb_t *mydb, long ppid, long pid) {
   db_write(mydb, key, pidkey);
   
   db_setupChildCounter(mydb, ppidkey, pidkey);
+
+  db_setupConnectCounter(mydb, pidkey);
+  db_setupListenCounter(mydb, pidkey);
 
   free(pidkey);
   free(ppidkey);
@@ -335,7 +338,7 @@ void db_setupSockConnectCounter(lvldb_t *mydb, char *pidkey, int sockfd, ull_t s
 void _db_setSockId(lvldb_t *mydb, char* pidkey, int sock, char* ch_sockid) {
   char key[KEYLEN];
   sprintf(key, "pid.%s.sk2id.%d", pidkey, sock);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] setSockId pidkey %s, sock %d -> sockid %s\n", 
         pidkey, sock, ch_sockid);
   }
@@ -356,7 +359,7 @@ void db_setCapturedSock(lvldb_t *mydb, int sockfd) {
   char key[KEYLEN];
   sprintf(key, "sock.caputured.%d", sockfd);
   db_write(mydb, key, "1");
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_setCapturedSock sock %d\n", sockfd);
   }
 }
@@ -365,7 +368,7 @@ void db_removeCapturedSock(lvldb_t *mydb, int sockfd) {
   char *err = NULL;
   sprintf(key, "sock.caputured.%d", sockfd);
   leveldb_delete(mydb->db, mydb->woptions, key, strlen(key), &err);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_removeCapturedSock sock %d err '%s'\n", sockfd, err == NULL ? "null" : err);
   }
   leveldb_free(err); err = NULL;
@@ -374,7 +377,7 @@ int db_isCapturedSock(lvldb_t *mydb, int sockfd) {
   char key[KEYLEN], *value;
   sprintf(key, "sock.caputured.%d", sockfd);
   value = db_readc(mydb, key);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_isCapturedSock sock %d value %s\n", sockfd, value == NULL ? "null" : value);
   }
   if (value != NULL) {
@@ -394,7 +397,7 @@ char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
     sprintf(key, "pid.%s.ac2id.%d", pidkey, sock);
     sockid = db_readc(mydb, key);
   }
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] getSockId pidkey %s, sock %d -> sockid %s [%d]\n", 
         pidkey, sock, sockid, strlen(sockid));
   }
@@ -527,7 +530,7 @@ ull_t db_getListenCounterInc(lvldb_t *mydb, char* pidkey) {
 void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid) {
   char key[KEYLEN];
   sprintf(key, "pid.%s.lssk2id.%d", pidkey, sock);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_setListenId pidkey %s, sock %d -> listenid %d\n", 
         pidkey, sock, sockid);
   }
@@ -538,7 +541,7 @@ ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock) {
   ull_t sockid;
   sprintf(key, "pid.%s.lssk2id.%d", pidkey, sock);
   db_read_ull(mydb, key, &sockid);
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_getListenId pidkey %s, sock %d -> lssk2id %llu\n", 
         pidkey, sock, sockid);
   }
@@ -609,7 +612,7 @@ void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid) {
   sprintf(key, "prv.pid.%s.listenid.%llu.acceptn", pidkey, listenid);
   ull_t zero = 0;
   db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
-  if (CDE_verbose_mode>=2) {
+  if (CDE_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_setupAcceptCounter pidkey %s, listenid %llu\n", 
         pidkey, listenid);
   }

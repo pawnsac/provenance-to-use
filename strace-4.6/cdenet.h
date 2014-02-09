@@ -3,8 +3,8 @@
 
 void CDEnet_sin_dict_load();
 
-void CDEnet_begin_connect(struct tcb* tcp);
-void CDEnet_end_connect(struct tcb* tcp);
+void CDEnet_begin_bindconnect(struct tcb* tcp, int isConnect);
+void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect);
 void CDEnet_begin_bind(struct tcb *tcp);
 void CDEnet_end_bind(struct tcb *tcp);
 void CDEnet_begin_listen(struct tcb* tcp);

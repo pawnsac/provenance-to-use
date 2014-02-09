@@ -367,44 +367,39 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addrbuf, int addr_len, long u_rval) {
   if (CDE_provenance_mode) {
-    union sockaddr_t *addr = (void*) addrbuf;
-    if (getPort(addr) != 53) { // and other cases come here -TODO
-      db_setCapturedSock(provdb, sockfd);
-      db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval);
-      //~ struct in_addr d_in;
-      //~ char daddr[32];
-      //~ d_in.s_addr = sock.ip.ipv4;
-      //~ strcpy(daddr, inet_ntoa(d_in));
-      //~ fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %ld %d\n", (int)time(0), tcp->pid, 
-          //~ sock.port, (long) daddr, sockfd);
-    }
+    db_setCapturedSock(provdb, sockfd);
+    db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval);
+    //~ struct in_addr d_in;
+    //~ char daddr[32];
+    //~ d_in.s_addr = sock.ip.ipv4;
+    //~ strcpy(daddr, inet_ntoa(d_in));
+    //~ fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %ld %d\n", (int)time(0), tcp->pid, 
+        //~ sock.port, (long) daddr, sockfd);
   }
 }
 
 void print_sock_action(struct tcb *tcp, int sockfd, \
                        char *buf, size_t len_param, int flags, \
                        size_t len_result, int action) {
-  if (db_isCapturedSock(provdb, sockfd)) {
-    if (0) {
-      int i;
-      printf("sock %d action %d size %ld res %ld: '", \
-             sockfd, action, len_param, len_result);
-      for (i=0; i<len_result; i++) {
-        printf("%c", buf[i]);
-      }
-      printf("'\n");
+  if (0) {
+    int i;
+    printf("sock %d action %d size %ld res %ld: '", \
+           sockfd, action, len_param, len_result);
+    for (i=0; i<len_result; i++) {
+      printf("%c", buf[i]);
     }
-    fprintf(CDE_provenance_logfile, "%d %u SOCK %d %zu %d %zu %d\n", (int)time(0), tcp->pid, \
-          sockfd, len_param, flags, len_result, action);
-    db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
-                         len_result, action);
-    if (CDE_verbose_mode && action == SOCK_SEND) {
-      #define NPRINT (100)
-      if (strlen(buf)>NPRINT+3) {
-        buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
-      }
-      vbprintf("[%d-prov] socket_data_handle action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
+    printf("'\n");
+  }
+  fprintf(CDE_provenance_logfile, "%d %u SOCK %d %zu %d %zu %d\n", (int)time(0), tcp->pid, \
+        sockfd, len_param, flags, len_result, action);
+  db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
+                       len_result, action);
+  if (CDE_verbose_mode && action == SOCK_SEND) {
+    #define NPRINT (100)
+    if (strlen(buf)>NPRINT+3) {
+      buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
     }
+    vbprintf("[%d-prov] socket_data_handle action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
   }
 }
 
