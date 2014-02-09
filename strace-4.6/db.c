@@ -642,6 +642,25 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
   return NULL; // SOCK_SEND and "other?" cases
 }
 
+int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
+  // prv.pid.$(pid.usec).sockid.$n
+  // prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval
+  char *err = NULL, key[KEYLEN];
+  char *read;
+  size_t read_len;
+  int u_rval;
+
+  sprintf(key, "prv.pid.%s.sockid.%d", pidkey, sockid);
+  read = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
+  if (read == NULL) {
+    fprintf(stderr, "Cannot find key '%s'\n", key);
+    exit(-1);
+  }
+  //~ sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
+  sscanf(read, "prv.sock.%*d.%*u.newfd.%*u.%*d.%*d.%d", &u_rval);
+  return u_rval;
+}
+
 /*
  * primary key of processes:
  * pid.$pid -> $(pid.usec)

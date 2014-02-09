@@ -465,25 +465,6 @@ void CDEnet_begin_connect(struct tcb* tcp) {
   }
 }
 
-int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
-  // prv.pid.$(pid.usec).sockid.$n
-  // prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval
-  char *err = NULL, key[KEYLEN];
-  char *read;
-  size_t read_len;
-  int u_rval;
-
-  sprintf(key, "prv.pid.%s.sockid.%d", pidkey, sockid);
-  read = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
-  if (read == NULL) {
-    fprintf(stderr, "Cannot find key '%s'\n", key);
-    exit(-1);
-  }
-  //~ sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
-  sscanf(read, "prv.sock.%*d.%*u.newfd.%*u.%*d.%*d.%d", &u_rval);
-  return u_rval;
-}
-
 void CDEnet_end_connect(struct tcb* tcp) {
   
   long addr = tcp->u_arg[1];
@@ -511,7 +492,7 @@ void CDEnet_end_connect(struct tcb* tcp) {
   addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
 
   int sockfd = tcp->u_arg[0];
-  //~ printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
+  printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
   if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
   }
@@ -619,7 +600,7 @@ void CDEnet_end_recv(struct tcb* tcp) {
    //~ int           msg_flags;      /* flags on received message */
 //~ };
 void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
-  printf("BEGIN RECVMSG TODO\n");
+  printf("BEGIN RECVMSG TODO %d\n", tcp->u_arg[0]);
 }
 void CDEnet_end_recvmsg(struct tcb* tcp) {
   long pid = tcp->pid;
@@ -696,10 +677,10 @@ void CDEnet_end_send(struct tcb* tcp) {
 }
 
 void CDEnet_begin_sendmsg(struct tcb* tcp) { //TODO
-  printf("BEGIN SENDMSG TODO\n");
+  printf("BEGIN SENDMSG TODO %d\n", tcp->u_arg[0]);
 }
 void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
-  printf("END SENDMSG TODO\n");
+  printf("END SENDMSG TODO %d\n", tcp->u_arg[0]);
 }
 
 // int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
