@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/param.h>
@@ -64,6 +65,7 @@ extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 extern char* canonicalize_path(char *path, char *relpath_base);
 
 int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock);
+int getPort(union sockaddr_t *addrbuf);
 
 void init_prov();
 
@@ -365,18 +367,16 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addrbuf, int addr_len, long u_rval) {
   if (CDE_provenance_mode) {
-    socketdata_t sock;
-    getsockinfo(tcp, addrbuf, &sock);
-    if (sock.port != 53) { // and other cases come here -TODO
+    union sockaddr_t *addr = (void*) addrbuf;
+    if (getPort(addr) != 53) { // and other cases come here -TODO
       db_setCapturedSock(provdb, sockfd);
-      
       db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval);
-      struct in_addr d_in;
-      char daddr[32];
-      d_in.s_addr = sock.ip.ipv4;
-      strcpy(daddr, inet_ntoa(d_in));
-      fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %ld %d\n", (int)time(0), tcp->pid, \
-          sock.port, (long) daddr, sockfd);
+      //~ struct in_addr d_in;
+      //~ char daddr[32];
+      //~ d_in.s_addr = sock.ip.ipv4;
+      //~ strcpy(daddr, inet_ntoa(d_in));
+      //~ fprintf(CDE_provenance_logfile, "%d %u SOCK_CONNECT %u %ld %d\n", (int)time(0), tcp->pid, 
+          //~ sock.port, (long) daddr, sockfd);
     }
   }
 }

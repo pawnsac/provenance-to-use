@@ -114,14 +114,6 @@ CDEnet is currently licensed under GPL v3:
 #include <sys/uio.h>
 #endif
 
-#if defined(HAVE_LINUX_NETLINK_H)
-#include <linux/netlink.h>
-#endif
-
-#if defined(HAVE_LINUX_IF_PACKET_H)
-#include <linux/if_packet.h>
-#endif
-
 #if defined(HAVE_LINUX_ICMP_H)
 #include <linux/icmp.h>
 #endif
@@ -323,28 +315,22 @@ typedef struct socketdata {
   } ip;
 } socketdata_t;
 
-int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
-	union sockaddr_t {
-		char pad[128];
-		struct sockaddr sa;
-		struct sockaddr_in sin;
-		struct sockaddr_un sau;
+int getPort(union sockaddr_t *addrbuf) {
+  if (addrbuf->sa.sa_family == AF_INET) {
+    return ntohs(addrbuf->sin.sin_port);
+  }
 #ifdef HAVE_INET_NTOP
-		struct sockaddr_in6 sa6;
+  if (addrbuf->sa.sa_family == AF_INET6) {
+    return ntohs(addrbuf->sa6.sin6_port);
+  }
 #endif
-#if defined(LINUX) && defined(AF_IPX)
-		struct sockaddr_ipx sipx;
-#endif
-#ifdef AF_PACKET
-		struct sockaddr_ll ll;
-#endif
-#ifdef AF_NETLINK
-		struct sockaddr_nl nl;
-#endif
-	};
+  return -1;
+}
+
+int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
 	union sockaddr_t *addrbuf = (union sockaddr_t*) addr;
 	//union sockaddr_t *addrbuf;// = (union sockaddr_t*)addr;
-	char string_addr[100];
+	//~ char string_addr[100];
 
 	if (addr == 0) {
 		return -1;
@@ -375,7 +361,7 @@ int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
 		break;
 #ifdef HAVE_INET_NTOP
 	case AF_INET6:
-		inet_ntop(AF_INET6, &addrbuf->sa6.sin6_addr, string_addr, sizeof(string_addr));
+		//~ inet_ntop(AF_INET6, &addrbuf->sa6.sin6_addr, string_addr, sizeof(string_addr));
 		//tprintf("sin6_port=htons(%u), inet_pton(AF_INET6, \"%s\", &sin6_addr), sin6_flowinfo=%u",
 		//		ntohs(addrbuf.sa6.sin6_port), string_addr,
 		//		addrbuf.sa6.sin6_flowinfo);
@@ -417,11 +403,19 @@ void printSockInfo(struct tcb* tcp, int op, \
 
 // int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 void CDEnet_begin_bind(struct tcb* tcp) { // nothing for now
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_bind\n", tcp->pid);
+  }
 }
 void CDEnet_end_bind(struct tcb* tcp) {
   socketdata_t sock;
   int sk = tcp->u_rval;
   char addrbuf[KEYLEN];
+  
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_bind\n", tcp->pid);
+  }
+  
   memset(addrbuf, 0, sizeof(addrbuf));
   if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
     return;
@@ -453,8 +447,7 @@ void CDEnet_begin_connect(struct tcb* tcp) {
     if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) {
       return;
     }
-    getsockinfo(tcp, addrbuf, &sock);
-    if (sock.port != 53) { // and other cases come here -TODO
+    if (getPort((void*)addrbuf) != 53) { // and other cases come here -TODO
       db_setCapturedSock(currdb, tcp->u_arg[0]);
       denySyscall(tcp->pid);
       return;
@@ -476,6 +469,10 @@ void CDEnet_end_connect(struct tcb* tcp) {
     struct sockaddr_in sin;
     struct sockaddr_un sau;
   } addrbuf;
+  
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_connect\n", tcp->pid);
+  }
 
   if (addr == 0) {
     return;
@@ -493,10 +490,11 @@ void CDEnet_end_connect(struct tcb* tcp) {
 
   int sockfd = tcp->u_arg[0];
   printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
-  if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
+  //~ if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
+  if (CDE_provenance_mode) {
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
   }
-  if (CDE_nw_mode && addrbuf.sa.sa_family == AF_INET && db_isCapturedSock(currdb, sockfd)) { // return my own network socket connect result from netdb
+  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) { // return my own network socket connect result from netdb
         
     char *pidkey = db_read_pid_key(currdb, tcp->pid);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
@@ -550,12 +548,18 @@ int socket_data_handle(struct tcb* tcp, int action) {
  */
 
 void CDEnet_begin_recv(struct tcb* tcp) {
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_recv\n", tcp->pid);
+  }
   if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
 }
 void CDEnet_end_recv(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_recv\n", tcp->pid);
+  }
   if (CDE_provenance_mode) {
     socket_data_handle(tcp, SOCK_RECV);
   }
@@ -600,12 +604,17 @@ void CDEnet_end_recv(struct tcb* tcp) {
    //~ int           msg_flags;      /* flags on received message */
 //~ };
 void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
-  printf("BEGIN RECVMSG TODO %d\n", tcp->u_arg[0]);
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_recvmsg\n", tcp->pid);
+  }
 }
 void CDEnet_end_recvmsg(struct tcb* tcp) {
   long pid = tcp->pid;
   int sockfd = tcp->u_arg[0];
   long addr = tcp->u_arg[1];
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_recvmsg\n", tcp->pid);
+  }
   if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
     int len = tcp->u_rval;
     struct msghdr mh;
@@ -614,7 +623,6 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
 	mh.msg_namelen, mh.msg_iovlen, mh.msg_controllen, mh.msg_flags);
   }
   if (CDE_nw_mode && isCurrCapturedSock(sockfd)) {
-    printf("BEGIN RECVMSG TODO\n");
     //~ long pid = tcp->pid;
     //~ char* pidkey = db_read_pid_key(currdb, pid);
     //~ char* sockid = db_getSockId(currdb, pidkey, sockfd);
@@ -634,6 +642,9 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
  */
 
 void CDEnet_begin_send(struct tcb* tcp) {
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_send\n", tcp->pid);
+  }
   if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
@@ -641,6 +652,9 @@ void CDEnet_begin_send(struct tcb* tcp) {
 
 void CDEnet_end_send(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_send\n", tcp->pid);
+  }
   if (CDE_provenance_mode) {
     if (socket_data_handle(tcp, SOCK_SEND) < 0) {
       // TODO
@@ -677,10 +691,14 @@ void CDEnet_end_send(struct tcb* tcp) {
 }
 
 void CDEnet_begin_sendmsg(struct tcb* tcp) { //TODO
-  printf("BEGIN SENDMSG TODO %d\n", tcp->u_arg[0]);
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_sendmsg\n", tcp->pid);
+  }
 }
 void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
-  printf("END SENDMSG TODO %d\n", tcp->u_arg[0]);
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_sendmsg\n", tcp->pid);
+  }
 }
 
 // int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
@@ -690,6 +708,9 @@ void CDEnet_begin_accept(struct tcb* tcp) { // TODO
   // ignore! No value is set up yet (ip, port, etc.)
   // we only care of the return of accept
   // which is handled in accept_exit
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_accept\n", tcp->pid);
+  }
   if (CDE_nw_mode) {
     denySyscall(tcp->pid);
   }
@@ -712,6 +733,9 @@ char* db_getAcceptResult(lvldb_t *mydb, char* pidkey, ull_t listenid, ull_t acce
   return addrbuf;
 }
 void CDEnet_end_accept(struct tcb* tcp) {
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_accept\n", tcp->pid);
+  }
   if (CDE_provenance_mode) {
     print_accept_prov(tcp);
   }
@@ -754,11 +778,17 @@ void CDEnet_end_accept(struct tcb* tcp) {
 // On success, zero is returned.  On error, -1 is returned,
 //   and errno is set appropriately.
 void CDEnet_begin_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_listen\n", tcp->pid);
+  }
   if (CDE_nw_mode) {
     denySyscall(tcp->pid);
   }
 }
 void CDEnet_end_listen(struct tcb* tcp) { // TODO
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_listen\n", tcp->pid);
+  }
   if (CDE_provenance_mode) {
     print_listen_prov(tcp);
   }
@@ -789,10 +819,16 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
 void CDEnet_begin_read(struct tcb* tcp) { // TODO
   // ssize_t read(int fd, void *buf, size_t count);
   //~ printf("void CDEnet_read(struct tcb* tcp)\n");
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_read\n", tcp->pid);
+  }
 }
 void CDEnet_end_read(struct tcb* tcp) { // TODO
   // ssize_t read(int fd, void *buf, size_t count);
   //~ printf("void CDEnet_read(struct tcb* tcp)\n");
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_read\n", tcp->pid);
+  }
 }
 
 // ssize_t write(int fd, const void *buf, size_t count);
@@ -802,15 +838,24 @@ void CDEnet_end_read(struct tcb* tcp) { // TODO
 void CDEnet_begin_write(struct tcb* tcp) { // TODO
   // ssize_t write(int fd, const void *buf, size_t count);
   //~ printf("void CDEnet_write(struct tcb* tcp)\n");
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_begin_write\n", tcp->pid);
+  }
 }
 void CDEnet_end_write(struct tcb* tcp) { // TODO
   // ssize_t write(int fd, const void *buf, size_t count);
   //~ printf("void CDEnet_write(struct tcb* tcp)\n");
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_end_write\n", tcp->pid);
+  }
 }
 
 // int close(int fd);
 void CDEnet_close(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
+  if (CDE_verbose_mode>=2) {
+    vbprintf("[%ld-net] CDEnet_close\n", tcp->pid);
+  }
   if (CDE_provenance_mode) {
     print_sock_close(tcp);
   }
