@@ -507,7 +507,7 @@ int socket_data_handle(struct tcb* tcp, int action) {
 	return -1;
       }
     }
-    print_sock_action(tcp, sockfd, buf, tcp->u_arg[2], tcp->u_arg[3], len, action);
+    print_sock_action(tcp, sockfd, buf, tcp->u_arg[2], tcp->u_arg[3], len, action, NULL);
     if (buf != NULL) free(buf);
   }
   return 0;
@@ -540,7 +540,7 @@ void CDEnet_end_recv(struct tcb* tcp) {
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
-    char *buff = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval); // get recorded result
+    char *buff = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval, NULL); // get recorded result
     struct user_regs_struct regs;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
@@ -574,31 +574,34 @@ void CDEnet_end_recv(struct tcb* tcp) {
    //~ int           msg_flags;      /* flags on received message */
 //~ };
 void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
-  vb(2);
+  if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
+    vb(2);
+    denySyscall(tcp->pid);
+  }
 }
 void CDEnet_end_recvmsg(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  long addr = tcp->u_arg[1];
+  struct msghdr mh;
+  struct iovec *msg_iov = NULL;
+  char memop_ok = 1;
   if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
-    vb(2);
     int len = tcp->u_rval;
-    struct msghdr mh;
-    if (umoven(tcp, addr, sizeof(struct msghdr), (char*) &mh) < 0) return;
-    //~ printf("namelen %d iovlen %zu controllen %zu flags %d\n", 
-	//~ mh.msg_namelen, mh.msg_iovlen, mh.msg_controllen, mh.msg_flags);
-    char *msg_name = NULL, *msg_control = NULL, *storage = NULL;
-    struct iovec *msg_iov = NULL;
-    char memop_ok = 1;
+    //~ char *msg_name = NULL, *msg_control = NULL;
+    char *storage = NULL;
+    
+    vb(2);
+    
+    if (umoven(tcp, tcp->u_arg[1], sizeof(struct msghdr), (char*) &mh) < 0) return;
     if (len > 0) {
       storage = malloc(len);
       memop_ok &= storage != NULL;
     }
-    if (memop_ok && mh.msg_namelen > 0) {
-      msg_name = malloc(mh.msg_namelen);
-      memop_ok &= msg_name != NULL;
-      if (memop_ok)
-	memop_ok &= umoven(tcp, (long) mh.msg_name, mh.msg_namelen, msg_name) >= 0;
-    }
+    //~ if (memop_ok && mh.msg_namelen > 0) {
+      //~ msg_name = malloc(mh.msg_namelen);
+      //~ memop_ok &= msg_name != NULL;
+      //~ if (memop_ok)
+	//~ memop_ok &= umoven(tcp, (long) mh.msg_name, mh.msg_namelen, msg_name) >= 0;
+    //~ }
     if (memop_ok && mh.msg_iovlen > 0) {
       int memlen = mh.msg_iovlen * sizeof(struct iovec);
       msg_iov = malloc(memlen);
@@ -606,12 +609,12 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
       if (memop_ok)
 	memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
     }
-    if (memop_ok && mh.msg_controllen > 0) {
-      msg_control = malloc(mh.msg_controllen);
-      memop_ok &= msg_control != NULL;
-      if (memop_ok)
-	memop_ok &= umoven(tcp, (long) mh.msg_control, mh.msg_controllen, msg_control) >= 0;
-    }
+    //~ if (memop_ok && mh.msg_controllen > 0) {
+      //~ msg_control = malloc(mh.msg_controllen);
+      //~ memop_ok &= msg_control != NULL;
+      //~ if (memop_ok)
+	//~ memop_ok &= umoven(tcp, (long) mh.msg_control, mh.msg_controllen, msg_control) >= 0;
+    //~ }
     if (memop_ok) {
       char *it = storage;
       long int read_len, i;
@@ -623,20 +626,64 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
 	  it = it + read_len;
       }
       if (memop_ok) {
-	print_sock_action(tcp, sockfd, storage, 0, tcp->u_arg[2], len, SOCK_RECV);
+	print_sock_action(tcp, sockfd, storage, 0, tcp->u_arg[2], len, SOCK_RECVMSG, &mh);
       }
     }
-    freeifnn(storage); freeifnn(msg_control); 
-    freeifnn(msg_iov); freeifnn(msg_name);
+    freeifnn(storage); 
+    //~ freeifnn(msg_control); 
+    freeifnn(msg_iov); 
+    //~ freeifnn(msg_name);
   }
   if (CDE_nw_mode && isCurrCapturedSock(sockfd)) {
     vb(2);
-    //~ long pid = tcp->pid;
-    //~ char* pidkey = db_read_pid_key(currdb, pid);
-    //~ char* sockid = db_getSockId(currdb, pidkey, sockfd);
-    //~ int sockfd = tcp->u_arg[0];
-    //~ long addr = tcp->u_arg[1];
-    //~ ssize_t result = tcp->u_rval;
+    long pid = tcp->pid;
+    char* pidkey = db_read_pid_key(currdb, pid);
+    char* sockid = db_getSockId(currdb, pidkey, sockfd);
+    ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
+    char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
+    ull_t u_rval;
+    struct msghdr ret_mh;
+    char *buff = db_getSendRecvResult(netdb, SOCK_RECVMSG, prov_pid, sockid, sendid, &u_rval, &ret_mh); // get recorded result
+    struct user_regs_struct regs;
+    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+    SET_RETURN_CODE(&regs, u_rval);
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    if (u_rval <= 0) {
+      // set errno? TODO
+    } else { // successed call, copy to buffer as well
+      
+      // get the calling mh structure
+      memop_ok &= umoven(tcp, tcp->u_arg[1], sizeof(struct msghdr), (char*) &mh) >= 0;
+      if (memop_ok && mh.msg_iovlen > 0) {
+	int memlen = mh.msg_iovlen * sizeof(struct iovec);
+	msg_iov = malloc(memlen);
+	memop_ok &= msg_iov != NULL;
+	if (memop_ok)
+	  memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
+      }
+      
+      // and copy stuff back to that mh
+      if (memop_ok) {
+	// data
+	char *it = buff;
+	long int read_len, i;
+	for (i=0; i<mh.msg_iovlen && memop_ok; i++) {
+	  read_len = u_rval + buff - it < msg_iov[i].iov_len ?
+	      u_rval + buff - it : msg_iov[i].iov_len;
+	  memcpy_to_child(pid, msg_iov[i].iov_base, it, read_len);
+	  it = it + read_len;
+	}
+	// others
+	mh.msg_flags = ret_mh.msg_flags;
+	memcpy_to_child(pid, (char*) tcp->u_arg[1], (char*) &ret_mh, sizeof(ret_mh));
+      }
+      freeifnn(msg_iov);
+    }
+    
+    freeifnn(buff);
+    free(prov_pid);
+    free(sockid);
+    free(pidkey);
   }
 }
 
@@ -679,7 +726,7 @@ void CDEnet_end_send(struct tcb* tcp) {
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
-    db_getSendRecvResult(netdb, SOCK_SEND, prov_pid, sockid, sendid, &u_rval); // get recorded result
+    db_getSendRecvResult(netdb, SOCK_SEND, prov_pid, sockid, sendid, &u_rval, NULL); // get recorded result
     struct user_regs_struct regs;
     long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);

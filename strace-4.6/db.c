@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/socket.h>
 #include "db.h"
 #include "const.h"
 
@@ -431,8 +432,10 @@ ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action)
 
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
-                       size_t len_result, int action) {
+                       size_t len_result, int action, void* msg) {
   char key[KEYLEN];
+  int old_action = action;
+  action = action == SOCK_RECVMSG ? SOCK_RECV : action;
   char* pidkey = db_read_pid_key(mydb, pid);
   char* sockid = db_getSockId(mydb, pidkey, sockfd);
   if (sockid == NULL) {
@@ -442,6 +445,13 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
   ull_t pkgid = db_getPkgCounterInc(mydb, pidkey, sockid, action);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
+  
+  if (old_action == SOCK_RECVMSG) {
+    struct msghdr *mh = msg;
+    sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.msg.msg_flags", \
+            pidkey, sockid, action, pkgid);
+    db_nwrite(mydb, key, (char*) &mh->msg_flags, sizeof(int));
+  }
 
   sprintf(key, "prv.pid.%s.sock.%llu.%d.%d.%ld.%d.%ld", \
           pidkey, usec, action, sockfd, len_param, flags, len_result);
@@ -631,9 +641,20 @@ void db_remove_sock(lvldb_t *mydb, long pid, int sockfd) {
 }
 
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
-    char* pidkey, char* sockid, ull_t pkgid, ull_t *presult) {
+    char* pidkey, char* sockid, ull_t pkgid, ull_t *presult, void *msg) {
   char key[KEYLEN];
   size_t len;
+  
+  if (action == SOCK_RECVMSG) {
+    sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.msg.msg_flags", pidkey, sockid, action, pkgid);
+    int *v = (void*) db_nread(mydb, key, &len);
+    if (v != NULL) {
+      ((struct msghdr*) msg)->msg_flags = *v;
+      free(v);
+    }
+    action = SOCK_RECV;
+  }
+  
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", pidkey, sockid, action, pkgid);
   db_read_ull(mydb, key, presult);

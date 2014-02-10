@@ -380,7 +380,7 @@ void print_connect_prov(struct tcb *tcp,
 
 void print_sock_action(struct tcb *tcp, int sockfd, \
                        char *buf, size_t len_param, int flags, \
-                       size_t len_result, int action) {
+                       size_t len_result, int action, void *msg) {
   if (0) {
     int i;
     printf("sock %d action %d size %ld res %ld: '", \
@@ -393,7 +393,7 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
   fprintf(CDE_provenance_logfile, "%d %u SOCK %d %zu %d %zu %d\n", (int)time(0), tcp->pid, \
         sockfd, len_param, flags, len_result, action);
   db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
-                       len_result, action);
+                       len_result, action, msg);
   if (CDE_verbose_mode && (action == SOCK_SEND || action == SOCK_RECVMSG)) {
     #define NPRINT (100)
     if (strlen(buf)>NPRINT+3) {

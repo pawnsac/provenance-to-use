@@ -21,7 +21,7 @@ void print_newsock_prov(struct tcb *tcp, int action,
     unsigned int d_port, unsigned long d_ipv4, int sk);
 void print_sock_action(struct tcb *tcp, int sockfd,
     char *buf, size_t len_param, int flags,
-    size_t len_result, int action);
+    size_t len_result, int action, void *msg);
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addr, int addr_len, long u_rval);
 void print_listen_prov(struct tcb *tcp);
