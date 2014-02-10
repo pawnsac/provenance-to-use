@@ -394,12 +394,12 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
         sockfd, len_param, flags, len_result, action);
   db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
                        len_result, action);
-  if (CDE_verbose_mode && action == SOCK_SEND) {
+  if (CDE_verbose_mode && (action == SOCK_SEND || action == SOCK_RECVMSG)) {
     #define NPRINT (100)
     if (strlen(buf)>NPRINT+3) {
       buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
     }
-    vbprintf("[%d-prov] socket_data_handle action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
+    vbprintf("[%d-prov] print_sock_action action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
   }
 }
 

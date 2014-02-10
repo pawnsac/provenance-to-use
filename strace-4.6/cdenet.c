@@ -241,8 +241,12 @@ extern void vbprintf(const char *fmt, ...);
 
 #define vb(lvl) do {\
   if (CDE_verbose_mode>=lvl) { \
-    vbprintf("[%ld-%s] %s\n", tcp->pid, __FILE__, __func__); \
+    vbprintf("[%ld-%s] %s %d\n", tcp->pid, __FILE__, __FUNCTION__, __LINE__); \
   } \
+} while (0)
+
+#define freeifnn(pointer) do {\
+  if (pointer != NULL) free(pointer); \
 } while (0)
 
 
@@ -573,16 +577,57 @@ void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
   vb(2);
 }
 void CDEnet_end_recvmsg(struct tcb* tcp) {
-  long pid = tcp->pid;
   int sockfd = tcp->u_arg[0];
   long addr = tcp->u_arg[1];
   if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     int len = tcp->u_rval;
     struct msghdr mh;
-    if (umoven(tcp, tcp->u_arg[1], sizeof(struct msghdr), (char*) &mh) < 0) return;
-    printf("namelen %d iovlen %zu controllen %zu flags %d\n", 
-	mh.msg_namelen, mh.msg_iovlen, mh.msg_controllen, mh.msg_flags);
+    if (umoven(tcp, addr, sizeof(struct msghdr), (char*) &mh) < 0) return;
+    //~ printf("namelen %d iovlen %zu controllen %zu flags %d\n", 
+	//~ mh.msg_namelen, mh.msg_iovlen, mh.msg_controllen, mh.msg_flags);
+    char *msg_name = NULL, *msg_control = NULL, *storage = NULL;
+    struct iovec *msg_iov = NULL;
+    char memop_ok = 1;
+    if (len > 0) {
+      storage = malloc(len);
+      memop_ok &= storage != NULL;
+    }
+    if (memop_ok && mh.msg_namelen > 0) {
+      msg_name = malloc(mh.msg_namelen);
+      memop_ok &= msg_name != NULL;
+      if (memop_ok)
+	memop_ok &= umoven(tcp, (long) mh.msg_name, mh.msg_namelen, msg_name) >= 0;
+    }
+    if (memop_ok && mh.msg_iovlen > 0) {
+      int memlen = mh.msg_iovlen * sizeof(struct iovec);
+      msg_iov = malloc(memlen);
+      memop_ok &= msg_iov != NULL;
+      if (memop_ok)
+	memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
+    }
+    if (memop_ok && mh.msg_controllen > 0) {
+      msg_control = malloc(mh.msg_controllen);
+      memop_ok &= msg_control != NULL;
+      if (memop_ok)
+	memop_ok &= umoven(tcp, (long) mh.msg_control, mh.msg_controllen, msg_control) >= 0;
+    }
+    if (memop_ok) {
+      char *it = storage;
+      long int read_len, i;
+      for (i=0; i<mh.msg_iovlen && memop_ok; i++) {
+	read_len = len + storage - it < msg_iov[i].iov_len ?
+	    len + storage - it : msg_iov[i].iov_len;
+	memop_ok &= umoven(tcp, (long) msg_iov[i].iov_base, read_len, it) >= 0;
+	if (memop_ok)
+	  it = it + read_len;
+      }
+      if (memop_ok) {
+	print_sock_action(tcp, sockfd, storage, 0, tcp->u_arg[2], len, SOCK_RECV);
+      }
+    }
+    freeifnn(storage); freeifnn(msg_control); 
+    freeifnn(msg_iov); freeifnn(msg_name);
   }
   if (CDE_nw_mode && isCurrCapturedSock(sockfd)) {
     vb(2);
