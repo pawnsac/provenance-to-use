@@ -49,4 +49,33 @@ enum sock_action{SOCK_SEND, SOCK_SENDTO, SOCK_SENDMSG,  // 0, 1, 2
 #define KEYLEN (1024)
 #endif
 
+#define EXITIF(x) do { \
+  if (x) { \
+    fprintf(stderr, "Fatal error in %s [%s:%d]\n", __FUNCTION__, __FILE__, __LINE__); \
+    exit(1); \
+  } \
+} while(0)
+
+#ifndef vb
+#define vb(lvl) do {\
+  if (CDE_verbose_mode>=lvl) { \
+    fprintf(stderr, "[%s:%d-v%d] %s\n", __FILE__, __LINE__, lvl, __FUNCTION__); \
+  } \
+} while (0)
+#endif
+#ifndef vbp
+#define vbp(lvl, ...) do {\
+  if (CDE_verbose_mode>=lvl) { \
+    fprintf(stderr, "[%s:%d-v%d] %s: ", __FILE__, __LINE__, lvl, __FUNCTION__); \
+    fprintf(stderr, ##__VA_ARGS__); \
+  } \
+} while (0)
+#endif
+
+#ifndef freeifnn
+#define freeifnn(pointer) do {\
+  if (pointer != NULL) free(pointer); \
+} while (0)
+#endif
+
 #endif // _HEADER_CONST_H

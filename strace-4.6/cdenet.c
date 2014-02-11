@@ -232,23 +232,6 @@ extern int CDE_verbose_mode;
 // function from cde.c
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
 extern void vbprintf(const char *fmt, ...);
-#define EXITIF(x) do { \
-  if (x) { \
-    fprintf(stderr, "Fatal error in %s [%s:%d]\n", __FUNCTION__, __FILE__, __LINE__); \
-    exit(1); \
-  } \
-} while(0)
-
-#define vb(lvl) do {\
-  if (CDE_verbose_mode>=lvl) { \
-    vbprintf("[%ld-%s] %s %d\n", tcp->pid, __FILE__, __FUNCTION__, __LINE__); \
-  } \
-} while (0)
-
-#define freeifnn(pointer) do {\
-  if (pointer != NULL) free(pointer); \
-} while (0)
-
 
 // global parameters
 char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
@@ -413,10 +396,6 @@ void printSockInfo(struct tcb* tcp, int op, \
 }
 
 // int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-void CDEnet_begin_bind(struct tcb* tcp) { // nothing for now
-  vb(2);
-}
-
 void denySyscall(long pid) {
   struct user_regs_struct regs;
   EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
@@ -979,7 +958,7 @@ char* getMappedPid(char* pidkey) {
     for (i=0; i<n; i++) {
       printf("%llu, ", idlist[i]);
     }
-    printf("]\n");
+    printf("] -> ");
   }
   
   p = db_readc(netdb, "meta.root");
@@ -999,6 +978,7 @@ char* getMappedPid(char* pidkey) {
     free(p);
     p = db_readc(netdb, key);
   }
+  if (CDE_verbose_mode >= 2) printf("%s\n", p);
   return p;
   
   //~ char *value;
