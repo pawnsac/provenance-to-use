@@ -19,7 +19,7 @@ typedef long long int ull_t;
 void db_write(lvldb_t *mydb, const char *key, const char *value);
 void db_write_fmt(lvldb_t *mydb, const char *key, const char *fmt, ...);
 char* db_nread(lvldb_t *mydb, const char *key, size_t *plen);
-void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
+int db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue);
 char* db_readc(lvldb_t *mydb, const char *key);
 
 // pid

@@ -25,7 +25,7 @@ static ull_t getusec() {
 }
 
 void db_readfailed(const char* key, int readlen) {
-  vbprintf("[xxxx-db] DB - Read FAILED: '%s' %d\n", key, readlen);
+  vbp(0, "'%s' %d\n", key, readlen);
   print_trace();
 }
 
@@ -91,7 +91,7 @@ char* db_readc(lvldb_t *mydb, const char *key) {
   }
 }
 
-void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
+int db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
   char *err = NULL;
   ull_t *read;
   size_t read_len;
@@ -102,9 +102,12 @@ void db_read_ull(lvldb_t *mydb, const char *key, ull_t* pvalue) {
   leveldb_free(err); err = NULL;
   if (read == NULL || read_len != sizeof(ull_t)) {
     db_readfailed(key, read_len);
+    return 0;
+  } else {
+    *pvalue = *read;
+    freeifnn(read);
+    return 1;
   }
-  *pvalue = *read;
-  free(read);
 }
 
 // the initial PTU pid node
@@ -625,7 +628,7 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", pidkey, sockid, action, pkgid);
-  db_read_ull(mydb, key, presult);
+  if (db_read_ull(mydb, key, presult) == 0) return NULL; // error getting the result
   if (action == SOCK_RECV) {
     sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
           pidkey, sockid, action, pkgid);
@@ -646,7 +649,7 @@ int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
   read = leveldb_get(mydb->db, mydb->roptions, key, strlen(key), &read_len, &err);
   if (read == NULL) {
     fprintf(stderr, "Cannot find key '%s'\n", key);
-    exit(-1);
+    print_trace();
   }
   //~ sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
   sscanf(read, "prv.sock.%*d.%*u.newfd.%*u.%*d.%*d.%d", &u_rval);

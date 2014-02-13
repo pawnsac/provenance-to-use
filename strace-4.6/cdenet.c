@@ -606,6 +606,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
       }
       if (memop_ok) {
 	print_sock_action(tcp, sockfd, storage, 0, tcp->u_arg[2], len, SOCK_RECVMSG, &mh);
+	vbp(2, "recorded\n");
       }
     }
     freeifnn(storage); 
@@ -623,6 +624,10 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
     ull_t u_rval;
     struct msghdr ret_mh;
     char *buff = db_getSendRecvResult(netdb, SOCK_RECVMSG, prov_pid, sockid, sendid, &u_rval, &ret_mh); // get recorded result
+    if (buff == NULL) {
+      vbp(0, "recvmsg not captured!\n");
+      while (1) sleep(1);
+    }
     struct user_regs_struct regs;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
@@ -654,11 +659,10 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
 	}
 	// others
 	mh.msg_flags = ret_mh.msg_flags;
-	memcpy_to_child(pid, (char*) tcp->u_arg[1], (char*) &ret_mh, sizeof(ret_mh));
+	memcpy_to_child(pid, (char*) tcp->u_arg[1], (char*) &mh, sizeof(mh));
       }
       freeifnn(msg_iov);
     }
-    
     freeifnn(buff);
     free(prov_pid);
     free(sockid);
@@ -723,6 +727,9 @@ void CDEnet_end_send(struct tcb* tcp) {
 
 void CDEnet_begin_sendmsg(struct tcb* tcp) { //TODO
   vb(2);
+  if (CDE_nw_mode && isCurrCapturedSock(tcp->u_arg[0])) {
+    denySyscall(tcp->pid);
+  }
 }
 void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
   vb(2);
@@ -953,16 +960,17 @@ char* getMappedPid(char* pidkey) {
     if (p != pidkey && p != NULL) free(p);
     p = db_readc(currdb, key);
   }
+  vbp(2, "%s -> [%d] [", pidkey, n);
   if (CDE_verbose_mode >= 2) {
-    printf("getMappedPid %s -> [%d] [", pidkey, n);  
     for (i=0; i<n; i++) {
-      printf("%llu, ", idlist[i]);
+      fprintf(stderr, "%llu, ", idlist[i]);
     }
-    printf("] -> ");
+    fprintf(stderr, "] -> ");
   }
   
   p = db_readc(netdb, "meta.root");
-  sprintf(key, "prv.pid.%s.actualexec.", p);
+  sprintf(key, "prv.pid.%s.exec.", p);
+  //~ sprintf(key, "prv.pid.%s.actualexec.", p);
   free(p);
   leveldb_iterator_t *it = leveldb_create_iterator(netdb->db, netdb->roptions);
   leveldb_iter_seek(it, key, strlen(key));
@@ -978,7 +986,7 @@ char* getMappedPid(char* pidkey) {
     free(p);
     p = db_readc(netdb, key);
   }
-  if (CDE_verbose_mode >= 2) printf("%s\n", p);
+  if (CDE_verbose_mode >= 2) fprintf(stderr, "%s\n", p);
   return p;
   
   //~ char *value;
