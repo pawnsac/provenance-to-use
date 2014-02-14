@@ -14,6 +14,20 @@ extern void print_trace (void);
 
 // local function signatures
 
+uint32_t checksum(const void *buf, size_t buflength) { // Adler-32
+     const uint8_t *buffer = (const uint8_t*)buf;
+
+     uint32_t s1 = 1;
+     uint32_t s2 = 0;
+     size_t n;
+
+     for (n = 0; n < buflength; n++) {
+        s1 = (s1 + buffer[n]) % 65521;
+        s2 = (s2 + s1) % 65521;
+     }     
+     return (s2 << 16) | s1;
+}
+
 static ull_t getusec() {
   struct timeval tv;
   ull_t usec;
@@ -388,7 +402,8 @@ char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock) {
     sprintf(key, "pid.%s.ac2id.%d", pidkey, sock);
     sockid = db_readc(mydb, key);
   }
-  vbp(3, "pidkey %s, sock %d -> sockid %s [%zu]\n", 
+  if (sockid != NULL)
+    vbp(3, "pidkey %s, sock %d -> sockid %s [%zu]\n", 
         pidkey, sock, sockid, strlen(sockid));
   return sockid;
 }
@@ -451,7 +466,7 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
           pidkey, sockid, action, pkgid);
   ull_t result = len_result;
   db_nwrite(mydb, key, (char*) &result, sizeof(ull_t));
-  vbp(3, "%s -> %zd\n", key, len_result);
+  vbp(3, "%s -> %zd, checksum %u\n", key, len_result, checksum(buf, len_result));
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$pkgid.buff -> $buff
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
@@ -633,12 +648,15 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
     vbp(3, "%s\n", key);
     return NULL; // error getting the result
   }
-  vbp(3, "%s -> %lld\n", key, *presult);
+
   if (action == SOCK_RECV) {
     sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
           pidkey, sockid, action, pkgid);
-    return db_nread(mydb, key, &len); // len might be != *presult in the case "-1"
-  }
+    char *res = db_nread(mydb, key, &len); // len might be != *presult in the case "-1"
+    vbp(3, "%s -> %lld checksum: %u\n", key, *presult, checksum(res, len));
+    return res;
+  } else
+    vbp(3, "%s -> %lld\n", key, *presult);
   return NULL; // SOCK_SEND and "other?" cases
 }
 

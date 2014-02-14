@@ -710,7 +710,8 @@ void CDEnet_end_send(struct tcb* tcp) {
 	return;
       }
       buff[tcp->u_arg[2]] = '\0';
-      vbprintf("[%d-net] CDEnet_end_send action %d [%d] '%s'\n", tcp->pid, SOCK_SEND, tcp->u_arg[2], buff);
+      vbp(3, "action %d [%ld] checksum %u '%s'\n", 
+	  SOCK_SEND, tcp->u_arg[2], adler32(buff, tcp->u_arg[2]), buff);
     }
     char* pidkey = db_read_pid_key(currdb, tcp->pid);
     char* sockid = db_getSockId(currdb, pidkey, sockfd);
