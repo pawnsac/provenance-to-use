@@ -26,7 +26,7 @@ static ull_t getusec() {
 
 void db_readfailed(const char* key, int readlen) {
   vbp(0, "'%s' %d\n", key, readlen);
-  print_trace();
+  //~ print_trace();
 }
 
 void db_nwrite(lvldb_t *mydb, const char *key, const char *value, int len) {
@@ -451,6 +451,7 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
           pidkey, sockid, action, pkgid);
   ull_t result = len_result;
   db_nwrite(mydb, key, (char*) &result, sizeof(ull_t));
+  vbp(3, "%s -> %zd\n", key, len_result);
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$pkgid.buff -> $buff
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
@@ -628,7 +629,11 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$counter -> $syscall_result
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu", pidkey, sockid, action, pkgid);
-  if (db_read_ull(mydb, key, presult) == 0) return NULL; // error getting the result
+  if (db_read_ull(mydb, key, presult) == 0) {
+    vbp(3, "%s\n", key);
+    return NULL; // error getting the result
+  }
+  vbp(3, "%s -> %lld\n", key, *presult);
   if (action == SOCK_RECV) {
     sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
           pidkey, sockid, action, pkgid);

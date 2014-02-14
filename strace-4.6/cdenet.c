@@ -624,45 +624,53 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
     ull_t u_rval;
     struct msghdr ret_mh;
     char *buff = db_getSendRecvResult(netdb, SOCK_RECVMSG, prov_pid, sockid, sendid, &u_rval, &ret_mh); // get recorded result
+    struct user_regs_struct regs;
+    
     if (buff == NULL) {
       vbp(0, "recvmsg not captured!\n");
-      while (1) sleep(1);
-    }
-    struct user_regs_struct regs;
-    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-    SET_RETURN_CODE(&regs, u_rval);
-    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
-    if (u_rval <= 0) {
-      // set errno? TODO
-    } else { // successed call, copy to buffer as well
-      
-      // get the calling mh structure
-      memop_ok &= umoven(tcp, tcp->u_arg[1], sizeof(struct msghdr), (char*) &mh) >= 0;
-      if (memop_ok && mh.msg_iovlen > 0) {
-	int memlen = mh.msg_iovlen * sizeof(struct iovec);
-	msg_iov = malloc(memlen);
-	memop_ok &= msg_iov != NULL;
-	if (memop_ok)
-	  memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
-      }
-      
-      // and copy stuff back to that mh
-      if (memop_ok) {
-	// data
-	char *it = buff;
-	long int read_len, i;
-	for (i=0; i<mh.msg_iovlen && memop_ok; i++) {
-	  read_len = u_rval + buff - it < msg_iov[i].iov_len ?
-	      u_rval + buff - it : msg_iov[i].iov_len;
-	  memcpy_to_child(pid, msg_iov[i].iov_base, it, read_len);
-	  it = it + read_len;
+      //~ while (1) sleep(1);
+      EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+      SET_RETURN_CODE(&regs, -1);
+      EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    
+    } else {
+    
+      EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+      SET_RETURN_CODE(&regs, u_rval);
+      EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+      if (u_rval <= 0) {
+	// set errno? TODO
+      } else { // successed call, copy to buffer as well
+	
+	// get the calling mh structure
+	memop_ok &= umoven(tcp, tcp->u_arg[1], sizeof(struct msghdr), (char*) &mh) >= 0;
+	if (memop_ok && mh.msg_iovlen > 0) {
+	  int memlen = mh.msg_iovlen * sizeof(struct iovec);
+	  msg_iov = malloc(memlen);
+	  memop_ok &= msg_iov != NULL;
+	  if (memop_ok)
+	    memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
 	}
-	// others
-	mh.msg_flags = ret_mh.msg_flags;
-	memcpy_to_child(pid, (char*) tcp->u_arg[1], (char*) &mh, sizeof(mh));
+	
+	// and copy stuff back to that mh
+	if (memop_ok) {
+	  // data
+	  char *it = buff;
+	  long int read_len, i;
+	  for (i=0; i<mh.msg_iovlen && memop_ok; i++) {
+	    read_len = u_rval + buff - it < msg_iov[i].iov_len ?
+		u_rval + buff - it : msg_iov[i].iov_len;
+	    memcpy_to_child(pid, msg_iov[i].iov_base, it, read_len);
+	    it = it + read_len;
+	  }
+	  // others
+	  mh.msg_flags = ret_mh.msg_flags;
+	  memcpy_to_child(pid, (char*) tcp->u_arg[1], (char*) &mh, sizeof(mh));
+	}
+	freeifnn(msg_iov);
       }
-      freeifnn(msg_iov);
     }
+    
     freeifnn(buff);
     free(prov_pid);
     free(sockid);
