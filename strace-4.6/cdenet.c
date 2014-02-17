@@ -413,7 +413,11 @@ void CDEnet_begin_bindconnect(struct tcb* tcp, int isConnect) {
   if (CDE_nw_mode) {
     char addrbuf[KEYLEN];
     if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) return;
-    if (isConnect) if (getPort((void*)addrbuf) == 53) return;
+    if (isConnect) {
+      int port = getPort((void*)addrbuf);
+      vbp(3, "Port %d\n", port);
+      if (port == 53 || port == 22) return;
+    }
     
     db_setCapturedSock(currdb, tcp->u_arg[0]);
     denySyscall(tcp->pid);
@@ -465,7 +469,9 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
   //~ printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
   //~ if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
   if (CDE_provenance_mode) {
-    if (isConnect) if (getPort(&addrbuf) == 53) return;
+    int port = getPort((void*)addrbuf.pad);
+    vbp(3, "Port %d\n", port);
+    if (port == 53 || port == 22) return;
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
   }
   if (CDE_nw_mode) { // return my own network socket connect result from netdb
@@ -706,12 +712,14 @@ void CDEnet_end_send(struct tcb* tcp) {
     vb(2);
     if (CDE_verbose_mode >= 3) {
       char buff[KEYLEN];
-      if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], buff) < 0) {
+      size_t buflength = tcp->u_arg[2];
+      if (umoven(tcp, tcp->u_arg[1], buflength, buff) < 0) {
 	return;
       }
       buff[tcp->u_arg[2]] = '\0';
-      vbp(3, "action %d [%ld] checksum %u '%s'\n", 
-	  SOCK_SEND, tcp->u_arg[2], adler32(buff, tcp->u_arg[2]), buff);
+      vbp(3, "action %d [%ld] checksum %u ", 
+	  SOCK_SEND, tcp->u_arg[2], checksum(buff, buflength));
+      if (CDE_verbose_mode >= 3) printbuf(buff, buflength);
     }
     char* pidkey = db_read_pid_key(currdb, tcp->pid);
     char* sockid = db_getSockId(currdb, pidkey, sockfd);

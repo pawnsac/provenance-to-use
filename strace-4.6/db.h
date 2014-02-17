@@ -82,4 +82,8 @@ int db_isCapturedSock(lvldb_t *mydb, int sockfd);
 char* db_getSockId(lvldb_t *mydb, char* pidkey, int sock);
 void db_remove_sock(lvldb_t *mydb, long pid, int sockfd);
 
+// others
+uint32_t checksum(const void *buf, size_t buflength);
+void printbuf(const char *buf, size_t buflength);
+
 #endif // _DB_H
