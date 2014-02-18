@@ -520,12 +520,20 @@ void CDEnet_end_recv(struct tcb* tcp) {
   if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
     vb(2);
     long pid = tcp->pid;
-    char* pidkey = db_read_pid_key(currdb, pid);
-    char* sockid = db_getSockId(currdb, pidkey, sockfd);
+    char *pidkey, *sockid;
+    db_get_pid_sock(currdb, pid, sockfd, &pidkey, &sockid);
+    if (pidkey == NULL || sockid == NULL) {
+      vbp(0, "error");
+      return;
+    }
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
     char *buff = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval, NULL); // get recorded result
+    if (buff == NULL && u_rval>0) {
+      vbp(2, "buff == NULL && u_rval (%lld) > 0", u_rval);
+      u_rval = 0;
+    }
     struct user_regs_struct regs;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
@@ -623,8 +631,12 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
   if (CDE_nw_mode && isCurrCapturedSock(sockfd)) {
     vb(2);
     long pid = tcp->pid;
-    char* pidkey = db_read_pid_key(currdb, pid);
-    char* sockid = db_getSockId(currdb, pidkey, sockfd);
+    char *pidkey, *sockid;
+    db_get_pid_sock(currdb, pid, sockfd, &pidkey, &sockid);
+    if (pidkey == NULL || sockid == NULL) {
+      vbp(0, "error");
+      return;
+    }
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
@@ -721,14 +733,18 @@ void CDEnet_end_send(struct tcb* tcp) {
 	  SOCK_SEND, tcp->u_arg[2], checksum(buff, buflength));
       if (CDE_verbose_mode >= 3) printbuf(buff, buflength);
     }
-    char* pidkey = db_read_pid_key(currdb, tcp->pid);
-    char* sockid = db_getSockId(currdb, pidkey, sockfd);
+    long pid = tcp->pid;
+    char *pidkey, *sockid;
+    db_get_pid_sock(currdb, pid, sockfd, &pidkey, &sockid);
+    if (pidkey == NULL || sockid == NULL) {
+      vbp(0, "error");
+      return;
+    }
     ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
     db_getSendRecvResult(netdb, SOCK_SEND, prov_pid, sockid, sendid, &u_rval, NULL); // get recorded result
     struct user_regs_struct regs;
-    long pid = tcp->pid;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
     SET_RETURN_CODE(&regs, u_rval);
     if (u_rval < 0) {
@@ -788,7 +804,7 @@ void CDEnet_end_accept(struct tcb* tcp) {
   }
   if (CDE_nw_mode) {
     long pid = tcp->pid;
-    char *pidkey = db_read_pid_key(currdb, pid);
+    char *pidkey = db_read_real_pid_key(currdb, pid);
     ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
     ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
@@ -836,7 +852,7 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
     print_listen_prov(tcp);
   }
   if (CDE_nw_mode) {
-    char *pidkey = db_read_pid_key(currdb, tcp->pid);
+    char *pidkey = db_read_real_pid_key(currdb, tcp->pid);
     ull_t id = db_getListenCounterInc(currdb, pidkey);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     int u_rval = db_getListenResult(netdb, prov_pid, id); // get recorded result

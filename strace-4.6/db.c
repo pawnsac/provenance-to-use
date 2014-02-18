@@ -172,6 +172,30 @@ char* db_read_pid_key(lvldb_t *mydb, long pid) {
   return db_readc(mydb, key);
 }
 
+char *db_read_real_pid_key(lvldb_t *mydb, long pid) {
+  char key[KEYLEN];
+  char *pidkey;
+
+  sprintf(key, "pid.%ld", pid);
+  pidkey = db_readc(mydb, key);
+
+  while (pidkey != NULL) {
+    sprintf(key, "prv.pid.%s.ok", pidkey);
+    char *pidok = db_readc(mydb, key);
+    if (pidok != NULL) {
+      free(pidok);
+      vbp(3, "%ld -> %s\n", pid, pidkey);
+      return pidkey; // got the correct pid, now return
+    }
+    sprintf(key, "prv.pid.%s.parent", pidkey);
+    free(pidkey);
+    pidkey = db_readc(mydb, key);
+  }
+
+  vbp(3, "%ld -> NULL\n", pid);
+  return NULL;
+}
+
 void db_write_fmt(lvldb_t *mydb, const char *key, const char *fmt, ...) {
   char val[KEYLEN];
   va_list args;
@@ -442,20 +466,34 @@ ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action)
   return db_getCounterInc(mydb, key);
 }
 
+void db_get_pid_sock(lvldb_t *mydb, long pid, int sockfd, char **pidkey, char **sockid) {
+  *pidkey = NULL;
+  *sockid = NULL;
+  *pidkey = db_read_pid_key(mydb, pid);
+  if (*pidkey == NULL) return;
+  *sockid = db_getSockId(mydb, *pidkey, sockfd);
+  if (*sockid == NULL) {
+    free(*pidkey);
+    *pidkey = db_read_real_pid_key(mydb, pid);
+    if (*pidkey == NULL) return;
+    *sockid = db_getSockId(mydb, *pidkey, sockfd);
+    if (*sockid == NULL) {
+      free(*pidkey);
+      return;
+    }
+  }
+}
+
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
                        const char *buf, size_t len_param, int flags, \
                        size_t len_result, int action, void* msg) {
   char key[KEYLEN];
   int old_action = action;
   action = action == SOCK_RECVMSG ? SOCK_RECV : action;
-  char* pidkey = db_read_pid_key(mydb, pid);
-  char* sockid = db_getSockId(mydb, pidkey, sockfd);
-  if (sockid == NULL) {
-    free(pidkey);
-    return;
-  }
+  char *pidkey, *sockid;
+  db_get_pid_sock(mydb, pid, sockfd, &pidkey, &sockid);
+  if (pidkey == NULL || sockid == NULL) return;
   ull_t pkgid = db_getPkgCounterInc(mydb, pidkey, sockid, action);
-  if (pidkey == NULL) return;
   ull_t usec = getusec();
   
   if (old_action == SOCK_RECVMSG) {
@@ -565,7 +603,7 @@ ull_t db_getListenId(lvldb_t *mydb, char* pidkey, int sock) {
 }
 void db_write_listen_prov(lvldb_t *mydb, int pid, int sock, int backlog, int result) {
   char key[KEYLEN],value[KEYLEN];
-  char *pidkey = db_read_pid_key(mydb, pid);
+  char *pidkey = db_read_real_pid_key(mydb, pid);
   ull_t listenn = db_getListenCounterInc(mydb, pidkey);
   db_setListenId(mydb, pidkey, sock, listenn);
   sprintf(key, "prv.pid.%s.listenid.%llu", pidkey, listenn);
@@ -603,7 +641,7 @@ void db_setAcceptId(lvldb_t *mydb, char* pidkey, int client_sock, ull_t listenid
 }
 void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock, char* addrbuf, int len, ull_t client_sock) {
   char key[KEYLEN];
-  char *pidkey = db_read_pid_key(mydb, pid);
+  char *pidkey = db_read_real_pid_key(mydb, pid);
   ull_t listenid = db_getListenId(mydb, pidkey, lssock);
   ull_t acceptid = db_getAcceptCounterInc(mydb, pidkey, listenid);
   sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu.addr", pidkey, listenid, acceptid);
