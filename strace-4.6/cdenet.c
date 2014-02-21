@@ -430,12 +430,14 @@ void setBindConnectReturnValue(struct tcb* tcp) {
   char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
   ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
   int u_rval = db_getSockResult(netdb, prov_pid, sockid); // get the result of a connect call
+  //~ vbp(3, "here\n");
   
   // return recorded result
   struct user_regs_struct regs;
   long pid = tcp->pid;
   EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
   SET_RETURN_CODE(&regs, u_rval);
+  vbp(3, "return %d\n", u_rval);
   if (u_rval < 0) {
     // set errno? TODO
   } else {
@@ -470,7 +472,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
   //~ if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
   if (CDE_provenance_mode) {
     int port = getPort((void*)addrbuf.pad);
-    vbp(3, "Port %d\n", port);
+    vbp(3, "Port %d return %ld\n", port, tcp->u_rval);
     if (port == 53 || port == 22) return;
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
   }

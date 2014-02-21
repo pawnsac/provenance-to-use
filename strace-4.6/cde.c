@@ -1976,7 +1976,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 #endif
 
         ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
-        is_runable_count += 2;
+        //~ is_runable_count += 2;
       }
       else {
         // simply redirect the executable's path to within cde-root/:
@@ -2038,7 +2038,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 done:
   if (CDE_provenance_mode || CDE_nw_mode) {
     if (CDE_verbose_mode)
-      vbprintf("  will %sbe captured in provenance.\n", is_runable_count > 0 ? "NOT " : "");
+      vbprintf("  will %sbe captured in provenance (%d).\n", is_runable_count > 0 ? "NOT " : "", is_runable_count);
     if (is_runable_count==0)
       print_exec_prov(tcp);
   }

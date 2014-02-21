@@ -1966,6 +1966,7 @@ sys_socketpair(struct tcb *tcp)
 int
 sys_getsockopt(struct tcb *tcp)
 {
+	fprintf(stderr, "sys_getsockopt: ");
 	if (entering(tcp)) {
 		tprintf("%ld, ", tcp->u_arg[0]);
 		printxval(socketlayers, tcp->u_arg[1], "SOL_???");

@@ -301,6 +301,7 @@ void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid) {
   sprintf(key, "prv.pid.%s.ok", pidkey);
   sprintf(value, "%llu", usec);
   db_write(mydb, key, value);
+  vbp(3, "%s -> %s\n", key, value);
   
   db_setupChildCounter(mydb, ppidkey, pidkey);
 
@@ -335,6 +336,7 @@ void db_write_spawn_prov(lvldb_t *mydb, long ppid, long pid) {
 
   sprintf(key, "prv.pid.%s.spawn.%llu", ppidkey, usec);
   db_write(mydb, key, pidkey);
+  vbp(3, "%s -> %s\n", key, pidkey);
   
   db_setupChildCounter(mydb, ppidkey, pidkey);
 
@@ -556,7 +558,7 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
   ull_t usec = getusec();
   
   // prv.sock.$(pid.usec).newfd.$usec.$sockfd.$addr_len.$u_rval -> $(addr) [1]
-  sprintf(key, "prv.sock.%s.newfd.%llu.%d.%d.%lu", \
+  sprintf(key, "prv.sock.%s.newfd.%llu.%d.%d.%ld", \
           pidkey, usec, sockfd, addr_len, u_rval);
   db_nwrite(mydb, key, addr, addr_len);
   
@@ -565,6 +567,8 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
   db_setSockConnectId(mydb, pidkey, sockfd, sockn);
   sprintf(idkey, "prv.pid.%s.sockid.%llu", pidkey, sockn);
   db_write(mydb, idkey, key);
+  
+  vbp(3, "%s -> %s\n", idkey, key);
   
   db_setupSockConnectCounter(mydb, pidkey, sockfd, sockn);
   
@@ -725,6 +729,7 @@ int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
     fprintf(stderr, "Cannot find key '%s'\n", key);
     print_trace();
   }
+  vbp(3, "%s -> %s\n", key, read);
   //~ sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
   sscanf(read, "prv.sock.%*d.%*u.newfd.%*u.%*d.%*d.%d", &u_rval);
   return u_rval;
