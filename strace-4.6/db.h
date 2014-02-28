@@ -43,8 +43,8 @@ void db_write_prov_stat(lvldb_t *mydb, long pid, const char* label, char *stat);
 
 // sock read/write
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
-    const char *buf, size_t len_param, int flags, \
-    size_t len_result, int action, void *msg);
+    const char *buf, long len_param, int flags, \
+    long len_result, int action, void *msg);
 ull_t db_getPkgCounterInc(lvldb_t *mydb, char* pidkey, char* sockid, int action);
 char* db_getSendRecvResult(lvldb_t *mydb, int action, 
     char* pidkey, char* sockid, ull_t pkgid, ull_t *presult, void *msg);

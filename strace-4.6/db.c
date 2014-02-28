@@ -26,17 +26,18 @@ void printbuf(const char *buf, size_t buflength) {
 }
 
 uint32_t checksum(const void *buf, size_t buflength) { // Adler-32
-     const uint8_t *buffer = (const uint8_t*)buf;
+  if (buf == NULL) return 0;
+  const uint8_t *buffer = (const uint8_t*)buf;
 
-     uint32_t s1 = 1;
-     uint32_t s2 = 0;
-     size_t n;
+  uint32_t s1 = 1;
+  uint32_t s2 = 0;
+  size_t n;
 
-     for (n = 0; n < buflength; n++) {
-        s1 = (s1 + buffer[n]) % 65521;
-        s2 = (s2 + s1) % 65521;
-     }     
-     return (s2 << 16) | s1;
+  for (n = 0; n < buflength; n++) {
+    s1 = (s1 + buffer[n]) % 65521;
+    s2 = (s2 + s1) % 65521;
+  }     
+  return (s2 << 16) | s1;
 }
 
 static ull_t getusec() {
@@ -487,8 +488,8 @@ void db_get_pid_sock(lvldb_t *mydb, long pid, int sockfd, char **pidkey, char **
 }
 
 void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
-                       const char *buf, size_t len_param, int flags, \
-                       size_t len_result, int action, void* msg) {
+                       const char *buf, long len_param, int flags, \
+                       long len_result, int action, void* msg) {
   char key[KEYLEN];
   int old_action = action;
   action = action == SOCK_RECVMSG ? SOCK_RECV : action;

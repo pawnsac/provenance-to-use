@@ -379,8 +379,8 @@ void print_connect_prov(struct tcb *tcp,
 }
 
 void print_sock_action(struct tcb *tcp, int sockfd, \
-                       char *buf, size_t len_param, int flags, \
-                       size_t len_result, int action, void *msg) {
+                       char *buf, long len_param, int flags, \
+                       long len_result, int action, void *msg) {
   if (0) {
     int i;
     printf("sock %d action %d size %ld res %ld: '", \
@@ -390,7 +390,7 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
     }
     printf("'\n");
   }
-  fprintf(CDE_provenance_logfile, "%d %u SOCK %d %zu %d %zu %d\n", (int)time(0), tcp->pid, \
+  fprintf(CDE_provenance_logfile, "%d %u SOCK %d %ld %d %ld %d\n", (int)time(0), tcp->pid, \
         sockfd, len_param, flags, len_result, action);
   db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
                        len_result, action, msg);
@@ -399,7 +399,7 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
     if (buf != NULL && strlen(buf)>NPRINT+3) {
       buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
     }
-    vbprintf("[%d-prov] print_sock_action action %d [%d] '%s'\n", tcp->pid, action, len_param, buf);
+    vbprintf("[%d-prov] print_sock_action action %d [%ld] '%s'\n", tcp->pid, action, len_param, buf);
   }
 }
 

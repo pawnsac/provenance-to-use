@@ -485,7 +485,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
 int socket_data_handle(struct tcb* tcp, int action) {
   int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode) {
-    int len = tcp->u_rval;
+    long len = tcp->u_rval;
     char *buf = NULL;
     if (len >0) {
       buf = malloc(len);
