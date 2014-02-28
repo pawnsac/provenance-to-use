@@ -112,6 +112,7 @@ extern char CDE_provenance_mode;
 extern char CDE_bare_run;
 extern char CDE_nw_mode;
 extern char* DB_NAME;
+extern char* PIDKEY;
 
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
@@ -894,7 +895,7 @@ main(int argc, char *argv[])
 #ifndef USE_PROCFS
 		"D"
 #endif
-		"a:e:o:O:S:u:E:i:p:N:")) != EOF) {
+		"a:e:o:O:S:u:E:i:p:N:P:")) != EOF) {
 		switch (c) {
 		case 'c':
       // pgbovine - hijack for -c option
@@ -961,6 +962,10 @@ main(int argc, char *argv[])
 			// quanpt - network simulation mode
 			CDE_nw_mode = 1;
 			DB_NAME = strdup(optarg);
+			break;
+		case 'P':
+			// quanpt - replay from pidkey
+			PIDKEY = strdup(optarg);
 			break;
 		case 'T':
 			dtime++;

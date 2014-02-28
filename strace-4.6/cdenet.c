@@ -235,7 +235,8 @@ extern void vbprintf(const char *fmt, ...);
 
 // global parameters
 char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
-char* DB_NAME;
+char *DB_NAME;
+char *PIDKEY = NULL;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 extern char* CDE_ROOT_NAME;
 
@@ -988,6 +989,7 @@ char* getMappedPid(char* pidkey) {
   p = pidkey;
   while (p != NULL) {
     sprintf(key, "prv.pid.%s.childid", p);
+    vbp(3, "%s\n", key);
     db_read_ull(currdb, key, &childid);
     idlist[n++] = childid;
     
@@ -1000,28 +1002,34 @@ char* getMappedPid(char* pidkey) {
     for (i=0; i<n; i++) {
       fprintf(stderr, "%llu, ", idlist[i]);
     }
-    fprintf(stderr, "] -> ");
+    fprintf(stderr, "]\n");
   }
   
-  p = db_readc(netdb, "meta.root");
-  sprintf(key, "prv.pid.%s.exec.", p);
-  //~ sprintf(key, "prv.pid.%s.actualexec.", p);
-  free(p);
-  leveldb_iterator_t *it = leveldb_create_iterator(netdb->db, netdb->roptions);
-  leveldb_iter_seek(it, key, strlen(key));
-    
-  read = leveldb_iter_value(it, &read_len);
-  p = malloc(read_len + 1);
-  memcpy(p, read, read_len);
-  p[read_len] = '\0';
-  n-=2; // skip the first root -> child that I just did
+  if (PIDKEY != NULL) {
+    p = strdup(PIDKEY);
+    n -= 2;
+  } else {
+    p = db_readc(netdb, "meta.root");
+    sprintf(key, "prv.pid.%s.exec.", p);
+    //~ sprintf(key, "prv.pid.%s.actualexec.", p);
+    free(p);
+    leveldb_iterator_t *it = leveldb_create_iterator(netdb->db, netdb->roptions);
+    leveldb_iter_seek(it, key, strlen(key));
+      
+    read = leveldb_iter_value(it, &read_len);
+    p = malloc(read_len + 1);
+    memcpy(p, read, read_len);
+    p[read_len] = '\0';
+    n-=2; // skip the first root -> child that I just did
+  }
   while (n>0) {
     sprintf(key, "prv.pid.%s.child.%llu", p, idlist[n-1]);
     n--;
     free(p);
     p = db_readc(netdb, key);
+    vbp(3, "%s\n", key);
   }
-  if (CDE_verbose_mode >= 2) fprintf(stderr, "%s\n", p);
+  vbp(2, "return %s\n", p);
   return p;
   
   //~ char *value;
