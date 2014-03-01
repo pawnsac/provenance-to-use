@@ -1630,7 +1630,8 @@ sys_accept(struct tcb *tcp)
 int
 sys_accept4(struct tcb *tcp)
 {
-	return do_accept(tcp, 3);
+	//~ return do_accept(tcp, 3);
+	return sys_accept(tcp);
 }
 #endif
 
@@ -1865,14 +1866,20 @@ int
 sys_getsockname(tcp)
 struct tcb *tcp;
 {
-	return sys_accept(tcp);
+	if (entering(tcp)) {
+		CDEnet_begin_getsockname(tcp);
+	} else {
+		CDEnet_end_getsockname(tcp);
+	}
+	return 0; //sys_accept(tcp);
 }
 
 int
 sys_getpeername(tcp)
 struct tcb *tcp;
 {
-	return sys_accept(tcp);
+	printf("sys_getpeername\n");
+	return 0; // sys_accept(tcp);
 }
 
 static int

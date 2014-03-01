@@ -17,7 +17,10 @@ extern void print_trace (void);
 void printbuf(const char *buf, size_t buflength) {
   int i;
   size_t n = buflength > 200 ? 200 : buflength;
-  if (buf == NULL) return;
+  if (buf == NULL) {
+    fprintf(stderr, "\n");
+    return;
+  }
   fprintf(stderr, "'");
   for (i = 0; i < n; i++) {
     fprintf(stderr, (buf[i] >= 0x20 && buf[i] <= 0x7e) ? "%c" : "\%d", buf[i]);
@@ -518,7 +521,8 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
           pidkey, sockid, action, pkgid);
   ull_t result = len_result;
   db_nwrite(mydb, key, (char*) &result, sizeof(ull_t));
-  vbp(3, "%s -> %zd, checksum %u ", key, len_result, checksum(buf, len_result));
+  //~ vbp(3, "%s -> %zd, checksum %u ", key, len_result, checksum(buf, len_result));
+  vbp(3, "checksum %u ", checksum(buf, len_result));
   if (CDE_verbose_mode >= 3) printbuf(buf, len_result);
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$pkgid.buff -> $buff
@@ -661,13 +665,27 @@ void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock, char* addrbuf, int
   free(pidkey);
 }
 
-
 void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid) {
   char key[KEYLEN];
   sprintf(key, "prv.pid.%s.listenid.%llu.acceptn", pidkey, listenid);
   ull_t zero = 0;
   db_nwrite(mydb, key, (char*) &zero, sizeof(ull_t));
   vbp(3, "pidkey %s, listenid %llu\n", pidkey, listenid);
+}
+
+void db_write_getsockname_prov(lvldb_t *mydb, int pid, int sock, char* addrbuf, int len, ull_t res) {
+  char key[KEYLEN];
+  char *pidkey = db_read_real_pid_key(mydb, pid);
+  ull_t listenid = db_getListenId(mydb, pidkey, sock);
+  sprintf(key, "prv.pid.%s.listenid.%llu.gsn.addr", pidkey, listenid);
+  db_nwrite(mydb, key, addrbuf, len);
+  vbp(0, "sock %d key %s [%d]: ", sock, key, len);
+  printbuf(addrbuf, len);
+  
+  sprintf(key, "prv.pid.%s.listenid.%llu.gsn", pidkey, listenid);
+  db_nwrite(mydb, key, (char*) &res, sizeof(ull_t));
+  
+  free(pidkey);
 }
 
 /* =====

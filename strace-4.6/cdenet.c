@@ -603,7 +603,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
       msg_iov = malloc(memlen);
       memop_ok &= msg_iov != NULL;
       if (memop_ok)
-	memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
+        memop_ok &= umoven(tcp, (long) mh.msg_iov, memlen , (void*) msg_iov) >= 0;
     }
     //~ if (memop_ok && mh.msg_controllen > 0) {
       //~ msg_control = malloc(mh.msg_controllen);
@@ -615,15 +615,15 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
       char *it = storage;
       long int read_len, i;
       for (i=0; i<mh.msg_iovlen && memop_ok; i++) {
-	read_len = len + storage - it < msg_iov[i].iov_len ?
-	    len + storage - it : msg_iov[i].iov_len;
-	memop_ok &= umoven(tcp, (long) msg_iov[i].iov_base, read_len, it) >= 0;
-	if (memop_ok)
-	  it = it + read_len;
+        read_len = len + storage - it < msg_iov[i].iov_len ?
+        len + storage - it : msg_iov[i].iov_len;
+        memop_ok &= umoven(tcp, (long) msg_iov[i].iov_base, read_len, it) >= 0;
+        if (memop_ok)
+        it = it + read_len;
       }
       if (memop_ok) {
-	print_sock_action(tcp, sockfd, storage, 0, tcp->u_arg[2], len, SOCK_RECVMSG, &mh);
-	vbp(2, "recorded\n");
+        print_sock_action(tcp, sockfd, storage, 0, tcp->u_arg[2], len, SOCK_RECVMSG, &mh);
+        vbp(2, "recorded\n");
       }
     }
     freeifnn(storage); 
@@ -771,6 +771,47 @@ void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
   vb(2);
 }
 
+void CDEnet_begin_getsockname(struct tcb* tcp) {
+  vb(2);
+  if (CDE_nw_mode) {
+    denySyscall(tcp->pid);
+  }
+}
+void CDEnet_end_getsockname(struct tcb* tcp) {
+  static int count = 1;
+  vbp(0, "%ld\n", tcp->u_rval);
+  if (CDE_provenance_mode) {
+    print_getsockname_prov(tcp);
+  }
+  if (CDE_nw_mode) {
+    long pid = tcp->pid;
+    char *pidkey = db_read_real_pid_key(currdb, pid);
+    ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
+    ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
+    char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
+    int u_rval; // get the result of a accept call
+    char *addr = NULL;
+    
+    struct user_regs_struct regs;
+    EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
+    SET_RETURN_CODE(&regs, 0);
+    EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
+    
+    socklen_t addrlen = sizeof(struct sockaddr);
+    struct sockaddr sa;
+    struct sockaddr_in *sain = &(sa.sa_data);
+    struct in_addr *inaddr = &(sain->sin_addr);
+    
+    inet_pton(AF_INET, "0.0.0.0", &(inaddr->s_addr));
+    sain->sin_family = AF_INET;
+    sain->sin_port = htons(2000+(count++)); // RANDOM
+    sa.sa_family = AF_INET;
+    
+    memcpy_to_child(pid, (char*) tcp->u_arg[1], (char*) &sa, addrlen);
+    memcpy_to_child(pid, (char*) tcp->u_arg[2], (char*) &addrlen, sizeof(addrlen)); // TODO: big/little endian
+  }
+}
+
 // int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 // Return accepted socket fd and fill addr, addrlen
 // On error, -1 is returned, and errno is set appropriately.
@@ -805,7 +846,7 @@ void CDEnet_end_accept(struct tcb* tcp) {
   if (CDE_provenance_mode) {
     print_accept_prov(tcp);
   }
-  if (CDE_nw_mode) {
+  if (CDE_nw_mode && 0) {
     long pid = tcp->pid;
     char *pidkey = db_read_real_pid_key(currdb, pid);
     ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);

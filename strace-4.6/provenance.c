@@ -594,6 +594,7 @@ void print_listen_prov(struct tcb *tcp) {
         tcp->u_arg[0], tcp->u_arg[1], tcp->u_rval);
   }
 }
+
 void print_accept_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
     char addrbuf[KEYLEN];
@@ -614,6 +615,26 @@ void print_accept_prov(struct tcb *tcp) {
     db_setCapturedSock(provdb, newsockfd);
   }
 }
+
+void print_getsockname_prov(struct tcb *tcp) {
+  if (CDE_provenance_mode) {
+    char addrbuf[KEYLEN];
+    socklen_t len = 0;
+    if (tcp->u_arg[1] != 0) {
+      if (umoven(tcp, tcp->u_arg[2], sizeof(len), (char*) &len) < 0) {
+        vbprintf("[xxxx-prov] Error getsockname - umoven\n");
+        return;
+      }
+    }
+    if (umoven(tcp, tcp->u_arg[1], len, addrbuf) < 0) {
+      vbprintf("[xxxx-prov] Error getsockname - umoven\n");
+      return;
+    }
+    db_write_getsockname_prov(provdb, tcp->pid, 
+        tcp->u_arg[0], addrbuf, len);
+  }
+}
+
 void print_sock_close(struct tcb *tcp) {
   int sockfd = tcp->u_arg[0];
   if (CDE_provenance_mode && db_isCapturedSock(provdb, sockfd)) {
