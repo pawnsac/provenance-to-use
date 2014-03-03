@@ -11,7 +11,7 @@ for (k,v) in db.RangeIter():
     print "[%s] '%s' -> [%s] '%s'" % (len(k), k, len(v), v)
   else:
     hexv = v.encode('hex')
-    strv = ''.join([x if (ord(x) > 31 and ord(x)<128) else '.' for x in v])
+    strv = ''.join([x if (ord(x) > 31 and ord(x)<128) else ('\\'+str(ord(x))) for x in v])
     if len(hexv) <= totalrange:
       print "[%s] '%s' -> [%s] '0x%s' %s" % (len(k), k, len(v), hexv, strv)
     else:

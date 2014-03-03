@@ -162,7 +162,7 @@ def printGraph(pidqueue, f1, f2):
       pidqueue.append(v)
       
     except KeyError:
-      print 'keyerror: prv.pid.%s.exec. -> %s\n' % pidkey, v
+      print 'keyerror: pidkey %s k %s v %s' % (pidkey, k, v)
       pass
       
   for (k, v) in db.RangeIter(key_from='prv.pid.'+pidkey+'.spawn.', key_to='prv.pid.'+pidkey+'.spawn.zzz'):
