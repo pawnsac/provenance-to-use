@@ -44,6 +44,7 @@ CDE is currently licensed under GPL v3:
 #include "okapi.h"
 #include "cdenet.h"
 #include "provenance.h"
+#include "const.h"
 #include <dirent.h>
 
 // quanpt - making find_ELF_program_interpreter thread safe
@@ -76,6 +77,7 @@ char* CDE_ROOT_NAME = NULL;
 // only valid if !CDE_exec_mode
 char* CDE_PACKAGE_DIR = NULL;
 char* CDE_ROOT_DIR = NULL;
+char CDE_proc_self_exe[MAXPATHLEN];
 
 char CDE_block_net_access = 0; // -n option
 
@@ -248,6 +250,10 @@ int is_cde_binary(const char *str);
 int detach(struct tcb *tcp, int sig);
 int is_in_another_repo(char* path, struct tcb* tcp);
 int is_a_repo_name(char* path);
+
+// ssh modifier support
+int is_ssh(char* path);
+void add_cdewrapper_to_ssh(struct tcb *tcp);
 
 // verbose printf
 void vbprintf(const char *fmt, ...)
@@ -1332,7 +1338,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      tcp->isCDEprocess = 1;
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp);
+        print_exec_prov(tcp); // print provenance before ptrace disconnected
         is_runable_count += 8;
         detach(tcp, 0);
       }
@@ -1369,7 +1375,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_cde_binary(exe_filename_abspath)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp);
+        print_exec_prov(tcp); // print provenance before ptrace disconnected
         is_runable_count += 16;
         detach(tcp, 0);
       }
@@ -1561,14 +1567,17 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
   assert(!(is_elf_binary && is_textual_script));
+  
+  // set up shared memory segment if we haven't done so yet
+  // now setup in both audit and exec
+  //   to modify the execv of ssh
+  if (!tcp->childshm) {
+    begin_setup_shmat(tcp);
+    is_runable_count += 32; // DON'T RECORD print_exec_prov HERE
+    goto done; // MUST punt early here!!!
+  }
 
   if (CDE_exec_mode) {
-    // set up shared memory segment if we haven't done so yet
-    if (!tcp->childshm) {
-      begin_setup_shmat(tcp);
-
-      goto done; // MUST punt early here!!!
-    }
 
     ld_linux_fullpath = create_abspath_within_cderoot(ld_linux_filename);
 
@@ -1794,7 +1803,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 #endif
 
       ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
-      is_runable_count += 1;
+      //~ is_runable_count += 1;
     }
     else {
       /* we're running a dynamically-linked binary executable, go
@@ -1981,7 +1990,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       else {
         // simply redirect the executable's path to within cde-root/:
         modify_syscall_single_arg(tcp, 1, exe_filename);
-        is_runable_count += 4;
+        //~ is_runable_count += 4;
       }
     }
 
@@ -2011,6 +2020,9 @@ void CDE_begin_execve(struct tcb* tcp) {
     }
   }
   else {
+    if (is_ssh(exe_filename))
+      add_cdewrapper_to_ssh(tcp);
+      
     copy_file_into_cde_root(exe_filename, tcp->current_dir);
 
     if (ld_linux_filename) {
@@ -2552,7 +2564,7 @@ void alloc_tcb_CDE_fields(struct tcb* tcp) {
   tcp->childshm = NULL;
   tcp->setting_up_shm = 0;
 
-  if (CDE_exec_mode) {
+  if (CDE_exec_mode || 1) { // TODO: quanpt: make it into cde option
     key_t key;
     // randomly probe for a valid shm key
     do {
@@ -3035,20 +3047,13 @@ void CDE_init_pseudo_root_dir() {
     // be executing cde-exec from OUTSIDE of a repository, so set
     // cde_pseudo_root_dir to:
     //   dirname(readlink("/proc/self/exe")) + "/cde-root"
-    char proc_self_exe[MAXPATHLEN];
-    proc_self_exe[0] = '\0';
-    int len = readlink("/proc/self/exe",
-                       proc_self_exe, sizeof proc_self_exe);
-    assert(proc_self_exe[0] != '\0');
-    assert(len >= 0);
-    proc_self_exe[len] = '\0'; // wow, readlink doesn't put cap on the end!
 
     char* toplevel_cde_root_path =
-      format("%s/" CDE_ROOT_NAME_DEFAULT, dirname(proc_self_exe));
+      format("%s/" CDE_ROOT_NAME_DEFAULT, dirname(CDE_proc_self_exe));
 
     strcpy(cde_pseudo_root_dir, toplevel_cde_root_path);
 
-    char* tmp = format("%s", dirname(proc_self_exe));
+    char* tmp = format("%s", dirname(CDE_proc_self_exe));
     strcpy(cde_pseudo_pkg_dir, tmp);
     free(tmp);
 
@@ -3079,6 +3084,7 @@ void CDE_init_pseudo_root_dir() {
 void CDE_init(char** argv, int optind) {
   // quanpt
   pthread_mutex_init(&mut_findelf, NULL);
+  srand(time(NULL));
 
   // pgbovine - initialize this before doing anything else!
   getcwd(cde_starting_pwd, sizeof cde_starting_pwd);
@@ -3094,6 +3100,14 @@ void CDE_init(char** argv, int optind) {
   if (!CDE_ROOT_NAME) { // if it hasn't been set by the '-o' option, set to a default
     CDE_ROOT_NAME = (char*)CDE_ROOT_NAME_DEFAULT;
   }
+  
+  CDE_proc_self_exe[0] = '\0';
+  int len = readlink("/proc/self/exe",
+                     CDE_proc_self_exe, sizeof CDE_proc_self_exe);
+  assert(CDE_proc_self_exe[0] != '\0');
+  assert(len >= 0);
+  CDE_proc_self_exe[len] = '\0'; // wow, readlink doesn't put cap on the end!
+  vbp(1, "self_exe: %s\n", CDE_proc_self_exe);
 
   if (CDE_exec_mode) {
     // must do this before running CDE_init_options()
@@ -4029,4 +4043,165 @@ int get_repo_path_id(char* path) {
       return i;
   }
   return -1;
+}
+
+// check if a path is a binary of ssh or not
+// currently implement by comparing path to "/ssh$"
+int is_ssh(char* path) {
+  int len = strlen(path);
+  if (len < 5) return 0;
+  if (strncmp("/echo", path + len - 5, 5) == 0)
+    return 1;
+  else
+    return 0;
+}
+
+void add_cdewrapper_to_ssh(struct tcb *tcp) {
+  
+  char* base = (char*)tcp->localshm;
+  strcpy(base, CDE_proc_self_exe);
+  int offset1 = strlen(CDE_proc_self_exe) + 1;
+  
+  char* ptu_1 = (char*)(base + offset1);
+  strcpy(ptu_1, "-I"); // parameter for ptu: DB_ID
+  int offset2 = strlen(ptu_1) + 1;
+  
+  char* ptu_2 = (char*)(base + offset1 + offset2);
+  sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for DB_ID
+  int offset3 = strlen(ptu_2) + 1;
+
+  // We need to use raw numeric arithmetic to get the proper offsets, since
+  // we need to properly handle tracing of 32-bit target programs using a
+  // 64-bit cde-exec.  personality_wordsize[current_personality] gives the
+  // word size for the target process (e.g., 4 bytes for a 32-bit and 8 bytes
+  // for a 64-bit target process).
+  unsigned long new_argv_raw = (unsigned long)(base + offset1 + offset2 + offset3);
+
+  // really subtle, these addresses should be in the CHILD's address space, not the parent's:
+
+  // points to ssh binary
+  char** new_argv_0 = (char**)new_argv_raw;
+  *new_argv_0 = (char*)tcp->u_arg[0];
+
+  //~ if (CDE_verbose_mode) {
+    //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
+    //~ vbp(1, "   new_argv='%s'\n", tmp);
+    //~ if (tmp) free(tmp);
+  //~ }
+//~ 
+  //~ char** new_argv_1 = (char**)(new_argv_raw + personality_wordsize[current_personality]);
+  //~ // points to the full path to the target program (real_program_path_base)
+  //~ *new_argv_1 = (char*)tcp->childshm + offset1;
+//~ 
+  //~ if (CDE_verbose_mode) {
+    //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_1);
+    //~ vbp(1, "   new_argv='%s'\n", tmp);
+    //~ if (tmp) free(tmp);
+  //~ }
+  //~ 
+  //~ char** new_argv_2 = (char**)(new_argv_raw + 2*personality_wordsize[current_personality]);
+  //~ // points to the full path to the target program (real_program_path_base)
+  //~ *new_argv_2 = (char*)tcp->childshm + offset1 + offset2;
+//~ 
+  //~ if (CDE_verbose_mode) {
+    //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_2);
+    //~ vbp(1, "   new_argv='%s'\n", tmp);
+    //~ if (tmp) free(tmp);
+  //~ }
+
+  // now populate argv[1:] directly from child's original space (the original arguments)
+  unsigned long child_argv_raw = (unsigned long)tcp->u_arg[1]; // in child's address space
+  char* cur_arg = NULL;
+  int i = 1, j = 1;
+  
+  char is_lastone_param_host_cmd = 1; // is last_one param (1), host (2), cmd(3)
+  char is_expecting_optarg = 0;
+  
+
+  while (1) {
+    // read a word from child_argv_raw to cur_arg
+    EXITIF(umoven(tcp,
+                  (long)(child_argv_raw + (i * personality_wordsize[current_personality])),
+                  personality_wordsize[current_personality],
+                  (void*)&cur_arg) < 0);
+
+    // Now set new_argv_raw[i+1] = cur_arg, except the tricky part is that
+    // new_argv_raw might actually be for a 32-bit target process, so if
+    // we're on a 64-bit machine, we can't just use char* pointer arithmetic.
+    // We must use raw numeric arithmetic to get the proper offsets.
+    char** new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+    *new_argv_i_plus_1 = cur_arg;
+
+    // null-terminated exit condition
+    if (cur_arg == NULL) {
+      break;
+    }
+    
+    // checking if this is option for ssh or we get to the command already
+    // be flexible with wrong ssh option?
+    if (is_expecting_optarg) {
+      is_expecting_optarg = 0; // done with this optarg
+    } else {
+      if (is_lastone_param_host_cmd == 1) { // this one CAN BE param or host
+        char* tmp = strcpy_from_child(tcp, (long)cur_arg);
+        vbp(2, "   new_argv[%d]='%s'\n", j, tmp);
+        const char *args1 = "bcDeFIiLlmOopRSWw";
+        //~ char *args2 = "1246AaCfgKkMNnqsTtVvXxYy"; // who cares?
+        int k, args1_len = strlen(args1);
+        if (tmp[0] == '-') {
+          if (strlen(tmp) == 2) {
+            for (k = 0; k < args1_len; k++) {
+              if (tmp[1] == args1[k])
+                break;
+            }
+            if (k < args1_len) { // an opt that expects an optarg
+              is_expecting_optarg = 1;
+            }
+          }
+          // just an opt (not "[user@]hostname")
+          // (quite flexible for now)
+          //  + allow "-long-opt" here
+          //  + allow opt not from args2
+        } else { // not an opt or an optarg
+          is_lastone_param_host_cmd ++; // == 2 ->this is "[user@]hostname"
+        }
+        if (tmp) free(tmp);
+      } else if (is_lastone_param_host_cmd == 2) {
+        is_lastone_param_host_cmd ++; // == 3 ->this is "command"
+        // insert the ptu wrapper before this "command"
+        new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+        *new_argv_i_plus_1 = (char*)tcp->childshm; j++;
+        new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+        *new_argv_i_plus_1 = (char*)tcp->childshm + offset1; j++;
+        new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+        *new_argv_i_plus_1 = (char*)tcp->childshm + offset1 + offset2; j++;
+        // and insert the "command" from here
+        new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+        *new_argv_i_plus_1 = cur_arg;
+      }
+    }
+
+    i++; j++;
+  }
+  
+  struct user_regs_struct cur_regs;
+  EXITIF(ptrace(PTRACE_GETREGS, tcp->pid, NULL, (long)&cur_regs) < 0);
+
+#if defined (I386)
+  //~ cur_regs.ebx = (long)tcp->childshm;            // location of base
+  cur_regs.ecx = ((long)tcp->childshm) + offset1 + offset2 + offset3; // location of new_argv
+#elif defined(X86_64)
+  if (IS_32BIT_EMU) {
+    //~ cur_regs.rbx = (long)tcp->childshm;
+    cur_regs.rcx = ((long)tcp->childshm) + offset1 + offset2 + offset3;
+  }
+  else {
+    //~ cur_regs.rdi = (long)tcp->childshm;
+    cur_regs.rsi = ((long)tcp->childshm) + offset1 + offset2 + offset3;
+  }
+#else
+#error "Unknown architecture (not I386 or X86_64)"
+#endif
+
+  ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
 }

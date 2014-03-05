@@ -12,6 +12,9 @@ extern char CDE_verbose_mode;
 extern void vbprintf(const char *fmt, ...);
 extern void print_trace (void);
 
+// local stuff
+char *DB_ID = NULL;
+
 // local function signatures
 
 void printbuf(const char *buf, size_t buflength) {

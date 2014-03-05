@@ -49,12 +49,14 @@ enum sock_action{SOCK_SEND, SOCK_SENDTO, SOCK_SENDMSG,  // 0, 1, 2
 #define KEYLEN (1024)
 #endif
 
+#ifndef EXITIF
 #define EXITIF(x) do { \
   if (x) { \
     fprintf(stderr, "Fatal error in %s [%s:%d]\n", __FUNCTION__, __FILE__, __LINE__); \
     exit(1); \
   } \
 } while(0)
+#endif
 
 #ifndef vb
 #define vb(lvl) do {\

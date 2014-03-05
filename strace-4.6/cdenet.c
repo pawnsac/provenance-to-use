@@ -235,8 +235,8 @@ extern void vbprintf(const char *fmt, ...);
 
 // global parameters
 char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
-char *DB_NAME;
-char *PIDKEY = NULL;
+char *DB_NAME = NULL;
+char *PIDKEY = NULL; // pidkey of the starting pid for replay (not neccessary the db root)
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 extern char* CDE_ROOT_NAME;
 
