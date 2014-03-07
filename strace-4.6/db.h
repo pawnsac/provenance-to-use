@@ -31,7 +31,7 @@ void db_write_io_prov(lvldb_t *mydb, long pid, int prv, const char *filename_abs
 
 // exec
 void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename_abspath, \
-    char *current_dir, char *args);
+    char *current_dir, char *args, char *dbid);
 void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid);
 void db_write_spawn_prov(lvldb_t *mydb, long ppid, long pid);
 

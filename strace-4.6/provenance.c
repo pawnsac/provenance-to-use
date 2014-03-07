@@ -175,7 +175,7 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 }
 
 
-void print_exec_prov(struct tcb *tcp) {
+void print_exec_prov(struct tcb *tcp, char *db_id) {
   if (CDE_provenance_mode || CDE_nw_mode) {
     char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
@@ -186,13 +186,13 @@ void print_exec_prov(struct tcb *tcp) {
     if (CDE_provenance_mode) {
       fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
         parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
-      db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
+      db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args, db_id);
       if (CDE_verbose_mode) {
         vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
       }
     }
     if (CDE_nw_mode) {
-      db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
+      db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args, db_id);
     }
     free(filename_abspath);
     free(opened_filename);

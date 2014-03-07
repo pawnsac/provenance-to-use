@@ -268,7 +268,8 @@ void db_setupChildCounter(lvldb_t *mydb, char* ppidkey, char* pidkey) {
   vbp(3, "%s %s -> %llu\n", ppidkey, pidkey, childn);
 }
 
-void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename_abspath, char *current_dir, char *args) {
+void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename_abspath, \
+    char *current_dir, char *args, char *dbid) {
   char key[KEYLEN];
   char *ppidkey=db_read_pid_key(mydb, ppid);
   if (ppidkey == NULL) return;
@@ -290,6 +291,11 @@ void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename
   db_write(mydb, key, args);
   sprintf(key, "prv.pid.%s.start", pidkey);
   db_write_fmt(mydb, key, "%llu", usec);
+  
+  if (dbid != NULL) {
+    sprintf(key, "prv.pid.%s.dbid", pidkey);
+    db_write(mydb, key, dbid);
+  }
 
   free(pidkey);
   free(ppidkey);

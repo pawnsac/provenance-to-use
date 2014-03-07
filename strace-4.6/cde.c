@@ -253,7 +253,7 @@ int is_a_repo_name(char* path);
 
 // ssh modifier support
 int is_ssh(char* path);
-void add_cdewrapper_to_ssh(struct tcb *tcp);
+char* add_cdewrapper_to_ssh(struct tcb *tcp);
 
 // verbose printf
 void vbprintf(const char *fmt, ...)
@@ -1294,6 +1294,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   char* ld_linux_filename = NULL;
   char* ld_linux_fullpath = NULL;
   char* opened_filename_abspath = NULL;
+  char* ssh_dbid = NULL;
 
   exe_filename = strcpy_from_child(tcp, tcp->u_arg[0]);
 
@@ -1338,7 +1339,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      tcp->isCDEprocess = 1;
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp); // print provenance before ptrace disconnected
+        print_exec_prov(tcp, ssh_dbid); // print provenance before ptrace disconnected
         is_runable_count += 8;
         detach(tcp, 0);
       }
@@ -1375,7 +1376,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_cde_binary(exe_filename_abspath)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp); // print provenance before ptrace disconnected
+        print_exec_prov(tcp, ssh_dbid); // print provenance before ptrace disconnected
         is_runable_count += 16;
         detach(tcp, 0);
       }
@@ -2020,8 +2021,9 @@ void CDE_begin_execve(struct tcb* tcp) {
     }
   }
   else {
-    if (is_ssh(exe_filename))
-      add_cdewrapper_to_ssh(tcp);
+    if (is_ssh(exe_filename)) {
+      ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
+    }
       
     copy_file_into_cde_root(exe_filename, tcp->current_dir);
 
@@ -2051,8 +2053,12 @@ done:
   if (CDE_provenance_mode || CDE_nw_mode) {
     if (CDE_verbose_mode)
       vbprintf("  will %sbe captured in provenance (%d).\n", is_runable_count > 0 ? "NOT " : "", is_runable_count);
-    if (is_runable_count==0)
-      print_exec_prov(tcp);
+    if (is_runable_count==0) {
+      print_exec_prov(tcp, ssh_dbid);
+      if (ssh_dbid != NULL) {
+        free(ssh_dbid);
+      }
+    }
   }
   // make sure ALL of these vars are initially set to NULL when declared:
   if (opened_filename_abspath) {
@@ -4056,7 +4062,8 @@ int is_ssh(char* path) {
     return 0;
 }
 
-void add_cdewrapper_to_ssh(struct tcb *tcp) {
+// return DB_ID passed to ssh
+char* add_cdewrapper_to_ssh(struct tcb *tcp) {
   
   char* base = (char*)tcp->localshm;
   strcpy(base, CDE_proc_self_exe);
@@ -4204,4 +4211,5 @@ void add_cdewrapper_to_ssh(struct tcb *tcp) {
 #endif
 
   ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
+  return ptu_2;
 }
