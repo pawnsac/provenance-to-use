@@ -785,12 +785,12 @@ void CDEnet_end_getsockname(struct tcb* tcp) {
   }
   if (CDE_nw_mode) {
     long pid = tcp->pid;
-    char *pidkey = db_read_real_pid_key(currdb, pid);
-    ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
-    ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
-    char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
-    int u_rval; // get the result of a accept call
-    char *addr = NULL;
+    //~ char *pidkey = db_read_real_pid_key(currdb, pid);
+    //~ ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
+    //~ ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
+    //~ char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
+    //~ int u_rval; // get the result of a accept call
+    //~ char *addr = NULL;
     
     struct user_regs_struct regs;
     EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
@@ -799,7 +799,7 @@ void CDEnet_end_getsockname(struct tcb* tcp) {
     
     socklen_t addrlen = sizeof(struct sockaddr);
     struct sockaddr sa;
-    struct sockaddr_in *sain = &(sa.sa_data);
+    struct sockaddr_in *sain = (struct sockaddr_in*) &(sa.sa_data);
     struct in_addr *inaddr = &(sain->sin_addr);
     
     inet_pton(AF_INET, "0.0.0.0", &(inaddr->s_addr));

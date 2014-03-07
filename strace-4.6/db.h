@@ -86,6 +86,7 @@ void db_remove_sock(lvldb_t *mydb, long pid, int sockfd);
 uint32_t checksum(const void *buf, size_t buflength);
 void printbuf(const char *buf, size_t buflength);
 
+void db_write_getsockname_prov(lvldb_t *mydb, int pid, int sock, char* addrbuf, int len, ull_t res);
 void db_get_pid_sock(lvldb_t *mydb, long pid, int sockfd, char **pidkey, char **sockid);
 char *db_read_real_pid_key(lvldb_t *mydb, long pid);
 

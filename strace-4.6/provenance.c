@@ -33,11 +33,14 @@ extern char CDE_verbose_mode;
 extern char CDE_nw_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
+// local stuff
+char *DB_ID = NULL;
 char CDE_provenance_mode = 0;
 char CDE_bare_run = 0;
 FILE* CDE_provenance_logfile = NULL;
 pthread_mutex_t mut_logfile = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mut_pidlist = PTHREAD_MUTEX_INITIALIZER;
+
 typedef struct {
   pid_t pv[1000]; // the list
   int pc; // total count
@@ -541,6 +544,7 @@ void init_prov() {
     db_write(provdb, "meta.fullns", fullns);
     char *parentns = getenv("CDE_PROV_NAMESPACE");
     db_write(provdb, "meta.parentns", parentns == NULL ? "(null)" : parentns);
+    db_write(provdb, "meta.dbid", DB_ID == NULL ? "(null)" : DB_ID);
 
     db_write_root(provdb, getpid());
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
@@ -631,7 +635,7 @@ void print_getsockname_prov(struct tcb *tcp) {
       return;
     }
     db_write_getsockname_prov(provdb, tcp->pid, 
-        tcp->u_arg[0], addrbuf, len);
+        tcp->u_arg[0], addrbuf, len, tcp->u_rval);
   }
 }
 

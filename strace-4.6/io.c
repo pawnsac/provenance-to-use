@@ -31,6 +31,7 @@
  */
 
 #include "defs.h"
+#include "cdenet.h"
 
 #include <fcntl.h>
 #if HAVE_SYS_UIO_H

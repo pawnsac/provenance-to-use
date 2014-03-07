@@ -27,4 +27,6 @@ void print_connect_prov(struct tcb *tcp,
 void print_listen_prov(struct tcb *tcp);
 int isProvCapturedSock(int sockfd);
 
+void print_getsockname_prov(struct tcb *tcp);
+
 #endif // _PROVENANCE_H
