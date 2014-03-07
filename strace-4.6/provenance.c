@@ -488,7 +488,10 @@ void init_prov() {
     pthread_mutex_init(&mut_logfile, NULL);
     // create NEW provenance log file
     bzero(path, sizeof(path));
-    sprintf(path, "%s/provenance.%s.1.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME);
+    if (DB_ID == NULL)
+      sprintf(path, "%s/provenance.%s.1.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME);
+    else
+      sprintf(path, "%s/provenance.%s.1.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, DB_ID);
     if (access(path, R_OK)==-1)
       CDE_provenance_logfile = fopen(path, "w");
     else {
@@ -496,7 +499,10 @@ void init_prov() {
       do {
         subns++;
         bzero(path, sizeof(path));
-        sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
+        if (DB_ID == NULL)
+          sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
+        else
+          sprintf(path, "%s/provenance.%s.%d.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns, DB_ID);
       } while (access(path, R_OK)==0);
       fprintf(stderr, "Provenance log file: %s\n", path);
       CDE_provenance_logfile = fopen(path, "w");
