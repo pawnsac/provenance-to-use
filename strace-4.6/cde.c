@@ -4055,8 +4055,8 @@ int get_repo_path_id(char* path) {
 // currently implement by comparing path to "/ssh$"
 int is_ssh(char* path) {
   int len = strlen(path);
-  if (len < 5) return 0;
-  if (strncmp("/echo", path + len - 5, 5) == 0)
+  if (len < 4) return 0;
+  if (strncmp("/ssh", path + len - 4, 4) == 0)
     return 1;
   else
     return 0;

@@ -896,7 +896,7 @@ main(int argc, char *argv[])
 #ifndef USE_PROCFS
 		"D"
 #endif
-		"a:e:o:O:S:u:E:i:p:N:P:")) != EOF) {
+		"a:e:o:O:S:u:E:i:p:N:P:I:")) != EOF) {
 		switch (c) {
 		case 'c':
       // pgbovine - hijack for -c option
