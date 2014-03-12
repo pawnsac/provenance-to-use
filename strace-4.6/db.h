@@ -68,7 +68,8 @@ int db_getListenResult(lvldb_t *mydb, char* pidkey, ull_t id);
 void db_setListenId(lvldb_t *mydb, char* pidkey, int sock, ull_t sockid);
 
 // sock accept
-void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock, char* addrbuf, int len, ull_t client_sock);
+void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock, 
+    char* addrbuf, int len, ull_t client_sock, char* ips);
 void db_setupAcceptCounter(lvldb_t *mydb, char* pidkey, ull_t listenid);
 ull_t db_getAcceptCounterInc(lvldb_t *mydb, char* pidkey, ull_t listenid);
 void db_setSockAcceptId(lvldb_t *mydb, char* pidkey, int sock, ull_t listenid, ull_t acceptid);

@@ -449,6 +449,27 @@ void setBindConnectReturnValue(struct tcb* tcp) {
   free(pidkey);
 }
 
+void get_ip_info(long pid, int sockfd, char *buf) {
+  struct stat fdstat;
+  char path[KEYLEN];
+  sprintf(path, "/proc/%ld/fd/%d", pid, sockfd);
+  if (stat(path, &fdstat) >= 0) {
+    char cmd[KEYLEN], sip[9], sport[5], dip[9], dport[5];
+    ino_t inode;
+    sprintf(cmd, "cat /proc/net/tcp | grep %ld | head -n 1", fdstat.st_ino);
+    FILE *fd = popen(cmd, "r");
+    if (fd != NULL) {
+      fscanf(fd, "%*d: %8s:%4s %8s:%4s %*2s %*8s:%*8s %*2s:%*8s %*8s %*d %*d %ld", 
+	  sip, sport, dip, dport, &inode);
+      if (inode == fdstat.st_ino) {
+	sprintf(buf, "%s.%s.%s.%s", sip, sport, dip, dport);
+	vbp(3, "%ld %d %s:%s %s:%s %ld %ld\n", pid, sockfd, sip, sport, dip, dport, inode, fdstat.st_ino);
+      }
+      pclose(fd);
+    }
+  }
+}
+
 void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
   int sockfd = tcp->u_arg[0];
   long addr = tcp->u_arg[1];
@@ -473,24 +494,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
     vbp(3, "Port %d return %ld\n", port, tcp->u_rval);
     if (port == 53 || port == 22) return;
     if (tcp->u_rval >= 0 && isConnect && addrbuf.sa.sa_family == AF_INET) {
-      struct stat fdstat;
-      char path[KEYLEN];
-      sprintf(path, "/proc/%d/fd/%d", tcp->pid, sockfd);
-      if (stat(path, &fdstat) >= 0) {
-	char cmd[KEYLEN], sip[9], sport[5], dip[9], dport[5];
-	ino_t inode;
-	sprintf(cmd, "cat /proc/net/tcp | grep %ld | head -n 1", fdstat.st_ino);
-	FILE *fd = popen(cmd, "r");
-	if (fd != NULL) {
-	  fscanf(fd, "%*d: %8s:%4s %8s:%4s %*2s %*8s:%*8s %*2s:%*8s %*8s %*d %*d %ld", 
-	      sip, sport, dip, dport, &inode);
-	  if (inode == fdstat.st_ino) {
-	    sprintf(buf, "%s.%s.%s.%s", sip, sport, dip, dport);
-	    vbp(3, "%d %d %s:%s %s:%s %ld %ld\n", tcp->pid, sockfd, sip, sport, dip, dport, inode, fdstat.st_ino);
-	  }
-	  pclose(fd);
-	}
-      }
+      get_ip_info(tcp->pid, sockfd, buf);
     }
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval, buf);
   }

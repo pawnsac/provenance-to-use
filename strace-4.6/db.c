@@ -582,7 +582,7 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
   
   vbp(3, "%s -> %s\n", idkey, key);
   
-  sprintf(key, "prv.sock.%s.newfdip.%llu.%d.%d.%ld", \
+  sprintf(key, "prv.sock.%s.newfdips.%llu.%d.%d.%ld", \
           pidkey, usec, sockfd, addr_len, u_rval);
   db_write(mydb, key, ips);
   
@@ -659,13 +659,16 @@ void db_setAcceptId(lvldb_t *mydb, char* pidkey, int client_sock, ull_t listenid
   vbp(1, "pidkey %s, client_sock %d -> listenid %llu, acceptid %lld\n", 
         pidkey, client_sock, listenid, acceptid);
 }
-void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock, char* addrbuf, int len, ull_t client_sock) {
+void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock, 
+      char* addrbuf, int len, ull_t client_sock, char* ips) {
   char key[KEYLEN];
   char *pidkey = db_read_real_pid_key(mydb, pid);
   ull_t listenid = db_getListenId(mydb, pidkey, lssock);
   ull_t acceptid = db_getAcceptCounterInc(mydb, pidkey, listenid);
   sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu.addr", pidkey, listenid, acceptid);
   db_nwrite(mydb, key, addrbuf, len);
+  sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu.ips", pidkey, listenid, acceptid);
+  db_write(mydb, key, ips);
   sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu", pidkey, listenid, acceptid);
   db_nwrite(mydb, key, (char*) &client_sock, sizeof(ull_t));
   

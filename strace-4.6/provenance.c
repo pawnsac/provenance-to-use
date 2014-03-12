@@ -67,8 +67,9 @@ extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 extern char* canonicalize_path(char *path, char *relpath_base);
 
-int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock);
-int getPort(union sockaddr_t *addrbuf);
+extern int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock);
+extern int getPort(union sockaddr_t *addrbuf);
+extern void get_ip_info(long pid, int sockfd, char *buf);
 
 void init_prov();
 
@@ -607,7 +608,8 @@ void print_listen_prov(struct tcb *tcp) {
 
 void print_accept_prov(struct tcb *tcp) {
   if (CDE_provenance_mode) {
-    char addrbuf[KEYLEN];
+    char addrbuf[KEYLEN], buf[KEYLEN];
+    bzero(buf, sizeof(buf));
     socklen_t len = 0;
     int newsockfd = tcp->u_rval;
     if (tcp->u_arg[1] != 0) {
@@ -620,8 +622,11 @@ void print_accept_prov(struct tcb *tcp) {
       vbprintf("[xxxx-prov] Error accept - umoven\n");
       return;
     }
+    if (tcp->u_rval >= 0) {
+      get_ip_info(tcp->pid, newsockfd, buf);
+    }
     db_write_accept_prov(provdb, tcp->pid, 
-        tcp->u_arg[0], addrbuf, len, newsockfd);
+        tcp->u_arg[0], addrbuf, len, newsockfd, buf);
     db_setCapturedSock(provdb, newsockfd);
   }
 }
