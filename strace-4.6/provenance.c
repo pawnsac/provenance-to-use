@@ -368,10 +368,10 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 }
 
 void print_connect_prov(struct tcb *tcp, 
-    int sockfd, char* addrbuf, int addr_len, long u_rval) {
+    int sockfd, char* addrbuf, int addr_len, long u_rval, char *ips) {
   if (CDE_provenance_mode) {
     db_setCapturedSock(provdb, sockfd);
-    db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval);
+    db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval, ips);
     //~ struct in_addr d_in;
     //~ char daddr[32];
     //~ d_in.s_addr = sock.ip.ipv4;

@@ -563,7 +563,7 @@ ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey) {
 //~ }
 
 void db_write_connect_prov(lvldb_t *mydb, long pid, 
-    int sockfd, char* addr, int addr_len, long u_rval) {
+    int sockfd, char* addr, int addr_len, long u_rval, char *ips) {
   char key[KEYLEN], idkey[KEYLEN];
   char *pidkey = db_read_pid_key(mydb, pid);
   if (pidkey == NULL) return;
@@ -581,6 +581,10 @@ void db_write_connect_prov(lvldb_t *mydb, long pid,
   db_write(mydb, idkey, key);
   
   vbp(3, "%s -> %s\n", idkey, key);
+  
+  sprintf(key, "prv.sock.%s.newfdip.%llu.%d.%d.%ld", \
+          pidkey, usec, sockfd, addr_len, u_rval);
+  db_write(mydb, key, ips);
   
   db_setupSockConnectCounter(mydb, pidkey, sockfd, sockn);
   

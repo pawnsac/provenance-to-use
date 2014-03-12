@@ -243,11 +243,6 @@ extern char* CDE_ROOT_NAME;
 lvldb_t *netdb, *currdb;
 char* netdb_root;
 
-extern void print_connect_prov(struct tcb *tcp, 
-    int sockfd, char* addr, int addr_len, long u_rval);
-extern void print_accept_prov(struct tcb *tcp);
-extern void print_sock_close(struct tcb *tcp);
-
 extern char* getMappedPid(char* pidkey);
 
 // TODO: read from external file / socket on initialization
@@ -473,9 +468,31 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
   //~ if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
   if (CDE_provenance_mode) {
     int port = getPort((void*)addrbuf.pad);
+    char buf[KEYLEN];
+    bzero(buf, sizeof(buf));
     vbp(3, "Port %d return %ld\n", port, tcp->u_rval);
     if (port == 53 || port == 22) return;
-    print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval);
+    if (tcp->u_rval >= 0 && isConnect && addrbuf.sa.sa_family == AF_INET) {
+      struct stat fdstat;
+      char path[KEYLEN];
+      sprintf(path, "/proc/%d/fd/%d", tcp->pid, sockfd);
+      if (stat(path, &fdstat) >= 0) {
+	char cmd[KEYLEN], sip[9], sport[5], dip[9], dport[5];
+	ino_t inode;
+	sprintf(cmd, "cat /proc/net/tcp | grep %ld | head -n 1", fdstat.st_ino);
+	FILE *fd = popen(cmd, "r");
+	if (fd != NULL) {
+	  fscanf(fd, "%*d: %8s:%4s %8s:%4s %*2s %*8s:%*8s %*2s:%*8s %*8s %*d %*d %ld", 
+	      sip, sport, dip, dport, &inode);
+	  if (inode == fdstat.st_ino) {
+	    sprintf(buf, "%s.%s.%s.%s", sip, sport, dip, dport);
+	    vbp(3, "%d %d %s:%s %s:%s %ld %ld\n", tcp->pid, sockfd, sip, sport, dip, dport, inode, fdstat.st_ino);
+	  }
+	  pclose(fd);
+	}
+      }
+    }
+    print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval, buf);
   }
   if (CDE_nw_mode) { // return my own network socket connect result from netdb
     if (isConnect) if (!isCurrCapturedSock(sockfd)) return;
@@ -846,7 +863,7 @@ void CDEnet_end_accept(struct tcb* tcp) {
   if (CDE_provenance_mode) {
     print_accept_prov(tcp);
   }
-  if (CDE_nw_mode && 0) {
+  if (CDE_nw_mode) {
     long pid = tcp->pid;
     char *pidkey = db_read_real_pid_key(currdb, pid);
     ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);

@@ -23,9 +23,12 @@ void print_sock_action(struct tcb *tcp, int sockfd,
     char *buf, long len_param, int flags,
     long len_result, int action, void *msg);
 void print_connect_prov(struct tcb *tcp, 
-    int sockfd, char* addr, int addr_len, long u_rval);
+    int sockfd, char* addr, int addr_len, long u_rval, char *ips);
 void print_listen_prov(struct tcb *tcp);
 int isProvCapturedSock(int sockfd);
+
+void print_accept_prov(struct tcb *tcp);
+void print_sock_close(struct tcb *tcp);
 
 void print_getsockname_prov(struct tcb *tcp);
 

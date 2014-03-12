@@ -51,7 +51,7 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
 
 // sock connect
 void db_write_connect_prov(lvldb_t *mydb, long pid, 
-    int sockfd, char* addr, int addr_len, long u_rval);
+    int sockfd, char* addr, int addr_len, long u_rval, char *ips);
 void db_setupConnectCounter(lvldb_t *mydb, char* pidkey);
 ull_t db_getConnectCounterInc(lvldb_t *mydb, char* pidkey);
 int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid);
