@@ -667,10 +667,9 @@ void db_write_accept_prov(lvldb_t *mydb, int pid, int lssock,
   ull_t acceptid = db_getAcceptCounterInc(mydb, pidkey, listenid);
   sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu.addr", pidkey, listenid, acceptid);
   db_nwrite(mydb, key, addrbuf, len);
-  sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu.ips", pidkey, listenid, acceptid);
+  ull_t usec = getusec();
+  sprintf(key, "prv.pid.%s.skac.%llu.listenid.%llu.accept.%llu.ips", pidkey, usec, listenid, acceptid);
   db_write(mydb, key, ips);
-  sprintf(key, "prv.pid.%s.listenid.%llu.accept.%llu", pidkey, listenid, acceptid);
-  db_nwrite(mydb, key, (char*) &client_sock, sizeof(ull_t));
   
   db_setAcceptId(mydb, pidkey, client_sock, listenid, acceptid);
   db_setupSockAcceptCounter(mydb, pidkey, client_sock, listenid, acceptid);
