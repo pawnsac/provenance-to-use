@@ -493,7 +493,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
     bzero(buf, sizeof(buf));
     vbp(3, "Port %d return %ld\n", port, tcp->u_rval);
     if (port == 53 || port == 22) return;
-    if (tcp->u_rval >= 0 && isConnect && addrbuf.sa.sa_family == AF_INET) {
+    if (isConnect && addrbuf.sa.sa_family == AF_INET) {
       get_ip_info(tcp->pid, sockfd, buf);
     }
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval, buf);

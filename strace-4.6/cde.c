@@ -2028,8 +2028,8 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_ssh(exe_filename)) {
       //~ ssh_dbid = strdup(add_echo_to_ssh(tcp));
       //~ ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
-      //~ ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
-      ssh_dbid = add_strace_to_ssh(tcp);
+      ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
+      //~ ssh_dbid = add_strace_to_ssh(tcp);
     }
       
     copy_file_into_cde_root(exe_filename, tcp->current_dir);
