@@ -85,6 +85,10 @@ char CDE_block_net_access = 0; // -n option
 // only relevant if CDE_exec_mode = 1
 char CDE_exec_streaming_mode = 0; // -s option
 
+char* add_echo_to_ssh(struct tcb *tcp);
+char* add_strace_to_ssh(struct tcb *tcp);
+void add_wrapper_to_ssh(struct tcb *tcp, char **argv, int n);
+
 
 #if defined(X86_64)
 // current_personality == 1 means that a 64-bit cde-exec is actually tracking a
@@ -2022,7 +2026,10 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
   else {
     if (is_ssh(exe_filename)) {
-      ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
+      //~ ssh_dbid = strdup(add_echo_to_ssh(tcp));
+      //~ ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
+      //~ ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
+      ssh_dbid = add_strace_to_ssh(tcp);
     }
       
     copy_file_into_cde_root(exe_filename, tcp->current_dir);
@@ -4064,6 +4071,17 @@ int is_ssh(char* path) {
 
 // return DB_ID passed to ssh
 char* add_cdewrapper_to_ssh(struct tcb *tcp) {
+  char *argv[3];
+  char dbid[KEYLEN];
+  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
+  argv[0]=CDE_proc_self_exe;
+  argv[1]="-I";
+  argv[2]=strdup(dbid);
+  add_wrapper_to_ssh(tcp, argv, 3);
+  return argv[2];
+}
+
+char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   
   char* base = (char*)tcp->localshm;
   strcpy(base, CDE_proc_self_exe);
@@ -4213,3 +4231,184 @@ char* add_cdewrapper_to_ssh(struct tcb *tcp) {
   ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
   return ptu_2;
 }
+
+char* add_echo_to_ssh(struct tcb *tcp) {
+  char *argv[5];
+  argv[0]="/bin/echo";
+  argv[1]="hello";
+  argv[2]="there";
+  argv[3]="there";
+  argv[4]="there";
+  add_wrapper_to_ssh(tcp, argv, 5);
+  return strdup("1.1");
+}
+
+char* add_strace_to_ssh(struct tcb *tcp) {
+  char *argv[5];
+  argv[0]="/usr/bin/strace";
+  argv[1]="-ff";
+  argv[2]="-o";
+  argv[3]="strace";
+  add_wrapper_to_ssh(tcp, argv, 4);
+  return strdup("1.1");
+}
+
+void add_wrapper_to_ssh(struct tcb *tcp, char **argv, int n) {
+  
+  char* base = (char*)tcp->localshm;
+  int k;
+  int *offsets = malloc((n+1) * sizeof(int));
+  offsets[0] = 0;
+  for (k = 0; k < n; k++) {
+    strcpy(base + offsets[k], argv[k]);
+    offsets[k+1] = offsets[k] + strlen(base + offsets[k]) + 1;
+  }
+  
+  //~ strcpy(base, CDE_proc_self_exe);
+  //~ int offset1 = strlen(CDE_proc_self_exe) + 1;
+  //~ 
+  //~ char* ptu_1 = (char*)(base + offset1);
+  //~ strcpy(ptu_1, "-I"); // parameter for ptu: DB_ID
+  //~ int offset2 = strlen(ptu_1) + 1;
+  //~ 
+  //~ char* ptu_2 = (char*)(base + offset1 + offset2);
+  //~ sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for DB_ID
+  //~ int offset3 = strlen(ptu_2) + 1;
+
+  // We need to use raw numeric arithmetic to get the proper offsets, since
+  // we need to properly handle tracing of 32-bit target programs using a
+  // 64-bit cde-exec.  personality_wordsize[current_personality] gives the
+  // word size for the target process (e.g., 4 bytes for a 32-bit and 8 bytes
+  // for a 64-bit target process).
+  unsigned long new_argv_raw = (unsigned long)base + offsets[n];
+
+  // really subtle, these addresses should be in the CHILD's address space, not the parent's:
+
+  // points to ssh binary
+  char** new_argv_0 = (char**)new_argv_raw;
+  *new_argv_0 = (char*)tcp->u_arg[0];
+
+  //~ if (CDE_verbose_mode) {
+    //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
+    //~ vbp(1, "   new_argv='%s'\n", tmp);
+    //~ if (tmp) free(tmp);
+  //~ }
+//~ 
+  //~ char** new_argv_1 = (char**)(new_argv_raw + personality_wordsize[current_personality]);
+  //~ // points to the full path to the target program (real_program_path_base)
+  //~ *new_argv_1 = (char*)tcp->childshm + offset1;
+//~ 
+  //~ if (CDE_verbose_mode) {
+    //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_1);
+    //~ vbp(1, "   new_argv='%s'\n", tmp);
+    //~ if (tmp) free(tmp);
+  //~ }
+  //~ 
+  //~ char** new_argv_2 = (char**)(new_argv_raw + 2*personality_wordsize[current_personality]);
+  //~ // points to the full path to the target program (real_program_path_base)
+  //~ *new_argv_2 = (char*)tcp->childshm + offset1 + offset2;
+//~ 
+  //~ if (CDE_verbose_mode) {
+    //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_2);
+    //~ vbp(1, "   new_argv='%s'\n", tmp);
+    //~ if (tmp) free(tmp);
+  //~ }
+
+  // now populate argv[1:] directly from child's original space (the original arguments)
+  unsigned long child_argv_raw = (unsigned long)tcp->u_arg[1]; // in child's address space
+  char* cur_arg = NULL;
+  int i = 1, j = 1;
+  
+  char is_lastone_param_host_cmd = 1; // is last_one param (1), host (2), cmd(3)
+  char is_expecting_optarg = 0;
+  
+
+  while (1) {
+    // read a word from child_argv_raw to cur_arg
+    EXITIF(umoven(tcp,
+                  (long)(child_argv_raw + (i * personality_wordsize[current_personality])),
+                  personality_wordsize[current_personality],
+                  (void*)&cur_arg) < 0);
+
+    // Now set new_argv_raw[i+1] = cur_arg, except the tricky part is that
+    // new_argv_raw might actually be for a 32-bit target process, so if
+    // we're on a 64-bit machine, we can't just use char* pointer arithmetic.
+    // We must use raw numeric arithmetic to get the proper offsets.
+    char** new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+    *new_argv_i_plus_1 = cur_arg;
+
+    // null-terminated exit condition
+    if (cur_arg == NULL) {
+      break;
+    }
+    
+    // checking if this is option for ssh or we get to the command already
+    // be flexible with wrong ssh option?
+    if (is_expecting_optarg) {
+      is_expecting_optarg = 0; // done with this optarg
+    } else {
+      if (is_lastone_param_host_cmd == 1) { // this one CAN BE param or host
+        char* tmp = strcpy_from_child(tcp, (long)cur_arg);
+        vbp(2, "   new_argv[%d]='%s'\n", j, tmp);
+        const char *args1 = "bcDeFIiLlmOopRSWw";
+        //~ char *args2 = "1246AaCfgKkMNnqsTtVvXxYy"; // who cares?
+        int k, args1_len = strlen(args1);
+        if (tmp[0] == '-') {
+          if (strlen(tmp) == 2) {
+            for (k = 0; k < args1_len; k++) {
+              if (tmp[1] == args1[k])
+                break;
+            }
+            if (k < args1_len) { // an opt that expects an optarg
+              is_expecting_optarg = 1;
+            }
+          }
+          // just an opt (not "[user@]hostname")
+          // (quite flexible for now)
+          //  + allow "-long-opt" here
+          //  + allow opt not from args2
+        } else { // not an opt or an optarg
+          is_lastone_param_host_cmd ++; // == 2 ->this is "[user@]hostname"
+        }
+        if (tmp) free(tmp);
+      } else if (is_lastone_param_host_cmd == 2) {
+        is_lastone_param_host_cmd ++; // == 3 ->this is "command"
+        // insert the ptu wrapper before this "command"
+        for (k = 0; k < n; k++) {
+          new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+          *new_argv_i_plus_1 = (char*)tcp->childshm + offsets[k]; j++;
+        }
+        // and insert the "command" from here
+        new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+        *new_argv_i_plus_1 = cur_arg;
+      }
+    }
+
+    i++; j++;
+  }
+  
+  struct user_regs_struct cur_regs;
+  EXITIF(ptrace(PTRACE_GETREGS, tcp->pid, NULL, (long)&cur_regs) < 0);
+
+#if defined (I386)
+  //~ cur_regs.ebx = (long)tcp->childshm;            // location of base
+  //~ cur_regs.ecx = ((long)tcp->childshm) + offset1 + offset2 + offset3; // location of new_argv
+  cur_regs.ecx = ((long)tcp->childshm) + offsets[n]; // location of new_argv
+#elif defined(X86_64)
+  if (IS_32BIT_EMU) {
+    //~ cur_regs.rbx = (long)tcp->childshm;
+    //~ cur_regs.rcx = ((long)tcp->childshm) + offset1 + offset2 + offset3;
+    cur_regs.rcx = ((long)tcp->childshm) + offsets[n];
+  }
+  else {
+    //~ cur_regs.rdi = (long)tcp->childshm;
+    //~ cur_regs.rsi = ((long)tcp->childshm) + offset1 + offset2 + offset3;
+    cur_regs.rsi = ((long)tcp->childshm) + offsets[n];
+  }
+#else
+#error "Unknown architecture (not I386 or X86_64)"
+#endif
+
+  ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
+}
+
