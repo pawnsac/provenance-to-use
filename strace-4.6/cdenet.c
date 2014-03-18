@@ -1126,3 +1126,10 @@ char* getMappedPid(char* pidkey) {
 	//~ if (res == -1)
 		//~ err(1, "%s: ptrace getregs", __func__);
 //~ }
+
+void CDE_load_environment_vars_for_pid(char* pidkey) {
+  char* mem = db_getEnvVars(netdb, pidkey);
+  extern void load_environment_vars_from_mem(char* environ_start);
+  load_environment_vars_from_mem(mem);
+  freeifnn(mem);
+}

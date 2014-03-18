@@ -1177,6 +1177,15 @@ main(int argc, char *argv[])
 	extern void init_nwdb();
 	if (CDE_nw_mode && CDE_exec_mode && !CDE_provenance_mode)
 		init_nwdb();
+		
+	extern void CDE_load_environment_vars(char* repo_name);
+	extern void CDE_load_environment_vars_for_pid(char* pidkey);
+	if (CDE_exec_mode) {
+		if (PIDKEY == NULL)
+			CDE_load_environment_vars(CDE_ROOT_NAME);
+		else
+			CDE_load_environment_vars_for_pid(PIDKEY);
+	}
 
 
 	/* STARTUP_CHILD must be called before the signal handlers get

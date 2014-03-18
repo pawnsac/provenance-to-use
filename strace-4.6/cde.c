@@ -87,7 +87,7 @@ char CDE_exec_streaming_mode = 0; // -s option
 
 char* add_echo_to_ssh(struct tcb *tcp);
 char* add_strace_to_ssh(struct tcb *tcp);
-void add_wrapper_to_ssh(struct tcb *tcp, char **argv, int n);
+void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n);
 
 
 #if defined(X86_64)
@@ -246,7 +246,7 @@ static void CDE_init_options(void);
 static void CDE_create_convenience_scripts(char** argv, int optind);
 static void CDE_create_toplevel_symlink_dirs(void);
 static void CDE_create_path_symlink_dirs(void);
-static void CDE_load_environment_vars(char*);
+void CDE_load_environment_vars(char*);
 
 // multiple repo support
 int get_repo_path_id(char* path);
@@ -3311,11 +3311,7 @@ void CDE_init(char** argv, int optind) {
 
   CDEnet_sin_dict_load();
 
-
-  if (CDE_exec_mode) {
-    CDE_load_environment_vars(CDE_ROOT_NAME);
-  }
-  else {
+  if (!CDE_exec_mode) {
     // pgbovine - copy 'cde' executable to CDE_PACKAGE_DIR and rename
     // it 'cde-exec', so that it can be included in the executable
     //
@@ -3762,24 +3758,8 @@ static void CDE_init_options() {
   cde_options_initialized = 1;
 }
 
-
-static void CDE_load_environment_vars(char* repo_name) {
-  static char cde_full_environment_abspath[MAXPATHLEN];
-  sprintf(cde_full_environment_abspath, "%s/../cde.full-environment.%s", cde_pseudo_root_dir, repo_name);
-//  strcpy(cde_full_environment_abspath, cde_pseudo_root_dir);
-//  strcat(cde_full_environment_abspath, "/../cde.full-environment.");
-//  strcat(cde_full_environment_abspath, multi_repo_paths[i]);
-  struct stat env_file_stat;
-  if (stat(cde_full_environment_abspath, &env_file_stat)) {
-    perror(cde_full_environment_abspath);
-    exit(1);
-  }
-
-  int full_environment_fd = open(cde_full_environment_abspath, O_RDONLY);
-
-  void* environ_start =
-    (char*)mmap(0, env_file_stat.st_size, PROT_READ, MAP_PRIVATE, full_environment_fd, 0);
-
+void load_environment_vars_from_mem(char* environ_start) {
+  
   char* environ_str = (char*)environ_start;
   while (*environ_str) {
     int environ_strlen = strlen(environ_str);
@@ -3856,6 +3836,26 @@ static void CDE_load_environment_vars(char* repo_name) {
     // null-terminated, so this advances to the next string
     environ_str += (environ_strlen + 1);
   }
+}
+
+void CDE_load_environment_vars(char* repo_name) {
+  static char cde_full_environment_abspath[MAXPATHLEN];
+  sprintf(cde_full_environment_abspath, "%s/../cde.full-environment.%s", cde_pseudo_root_dir, repo_name);
+//  strcpy(cde_full_environment_abspath, cde_pseudo_root_dir);
+//  strcat(cde_full_environment_abspath, "/../cde.full-environment.");
+//  strcat(cde_full_environment_abspath, multi_repo_paths[i]);
+  struct stat env_file_stat;
+  if (stat(cde_full_environment_abspath, &env_file_stat)) {
+    perror(cde_full_environment_abspath);
+    exit(1);
+  }
+
+  int full_environment_fd = open(cde_full_environment_abspath, O_RDONLY);
+
+  void* environ_start =
+    (char*)mmap(0, env_file_stat.st_size, PROT_READ, MAP_PRIVATE, full_environment_fd, 0);
+
+  load_environment_vars_from_mem(environ_start);
 
   munmap(environ_start, env_file_stat.st_size);
   close(full_environment_fd);
@@ -4071,14 +4071,14 @@ int is_ssh(char* path) {
 
 // return DB_ID passed to ssh
 char* add_cdewrapper_to_ssh(struct tcb *tcp) {
-  char *argv[3];
+  char const *argv[3];
   char dbid[KEYLEN];
   sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
   argv[0]=CDE_proc_self_exe;
-  argv[1]="-I";
+  argv[1]=(char*) "-I";
   argv[2]=strdup(dbid);
   add_wrapper_to_ssh(tcp, argv, 3);
-  return argv[2];
+  return (char*) argv[2];
 }
 
 char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
@@ -4233,7 +4233,7 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
 }
 
 char* add_echo_to_ssh(struct tcb *tcp) {
-  char *argv[5];
+  char const *argv[5];
   argv[0]="/bin/echo";
   argv[1]="hello";
   argv[2]="there";
@@ -4244,7 +4244,7 @@ char* add_echo_to_ssh(struct tcb *tcp) {
 }
 
 char* add_strace_to_ssh(struct tcb *tcp) {
-  char *argv[5];
+  char const *argv[5];
   argv[0]="/usr/bin/strace";
   argv[1]="-ff";
   argv[2]="-o";
@@ -4253,7 +4253,7 @@ char* add_strace_to_ssh(struct tcb *tcp) {
   return strdup("1.1");
 }
 
-void add_wrapper_to_ssh(struct tcb *tcp, char **argv, int n) {
+void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n) {
   
   char* base = (char*)tcp->localshm;
   int k;

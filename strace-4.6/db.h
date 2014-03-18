@@ -91,4 +91,7 @@ void db_write_getsockname_prov(lvldb_t *mydb, int pid, int sock, char* addrbuf, 
 void db_get_pid_sock(lvldb_t *mydb, long pid, int sockfd, char **pidkey, char **sockid);
 char *db_read_real_pid_key(lvldb_t *mydb, long pid);
 
+// env
+char* db_getEnvVars(lvldb_t *mydb, char* pidkey);
+
 #endif // _DB_H

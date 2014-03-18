@@ -301,6 +301,12 @@ void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename
   free(ppidkey);
 }
 
+char* db_getEnvVars(lvldb_t *mydb, char* pidkey) {
+  char key[KEYLEN];
+  sprintf(key, "prv.pid.%s.env", pidkey);
+  return db_readc(mydb, key);
+}
+
 void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid,
     char* env_str, int env_len) {
   char key[KEYLEN], value[KEYLEN];

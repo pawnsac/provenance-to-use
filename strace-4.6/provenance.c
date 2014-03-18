@@ -677,8 +677,8 @@ char* get_env_from_pid(int pid, int *length) {
   
   sprintf(fullenviron_fn, "/proc/%d/environ", pid);
   int full_environment_fd = open(fullenviron_fn, O_RDONLY);
-  *length = read (full_environment_fd, environment, ENV_LEN);
-  vbp(0, "%d\n", *length);
+  *length = read (full_environment_fd, environment, ENV_LEN) + 1;
+  environment[*length - 1] = '\0'; // NULL terminate the string
   close(full_environment_fd);
   return environment;
 }
