@@ -1,14 +1,17 @@
-#include <assert.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/param.h>
+#include <assert.h>
 #include <ctype.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <pthread.h>
 #include <pwd.h>
+#include <sys/mman.h>
+#include <sys/param.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -84,6 +87,8 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 void rm_pid_prov(pid_t pid);
 
 void add_pid_prov(pid_t pid);
+
+char* get_env_from_pid(int pid, int *len);
 
 /*
  * Print string specified by address `addr' and length `len'.
@@ -205,15 +210,18 @@ void print_execdone_prov(struct tcb *tcp) {
     int ppid = -1;
     if (tcp->parent) ppid = tcp->parent->pid;
     if (CDE_provenance_mode) {
-      db_write_execdone_prov(provdb, ppid, tcp->pid);
+      int env_len;
+      char *env_str = get_env_from_pid(tcp->pid, &env_len);
+      db_write_execdone_prov(provdb, ppid, tcp->pid, env_str, env_len);
       fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
       add_pid_prov(tcp->pid);
       if (CDE_verbose_mode) {
         vbprintf("[%d-prov] BEGIN execve2\n", tcp->pid);
       }
+      freeifnn(env_str);
     }
     if (CDE_nw_mode) {
-      db_write_execdone_prov(currdb, ppid, tcp->pid);
+      db_write_execdone_prov(currdb, ppid, tcp->pid, NULL, 0);
     }
   }
 }
@@ -659,4 +667,18 @@ void print_sock_close(struct tcb *tcp) {
 
 int isProvCapturedSock(int sockfd) {
   return db_isCapturedSock(provdb, sockfd);
+}
+
+#define ENV_LEN 16384
+char* get_env_from_pid(int pid, int *length) {
+  char fullenviron_fn[KEYLEN];
+  char *environment = malloc(ENV_LEN);
+  if (environment == NULL) return NULL;
+  
+  sprintf(fullenviron_fn, "/proc/%d/environ", pid);
+  int full_environment_fd = open(fullenviron_fn, O_RDONLY);
+  *length = read (full_environment_fd, environment, ENV_LEN);
+  vbp(0, "%d\n", *length);
+  close(full_environment_fd);
+  return environment;
 }

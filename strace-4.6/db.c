@@ -301,7 +301,8 @@ void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename
   free(ppidkey);
 }
 
-void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid) {
+void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid,
+    char* env_str, int env_len) {
   char key[KEYLEN], value[KEYLEN];
   char *pidkey=db_read_pid_key(mydb, pid);
   char *ppidkey=db_read_pid_key(mydb, ppid);
@@ -313,6 +314,9 @@ void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid) {
   sprintf(value, "%llu", usec);
   db_write(mydb, key, value);
   vbp(3, "%s -> %s\n", key, value);
+  
+  sprintf(key, "prv.pid.%s.env", pidkey);
+  db_nwrite(mydb, key, env_str, env_len);
   
   db_setupChildCounter(mydb, ppidkey, pidkey);
 
