@@ -88,7 +88,8 @@ char CDE_exec_streaming_mode = 0; // -s option
 char* add_echo_to_ssh(struct tcb *tcp);
 char* add_strace_to_ssh(struct tcb *tcp);
 void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n);
-
+char* add_cdebashwrapper_to_ssh(struct tcb *tcp);
+void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBash);
 
 #if defined(X86_64)
 // current_personality == 1 means that a 64-bit cde-exec is actually tracking a
@@ -2028,7 +2029,8 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_ssh(exe_filename)) {
       //~ ssh_dbid = strdup(add_echo_to_ssh(tcp));
       //~ ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
-      ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
+      //~ ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
+      ssh_dbid = add_cdebashwrapper_to_ssh(tcp); // new implementation don't need strdup
       //~ ssh_dbid = add_strace_to_ssh(tcp);
     }
       
@@ -4069,18 +4071,6 @@ int is_ssh(char* path) {
     return 0;
 }
 
-// return DB_ID passed to ssh
-char* add_cdewrapper_to_ssh(struct tcb *tcp) {
-  char const *argv[3];
-  char dbid[KEYLEN];
-  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
-  argv[0]=CDE_proc_self_exe;
-  argv[1]=(char*) "-I";
-  argv[2]=strdup(dbid);
-  add_wrapper_to_ssh(tcp, argv, 3);
-  return (char*) argv[2];
-}
-
 char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   
   char* base = (char*)tcp->localshm;
@@ -4232,6 +4222,35 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   return ptu_2;
 }
 
+// return DB_ID passed to ssh
+char* add_cdewrapper_to_ssh(struct tcb *tcp) {
+  char const *argv[3];
+  char dbid[KEYLEN];
+  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
+  argv[0]=CDE_proc_self_exe;
+  argv[1]=(char*) "-I";
+  argv[2]=strdup(dbid);
+  add_wrapper_to_ssh(tcp, argv, 3);
+  return (char*) argv[2];
+}
+
+// return DB_ID passed to ssh
+char* add_cdebashwrapper_to_ssh(struct tcb *tcp) {
+  char const *argv[7];
+  char dbid[KEYLEN];
+  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
+  argv[0]=CDE_proc_self_exe;
+  //~ argv[0]="/bin/echo";
+  argv[1]=(char*) "-I";
+  argv[2]=strdup(dbid);
+  argv[3]=(char*) "/bin/sh";
+  argv[4]=(char*) "-c";
+  argv[5]=(char*) "\"";
+  argv[6]=(char*) "\"";
+  add_bashwrapper_to_ssh(tcp, argv, 7, 1);
+  return (char*) argv[2];
+}
+
 char* add_echo_to_ssh(struct tcb *tcp) {
   char const *argv[5];
   argv[0]="/bin/echo";
@@ -4254,10 +4273,13 @@ char* add_strace_to_ssh(struct tcb *tcp) {
 }
 
 void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n) {
+  add_bashwrapper_to_ssh(tcp, argv, n, 0);
+}
+void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBash) {
   
   char* base = (char*)tcp->localshm;
   int k;
-  int *offsets = malloc((n+1) * sizeof(int));
+  int *offsets = malloc((n+3) * sizeof(int));
   offsets[0] = 0;
   for (k = 0; k < n; k++) {
     strcpy(base + offsets[k], argv[k]);
@@ -4374,7 +4396,7 @@ void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n) {
       } else if (is_lastone_param_host_cmd == 2) {
         is_lastone_param_host_cmd ++; // == 3 ->this is "command"
         // insert the ptu wrapper before this "command"
-        for (k = 0; k < n; k++) {
+        for (k = 0; k < (isBash ? n-1 : n); k++) {
           new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
           *new_argv_i_plus_1 = (char*)tcp->childshm + offsets[k]; j++;
         }
@@ -4385,6 +4407,16 @@ void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n) {
     }
 
     i++; j++;
+  }
+  
+  if (isBash) {
+    k = n - 1;
+    
+    char** new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+    *new_argv_i_plus_1 = (char*)tcp->childshm + offsets[k]; j++;
+    
+    new_argv_i_plus_1 = (char**)(new_argv_raw + (j * personality_wordsize[current_personality]));
+    *new_argv_i_plus_1 = NULL;
   }
   
   struct user_regs_struct cur_regs;
