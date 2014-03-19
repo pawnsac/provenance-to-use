@@ -4245,8 +4245,8 @@ char* add_cdebashwrapper_to_ssh(struct tcb *tcp) {
   argv[2]=strdup(dbid);
   argv[3]=(char*) "/bin/sh";
   argv[4]=(char*) "-c";
-  argv[5]=(char*) "\"";
-  argv[6]=(char*) "\"";
+  argv[5]=(char*) "\'true; ";
+  argv[6]=(char*) "\'";
   add_bashwrapper_to_ssh(tcp, argv, 7, 1);
   return (char*) argv[2];
 }
