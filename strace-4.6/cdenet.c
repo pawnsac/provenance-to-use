@@ -233,6 +233,8 @@ extern int CDE_verbose_mode;
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
 extern void vbprintf(const char *fmt, ...);
 
+extern char* getMappedPid(char* pidkey);
+
 // global parameters
 char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
 char *DB_NAME = NULL;
@@ -242,8 +244,7 @@ extern char* CDE_ROOT_NAME;
 
 lvldb_t *netdb, *currdb;
 char* netdb_root;
-
-extern char* getMappedPid(char* pidkey);
+char CDE_network_content_mode = 1;
 
 // TODO: read from external file / socket on initialization
 int N_SIN = 1;
@@ -537,7 +538,7 @@ void CDEnet_begin_recv(struct tcb* tcp) {
 }
 void CDEnet_end_recv(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
+  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     socket_data_handle(tcp, SOCK_RECV);
   }
@@ -601,7 +602,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
   struct msghdr mh;
   struct iovec *msg_iov = NULL;
   char memop_ok = 1;
-  if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
+  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     int len = tcp->u_rval;
     //~ char *msg_name = NULL, *msg_control = NULL;
     char *storage = NULL;
@@ -738,7 +739,7 @@ void CDEnet_begin_send(struct tcb* tcp) {
 
 void CDEnet_end_send(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && isProvCapturedSock(sockfd)) {
+  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     if (socket_data_handle(tcp, SOCK_SEND) < 0) {
       // TODO

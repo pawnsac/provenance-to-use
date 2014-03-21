@@ -114,6 +114,7 @@ extern char CDE_nw_mode;
 extern char* DB_NAME;
 extern char* PIDKEY;
 extern char* DB_ID;
+extern char CDE_network_content_mode;
 
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
@@ -892,7 +893,7 @@ main(int argc, char *argv[])
 	qualify("verbose=all");
 	qualify("signal=all");
 	while ((c = getopt(argc, argv,
-		"+cCdfFhqrtTvVxzlsnb"
+		"+cCdfFhqrtTvVxzlsnbw"
 #ifndef USE_PROCFS
 		"D"
 #endif
@@ -1062,6 +1063,9 @@ main(int argc, char *argv[])
 					progname);
 				exit(1);
 			}
+			break;
+		case 'w':
+			CDE_network_content_mode = 0;
 			break;
 		default:
 			usage(stderr, 1);
