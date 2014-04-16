@@ -4449,7 +4449,7 @@ void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBas
 
 // copy CDE_proc_self_exe to remotehost
 void prepare_ptu_on_remotehost(char* remotehost) {
-  char cmd[KEYLEN];
+  char rpath[KEYLEN], rdir[KEYLEN];
   
   // do the fork
   pid_t pid = fork();
@@ -4458,10 +4458,18 @@ void prepare_ptu_on_remotehost(char* remotehost) {
     vbp(0, "Error fork\n");
     return;
   }
+
+  int len = strlen(CDE_proc_self_exe) - 1;
+  while (len > 0 && CDE_proc_self_exe[len] != '/') len--;
+  strncpy(rdir, CDE_proc_self_exe, len);
+  rdir[len] = '\0';
+  vbp(2, "PTU remote dir: %s\n", rdir);
   
   // child
-  if (pid == 0) { 
-    execlp("ssh", "ssh", remotehost, "test", "-f", CDE_proc_self_exe, (char *) NULL);
+  if (pid == 0) {
+    execlp("ssh", "ssh", remotehost, 
+        "mkdir -p ", rdir, " && "
+        "test", "-f", CDE_proc_self_exe, (char *) NULL);
     /* if exec() was successful, this won't be reached */
     _exit(127);
   }
@@ -4478,10 +4486,49 @@ void prepare_ptu_on_remotehost(char* remotehost) {
       vbp(0, "Error: ssh not found\n");
     } else {
       if (WEXITSTATUS(status) == 0) {
-        // put the host into a dict
+        // file exists, do nothing
+        vbp(1, "Ok: PTU binary exists\n");
       } else {
-        // TODO: scp sprintf(cmd, "scp -B -p -q \"%s\" %s:%s
+        // file not exists yet, do a copy
+
+        // do the fork
+        pid_t pid = fork();
+        if (pid == -1) {
+          // error, no child created
+          vbp(0, "Error fork\n");
+          return;
+        }
+        // child
+        if (pid == 0) {
+          sprintf(rpath, "%s:%s", remotehost, rdir);
+          vbp(3, "Remote host:dir: %s\n", rpath);
+          execlp("scp", "scp", "-B", "-p", "-q", CDE_proc_self_exe, rpath, (char *) NULL);
+          /* if exec() was successful, this won't be reached */
+          _exit(127);
+        }
+        
+        // parent
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+          // handle error
+          vbp(0, "Error waitpid %d\n", pid);
+        } else {
+          // child exit code in status
+          // use WIFEXITED, WEXITSTATUS, etc. on status
+          if (WEXITSTATUS(status) == 127) {
+            vbp(0, "Error: scp not found\n");
+          } else {
+            if (WEXITSTATUS(status) == 0) {
+              // scp done
+              vbp(1, "Ok: scp done for PTU binary\n");
+            } else {
+              // scp error
+              vbp(0, "Error: scp error\n");
+            }
+          }
+        }
       }
+      // put the host into a dict
     }
   }
 }
