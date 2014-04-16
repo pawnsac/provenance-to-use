@@ -244,7 +244,7 @@ extern char* CDE_ROOT_NAME;
 
 lvldb_t *netdb, *currdb;
 char* netdb_root;
-char CDE_network_content_mode = 1;
+char CDE_network_content_mode = 0;
 
 // TODO: read from external file / socket on initialization
 int N_SIN = 1;

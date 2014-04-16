@@ -4528,8 +4528,8 @@ void prepare_ptu_on_remotehost(char* remotehost) {
           }
         }
       }
-      // put the host into a dict
     }
   }
+  // TODO: make dict to quickly check existing PTU
 }
 

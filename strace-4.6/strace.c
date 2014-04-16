@@ -867,31 +867,8 @@ main(int argc, char *argv[])
 	set_sortby(DEFAULT_SORTBY);
 	set_personality(DEFAULT_PERSONALITY);
 
-  // pgbovine - only track selected system calls
-  // qualify actually mutates this string, so we can't pass in a constant
-  //
-  // syscalls added after Jan 1, 2011:
-  //   utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat
-  //   linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat
-  //
-  // syscalls added after August 10, 2011 (mostly minor ones):
-  //   setxattr, lsetxattr, getxattr, lgetxattr, listxattr, llistxattr, removexattr, lremovexattr
+    // MOVE qualify to after getopt
 
-  //quanpt - add network system calls
-  //  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
-  char* tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
-    "rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,"
-    "chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
-    "faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
-    "mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,"
-    "send,sendto,sendmsg,recv,recvfrom,recvmsg,accept,listen,close,read,write");//,getsockopt,getsockname,poll");
-    //,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
-	qualify(tmp);
-  free(tmp);
-
-	qualify("abbrev=all");
-	qualify("verbose=all");
-	qualify("signal=all");
 	while ((c = getopt(argc, argv,
 		"+cCdfFhqrtTvVxzlsnbw"
 #ifndef USE_PROCFS
@@ -1065,13 +1042,48 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'w':
-			CDE_network_content_mode = 0;
+			CDE_network_content_mode = 1;
 			break;
 		default:
 			usage(stderr, 1);
 			break;
 		}
 	}
+
+	// pgbovine - only track selected system calls
+	// qualify actually mutates this string, so we can't pass in a constant
+	//
+	// syscalls added after Jan 1, 2011:
+	//   utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat
+	//   linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat
+	//
+	// syscalls added after August 10, 2011 (mostly minor ones):
+	//   setxattr, lsetxattr, getxattr, lgetxattr, listxattr, llistxattr, removexattr, lremovexattr
+
+	//quanpt - add network system calls
+	//  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
+	char* tmp;
+	if (CDE_network_content_mode || CDE_nw_mode)
+		tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
+			"rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,"
+			"chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
+			"faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
+			"mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,"
+			"send,sendto,sendmsg,recv,recvfrom,recvmsg,accept,listen,close,read,write");
+			//,getsockopt,getsockname,poll");
+			//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
+	else
+		tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
+			"rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,"
+			"chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
+			"faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
+			"mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr");
+	qualify(tmp);
+  	free(tmp);
+
+	qualify("abbrev=all");
+	qualify("verbose=all");
+	qualify("signal=all");
 
 	if ((optind == argc) == !pflag_seen)
 		usage(stderr, 1);
