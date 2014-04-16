@@ -49,6 +49,14 @@ enum sock_action{SOCK_SEND, SOCK_SENDTO, SOCK_SENDMSG,  // 0, 1, 2
 #define KEYLEN (1024)
 #endif
 
+#ifndef TRUE
+#define TRUE (1)
+#endif
+
+#ifndef FALSE
+#define FALSE (0)
+#endif
+
 #ifndef EXITIF
 #define EXITIF(x) do { \
   if (x) { \
