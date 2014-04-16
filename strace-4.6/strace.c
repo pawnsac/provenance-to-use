@@ -1062,22 +1062,20 @@ main(int argc, char *argv[])
 
 	//quanpt - add network system calls
 	//  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
+	#define SYSCALL_1ST "trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink" \
+			",rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64" \
+			",chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,utimes,openat" \
+			",faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat" \
+			",mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr" \
+			",connect,accept,listen,close"
 	char* tmp;
 	if (CDE_network_content_mode || CDE_nw_mode)
-		tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
-			"rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,"
-			"chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
-			"faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
-			"mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr,"
-			"send,sendto,sendmsg,recv,recvfrom,recvmsg,accept,listen,close,read,write");
+		tmp = strdup(SYSCALL_1ST
+			",send,sendto,sendmsg,recv,recvfrom,recvmsg,read,write");
 			//,getsockopt,getsockname,poll");
 			//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
 	else
-		tmp = strdup("trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink,"
-			"rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64,"
-			"chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,connect,utimes,openat,"
-			"faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat,"
-			"mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr");
+		tmp = strdup(SYSCALL_1ST);
 	qualify(tmp);
   	free(tmp);
 
