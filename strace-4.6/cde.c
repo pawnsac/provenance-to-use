@@ -72,6 +72,7 @@ char CDE_exec_mode;
 extern char CDE_provenance_mode; // quanpt
 extern char CDE_bare_run; // quanpt
 extern char CDE_nw_mode; // quanpt
+extern int CDE_network_content_mode;
 char CDE_verbose_mode = 0; // -v option
 char* CDE_ROOT_NAME = NULL;
 // only valid if !CDE_exec_mode
@@ -4238,18 +4239,22 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
 // return DB_ID passed to ssh
 char* add_cdebashwrapper_to_ssh(struct tcb *tcp) {
   char const *argv[7];
-  char dbid[KEYLEN];
+  char dbid[KEYLEN], arg[KEYLEN];
   sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
+  sprintf(arg, "%s%s-I", 
+      (CDE_bare_run ? "-b " : ""), 
+      (CDE_network_content_mode ? "-w " : ""));
   argv[0]=CDE_proc_self_exe;
-  //~ argv[0]="/bin/echo";
-  argv[1]=(char*) "-I";
+  argv[1]=strdup(arg);
   argv[2]=strdup(dbid);
   argv[3]=(char*) "/bin/sh";
   argv[4]=(char*) "-c";
   argv[5]=(char*) "\'true; ";
   argv[6]=(char*) "\'";
   add_bashwrapper_to_ssh(tcp, argv, 7, 1, TRUE);
-  return (char*) argv[2];
+  
+  freeifnn(argv[1]);
+  return (char*) argv[2]; // let caller free the mem
 }
 
 char* add_echo_to_ssh(struct tcb *tcp) {
