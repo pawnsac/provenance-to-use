@@ -89,9 +89,10 @@ char CDE_exec_streaming_mode = 0; // -s option
 char* add_echo_to_ssh(struct tcb *tcp);
 char* add_strace_to_ssh(struct tcb *tcp);
 void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n);
-char* add_cdebashwrapper_to_ssh(struct tcb *tcp);
-void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, 
+char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host);
+char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, 
   int isBash, int doScp);
+void prepare_ptu_on_remotehost(char* remotehost);
 
 #if defined(X86_64)
 // current_personality == 1 means that a 64-bit cde-exec is actually tracking a
@@ -1302,6 +1303,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   char* ld_linux_fullpath = NULL;
   char* opened_filename_abspath = NULL;
   char* ssh_dbid = NULL;
+  char* ssh_host = NULL;
 
   exe_filename = strcpy_from_child(tcp, tcp->u_arg[0]);
 
@@ -1346,7 +1348,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      tcp->isCDEprocess = 1;
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp, ssh_dbid); // print provenance before ptrace disconnected
+        print_exec_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
         is_runable_count += 8;
         detach(tcp, 0);
       }
@@ -1383,7 +1385,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_cde_binary(exe_filename_abspath)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp, ssh_dbid); // print provenance before ptrace disconnected
+        print_exec_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
         is_runable_count += 16;
         detach(tcp, 0);
       }
@@ -2032,7 +2034,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       //~ ssh_dbid = strdup(add_echo_to_ssh(tcp));
       //~ ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
       //~ ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
-      ssh_dbid = add_cdebashwrapper_to_ssh(tcp); // new implementation don't need strdup
+      ssh_dbid = add_cdebashwrapper_to_ssh(tcp, &ssh_host); // new implementation don't need strdup
       //~ ssh_dbid = add_strace_to_ssh(tcp);
     }
       
@@ -2065,10 +2067,9 @@ done:
     if (CDE_verbose_mode)
       vbprintf("  will %sbe captured in provenance (%d).\n", is_runable_count > 0 ? "NOT " : "", is_runable_count);
     if (is_runable_count==0) {
-      print_exec_prov(tcp, ssh_dbid);
-      if (ssh_dbid != NULL) {
-        free(ssh_dbid);
-      }
+      print_exec_prov(tcp, ssh_dbid, ssh_host);
+      freeifnn(ssh_dbid);
+      freeifnn(ssh_host);
     }
   }
   // make sure ALL of these vars are initially set to NULL when declared:
@@ -4237,7 +4238,7 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
 //~ }
 
 // return DB_ID passed to ssh
-char* add_cdebashwrapper_to_ssh(struct tcb *tcp) {
+char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host) {
   char const *argv[7];
   char dbid[KEYLEN], arg[KEYLEN];
   sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
@@ -4251,9 +4252,9 @@ char* add_cdebashwrapper_to_ssh(struct tcb *tcp) {
   argv[4]=(char*) "-c";
   argv[5]=(char*) "\'true; ";
   argv[6]=(char*) "\'";
-  add_bashwrapper_to_ssh(tcp, argv, 7, 1, TRUE);
+  *ssh_host = add_bashwrapper_to_ssh(tcp, argv, 7, 1, TRUE);
   
-  freeifnn(argv[1]);
+  freeifnn((char*)argv[1]);
   return (char*) argv[2]; // let caller free the mem
 }
 
@@ -4281,11 +4282,15 @@ char* add_strace_to_ssh(struct tcb *tcp) {
 void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n) {
   add_bashwrapper_to_ssh(tcp, argv, n, 0, FALSE);
 }
-void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBash, int doScp) {
+
+// return remote URL
+char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBash, int doScp) {
   
   char* base = (char*)tcp->localshm;
   int k;
-  int *offsets = malloc((n+3) * sizeof(int));
+  int *offsets = malloc((n+3) * sizeof(int)); // list of offset to args
+  char* ssh_host = NULL;
+  
   offsets[0] = 0;
   for (k = 0; k < n; k++) {
     strcpy(base + offsets[k], argv[k]);
@@ -4397,6 +4402,7 @@ void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBas
           //  + allow opt not from args2
         } else { // not an opt or an optarg
           is_lastone_param_host_cmd ++; // == 2 ->this is "[user@]hostname"
+          ssh_host = strdup(tmp);
           if (doScp)
             prepare_ptu_on_remotehost(tmp);
         }
@@ -4450,6 +4456,46 @@ void add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBas
 #endif
 
   ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
+  return ssh_host;
+}
+
+void retrieve_remote_new_dbs(char* remotehost) {
+  char rpath[KEYLEN];
+  vbp(2, "Retrieve dbs from %s\n", remotehost);
+  
+  // do the fork
+  pid_t pid = fork();
+  if (pid == -1) {
+    vbp(0, "Error fork\n");
+    return;
+  }
+  
+  // child
+  if (pid == 0) {
+    sprintf(rpath, "%s:~/cde-package/provenance.cde-root.*", remotehost);
+    execlp("scp", "scp", "-r", "-q", rpath, 
+        CDE_PACKAGE_DIR, (char *) NULL);
+    _exit(127);
+  }
+  
+  // parent
+  int status;
+  if (waitpid(pid, &status, 0) == -1) {
+    // handle error
+    vbp(0, "Error waitpid %d\n", pid);
+  } else {
+    // child exit code in status
+    // use WIFEXITED, WEXITSTATUS, etc. on status
+    if (WEXITSTATUS(status) == 127) {
+      vbp(0, "Error: scp not found\n");
+    } else {
+      if (WEXITSTATUS(status) == 0) {
+        vbp(0, "Done\n");
+      } else {
+        vbp(0, "Error\n");
+      }
+    }
+  }
 }
 
 // copy CDE_proc_self_exe to remotehost

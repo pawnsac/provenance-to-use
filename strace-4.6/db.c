@@ -269,7 +269,7 @@ void db_setupChildCounter(lvldb_t *mydb, char* ppidkey, char* pidkey) {
 }
 
 void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename_abspath, \
-    char *current_dir, char *args, char *dbid) {
+    char *current_dir, char *args, char *dbid, char *ssh_host) {
   char key[KEYLEN];
   char *ppidkey=db_read_pid_key(mydb, ppid);
   if (ppidkey == NULL) return;
@@ -296,9 +296,20 @@ void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename
     sprintf(key, "prv.pid.%s.dbid", pidkey);
     db_write(mydb, key, dbid);
   }
+  if (ssh_host != NULL) {
+    sprintf(key, "prv.pid.%s.sshhost", pidkey);
+    db_write(mydb, key, ssh_host);
+  }
 
   free(pidkey);
   free(ppidkey);
+}
+
+char* db_get_ssh_host(lvldb_t *mydb, long pid) {
+  char *pidkey=db_read_pid_key(mydb, pid);
+  char key[KEYLEN];
+  sprintf(key, "prv.pid.%s.sshhost", pidkey);
+  return db_readc(mydb, key);
 }
 
 char* db_getEnvVars(lvldb_t *mydb, char* pidkey) {
@@ -333,18 +344,26 @@ void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid,
   free(ppidkey);
 }
 
-void db_write_lexit_prov(lvldb_t *mydb, long pid) {
+void db_write_exit_prov(lvldb_t *mydb, const char* keystr, long pid) {
   char key[KEYLEN], value[KEYLEN];
   char *pidkey=db_read_pid_key(mydb, pid);
   if (pidkey == NULL) return;
   ull_t usec = getusec();
 
   // create (successful) exec relation
-  sprintf(key, "prv.pid.%s.lexit", pidkey);
+  sprintf(key, keystr, pidkey);
   sprintf(value, "%llu", usec);
   db_write(mydb, key, value);
 
   free(pidkey);
+}
+
+void db_write_lexit_prov(lvldb_t *mydb, long pid) {
+  db_write_exit_prov(mydb, "prv.pid.%s.lexit", pid);
+}
+
+void db_write_iexit_prov(lvldb_t *mydb, long pid) {
+  db_write_exit_prov(mydb, "prv.pid.%s.iexit", pid);
 }
 
 void db_write_spawn_prov(lvldb_t *mydb, long ppid, long pid) {

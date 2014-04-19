@@ -181,7 +181,7 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 }
 
 
-void print_exec_prov(struct tcb *tcp, char *db_id) {
+void print_exec_prov(struct tcb *tcp, char *db_id, char *ssh_host) {
   if (CDE_provenance_mode || CDE_nw_mode) {
     char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
@@ -192,13 +192,15 @@ void print_exec_prov(struct tcb *tcp, char *db_id) {
     if (CDE_provenance_mode) {
       fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
         parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
-      db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args, db_id);
+      db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, 
+          tcp->current_dir, args, db_id, ssh_host);
       if (CDE_verbose_mode) {
         vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
       }
     }
     if (CDE_nw_mode) {
-      db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, tcp->current_dir, args, db_id);
+      db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, 
+          tcp->current_dir, args, db_id, ssh_host);
     }
     free(filename_abspath);
     free(opened_filename);
@@ -415,6 +417,18 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
   }
 }
 
+void print_iexit_prov(struct tcb *tcp) {
+  if (CDE_provenance_mode) { // not handle exit by signal yet
+		rm_pid_prov(tcp->pid);
+		fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
+    db_write_iexit_prov(provdb, tcp->pid);
+    char *ssh_host = db_get_ssh_host(provdb, tcp->pid);
+    if (ssh_host != NULL)
+      retrieve_remote_new_dbs(ssh_host);
+    freeifnn(ssh_host);
+	}
+}
+
 void print_curr_prov(pidlist_t *pidlist_p) {
   int i, curr_time;
   FILE *f;
@@ -580,7 +594,7 @@ void add_pid_prov(pid_t pid) {
 
 void rm_pid_prov(pid_t pid) {
   int i=0;
-  assert(pidlist.pc>0);
+  if (pidlist.pc<=0) return;
   print_curr_prov(&pidlist);
   pthread_mutex_lock(&mut_pidlist);
   while (pidlist.pv[i] != pid && i < pidlist.pc) i++;

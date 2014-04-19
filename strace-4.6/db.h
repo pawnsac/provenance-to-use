@@ -31,12 +31,13 @@ void db_write_io_prov(lvldb_t *mydb, long pid, int prv, const char *filename_abs
 
 // exec
 void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename_abspath, \
-    char *current_dir, char *args, char *dbid);
+    char *current_dir, char *args, char *dbid, char *ssh_host);
 void db_write_execdone_prov(lvldb_t *mydb, long ppid, long pid, char* env_str, int env_len);
 void db_write_spawn_prov(lvldb_t *mydb, long ppid, long pid);
 
 // exit
 void db_write_lexit_prov(lvldb_t *mydb, long pid);
+void db_write_iexit_prov(lvldb_t *mydb, long pid);
 
 // stat
 void db_write_prov_stat(lvldb_t *mydb, long pid, const char* label, char *stat);

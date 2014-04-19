@@ -1067,7 +1067,8 @@ main(int argc, char *argv[])
 			",chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,utimes,openat" \
 			",faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat" \
 			",mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr" \
-			",connect,accept,listen,close"
+			",connect,accept,listen,close" \
+			",exit_group"
 	char* tmp;
 	if (CDE_network_content_mode || CDE_nw_mode)
 		tmp = strdup(SYSCALL_1ST
