@@ -55,7 +55,7 @@ static ull_t getusec() {
 }
 
 void db_readfailed(const char* key, int readlen) {
-  vbp(0, "'%s' %d\n", key, readlen);
+  vbp(2, "'%s' %d\n", key, readlen);
   //~ print_trace();
 }
 
@@ -794,6 +794,27 @@ int db_getSockResult(lvldb_t *mydb, char* pidkey, int sockid) {
   //~ sscanf(read, "prv.sock.%*d.%*llu.newfd.%*llu.%*d.%*d.%d", &u_rval);
   sscanf(read, "prv.sock.%*d.%*u.newfd.%*u.%*d.%*d.%d", &u_rval);
   return u_rval;
+}
+
+// remote host properties
+int db_hasPTUonRemoteHost(lvldb_t *mydb, char* remotehost) {
+  char key[KEYLEN];
+  ull_t value = FALSE;
+  sprintf(key, "host.%s.hasptu", remotehost);
+  if (db_read_ull(mydb, key, &value)==0) {
+    vbp(2, "%s nokey\n", remotehost);
+    return FALSE;
+  }
+  vbp(2, "%s %lld\n", remotehost, value);
+  return value > 0 ? TRUE : FALSE;
+}
+
+void db_setPTUonRemoteHost(lvldb_t *mydb, char* remotehost) {
+  char key[KEYLEN];
+  ull_t value = TRUE;
+  sprintf(key, "host.%s.hasptu", remotehost);
+  db_nwrite(mydb, key, (char*) &value, sizeof(ull_t));
+  vbp(2, "%s %lld\n", remotehost, value);
 }
 
 /*

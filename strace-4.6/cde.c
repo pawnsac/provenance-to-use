@@ -44,6 +44,7 @@ CDE is currently licensed under GPL v3:
 #include "okapi.h"
 #include "cdenet.h"
 #include "provenance.h"
+#include "db.h"
 #include "const.h"
 #include <dirent.h>
 
@@ -73,6 +74,7 @@ extern char CDE_provenance_mode; // quanpt
 extern char CDE_bare_run; // quanpt
 extern char CDE_nw_mode; // quanpt
 extern int CDE_network_content_mode;
+char CDE_follow_SSH_mode = 1;
 char CDE_verbose_mode = 0; // -v option
 char* CDE_ROOT_NAME = NULL;
 // only valid if !CDE_exec_mode
@@ -2034,7 +2036,13 @@ void CDE_begin_execve(struct tcb* tcp) {
       //~ ssh_dbid = strdup(add_echo_to_ssh(tcp));
       //~ ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
       //~ ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
-      ssh_dbid = add_cdebashwrapper_to_ssh(tcp, &ssh_host); // new implementation don't need strdup
+      if (CDE_follow_SSH_mode) {
+        //~ ssh_dbid = add_strace_to_ssh(tcp);
+        ssh_dbid = add_cdebashwrapper_to_ssh(tcp, &ssh_host); // new implementation don't need strdup
+      } else {
+        ssh_dbid = strdup("NA");
+        ssh_host = strdup("NA");
+      }
       //~ ssh_dbid = add_strace_to_ssh(tcp);
     }
       
@@ -4459,48 +4467,12 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
   return ssh_host;
 }
 
-void retrieve_remote_new_dbs(char* remotehost) {
-  char rpath[KEYLEN];
-  vbp(2, "Retrieve dbs from %s\n", remotehost);
-  
-  // do the fork
-  pid_t pid = fork();
-  if (pid == -1) {
-    vbp(0, "Error fork\n");
-    return;
-  }
-  
-  // child
-  if (pid == 0) {
-    sprintf(rpath, "%s:~/cde-package/provenance.cde-root.*", remotehost);
-    execlp("scp", "scp", "-r", "-q", rpath, 
-        CDE_PACKAGE_DIR, (char *) NULL);
-    _exit(127);
-  }
-  
-  // parent
-  int status;
-  if (waitpid(pid, &status, 0) == -1) {
-    // handle error
-    vbp(0, "Error waitpid %d\n", pid);
-  } else {
-    // child exit code in status
-    // use WIFEXITED, WEXITSTATUS, etc. on status
-    if (WEXITSTATUS(status) == 127) {
-      vbp(0, "Error: scp not found\n");
-    } else {
-      if (WEXITSTATUS(status) == 0) {
-        vbp(0, "Done\n");
-      } else {
-        vbp(0, "Error\n");
-      }
-    }
-  }
-}
-
 // copy CDE_proc_self_exe to remotehost
 void prepare_ptu_on_remotehost(char* remotehost) {
   char rpath[KEYLEN], rdir[KEYLEN];
+  
+  extern void *provdb;
+  if (db_hasPTUonRemoteHost(provdb, remotehost)) return;
   
   // do the fork
   pid_t pid = fork();
@@ -4539,6 +4511,7 @@ void prepare_ptu_on_remotehost(char* remotehost) {
       if (WEXITSTATUS(status) == 0) {
         // file exists, do nothing
         vbp(1, "Ok: PTU binary exists\n");
+        db_setPTUonRemoteHost(provdb, remotehost);
       } else {
         // file not exists yet, do a copy
 
@@ -4572,6 +4545,7 @@ void prepare_ptu_on_remotehost(char* remotehost) {
             if (WEXITSTATUS(status) == 0) {
               // scp done
               vbp(1, "Ok: scp done for PTU binary\n");
+              db_setPTUonRemoteHost(provdb, remotehost);
             } else {
               // scp error
               vbp(0, "Error: scp error\n");
@@ -4581,6 +4555,5 @@ void prepare_ptu_on_remotehost(char* remotehost) {
       }
     }
   }
-  // TODO: make dict to quickly check existing PTU
 }
 

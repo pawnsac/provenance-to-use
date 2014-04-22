@@ -115,6 +115,7 @@ extern char* DB_NAME;
 extern char* PIDKEY;
 extern char* DB_ID;
 extern char CDE_network_content_mode;
+extern char CDE_follow_SSH_mode;
 
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
@@ -941,6 +942,7 @@ main(int argc, char *argv[])
 			// quanpt - network simulation mode
 			CDE_nw_mode = 1;
 			DB_NAME = strdup(optarg);
+			CDE_network_content_mode = 1;
 			break;
 		case 'P':
 			// quanpt - replay from pidkey
@@ -1029,7 +1031,9 @@ main(int argc, char *argv[])
       */
 			break;
 		case 'S':
-			set_sortby(optarg);
+			// quanpt - hijack for NOT follow SSH
+			//~ set_sortby(optarg);
+			CDE_follow_SSH_mode = 0;
 			break;
 		case 'u':
 			username = strdup(optarg);

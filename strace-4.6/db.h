@@ -95,4 +95,9 @@ char *db_read_real_pid_key(lvldb_t *mydb, long pid);
 // env
 char* db_getEnvVars(lvldb_t *mydb, char* pidkey);
 
+// remote host
+int db_hasPTUonRemoteHost(lvldb_t *mydb, char* remotehost);
+void db_setPTUonRemoteHost(lvldb_t *mydb, char* remotehost);
+char* db_get_ssh_host(lvldb_t *mydb, long pid);
+
 #endif // _DB_H

@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -289,6 +290,14 @@ void print_open_prov(struct tcb *tcp, const char *syscall_name) {
       //~ print_file_prov((int)time(0), tcp->pid, PRV_RDWR, filename_abspath);
       //~ print_file_prov((int)time(0), tcp->pid, PRV_UNKNOWNIO, filename_abspath);
     }
+  } else {
+    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
+        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+    char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
+    char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
+    vbp(1, "%s: fd= %ld\n", filename_abspath, tcp->u_rval);
+    freeifnn(filename);
+    freeifnn(filename_abspath);
   }
 }
 
@@ -414,6 +423,45 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
       buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
     }
     vbprintf("[%d-prov] print_sock_action action %d [%ld] '%s'\n", tcp->pid, action, len_param, buf);
+  }
+}
+
+void retrieve_remote_new_dbs(char* remotehost) {
+  char rpath[KEYLEN];
+  vbp(2, "Retrieve dbs from %s\n", remotehost);
+  
+  // do the fork
+  pid_t pid = fork();
+  if (pid == -1) {
+    vbp(0, "Error fork\n");
+    return;
+  }
+  
+  // child
+  if (pid == 0) {
+    sprintf(rpath, "%s:~/cde-package/provenance.cde-root.*", remotehost);
+    execlp("scp", "scp", "-r", "-q", rpath, 
+        CDE_PACKAGE_DIR, (char *) NULL);
+    _exit(127);
+  }
+  
+  // parent
+  int status;
+  if (waitpid(pid, &status, 0) == -1) {
+    // handle error
+    vbp(0, "Error waitpid %d\n", pid);
+  } else {
+    // child exit code in status
+    // use WIFEXITED, WEXITSTATUS, etc. on status
+    if (WEXITSTATUS(status) == 127) {
+      vbp(0, "Error: scp not found\n");
+    } else {
+      if (WEXITSTATUS(status) == 0) {
+        vbp(0, "Done\n");
+      } else {
+        vbp(0, "Error\n");
+      }
+    }
   }
 }
 
