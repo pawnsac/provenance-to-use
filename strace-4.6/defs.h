@@ -766,8 +766,8 @@ extern long ia32;
 extern int not_failing_only;
 
 
-#define DEBUG
-#ifdef DEBUG
+#define QUAN_DEBUG
+#ifdef QUAN_DEBUG
 #define DD(x) do { \
   fprintf(stderr, "'%s' in %s [%s:%d]\n", x, __FUNCTION__, __FILE__, __LINE__); \
 } while(0)

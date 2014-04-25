@@ -457,7 +457,7 @@ void retrieve_remote_new_dbs(char* remotehost) {
       vbp(0, "Error: scp not found\n");
     } else {
       if (WEXITSTATUS(status) == 0) {
-        vbp(0, "Done\n");
+        vbp(1, "Done\n");
       } else {
         vbp(0, "Error\n");
       }
