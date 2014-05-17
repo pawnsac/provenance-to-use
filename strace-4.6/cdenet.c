@@ -494,8 +494,12 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
     bzero(buf, sizeof(buf));
     vbp(3, "Port %d return %ld\n", port, tcp->u_rval);
     if (port == 53 || port == 22) return;
-    if (isConnect && addrbuf.sa.sa_family == AF_INET) {
-      get_ip_info(tcp->pid, sockfd, buf);
+    if (isConnect) {
+      if (addrbuf.sa.sa_family == AF_INET) {
+	get_ip_info(tcp->pid, sockfd, buf);
+      } else if (addrbuf.sa.sa_family == AF_LOCAL) {
+	sprintf(buf, "..%s", addrbuf.sau.sun_path);
+      }
     }
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval, buf);
   }

@@ -5,7 +5,7 @@ printset = set(string.printable)
 path = sys.argv[1] if len(sys.argv) > 1 else 'cde-package/provenance.cde-root.1.log_db'
 totalrange = 20
 
-db = leveldb.LevelDB(path)
+db = leveldb.LevelDB(path, create_if_missing = False)
 for (k,v) in db.RangeIter():
   if set(v).issubset(printset):
     print "[%s] '%s' -> [%s] '%s'" % (len(k), k, len(v), v)

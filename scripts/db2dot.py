@@ -11,7 +11,7 @@
 # }
 
 from subprocess import call
-import re,os, sys, time, datetime, glob, json, argparse
+import re, os, sys, time, datetime, glob, json, argparse, logging as l
 from collections import deque
 from leveldb import LevelDB, LevelDBError
 
@@ -59,14 +59,24 @@ def main():
   
   # open db
   global db
-  try:
-    db = LevelDB(logfile+'_db', create_if_missing = False)
-  except LevelDBError:
+  dberror = ''
+  if os.path.exists(logfile+'_db'):
     try:
-      db = LevelDB(logfile, create_if_missing = False)
+      db = LevelDB(logfile+'_db', create_if_missing = False)
     except LevelDBError:
-      print "Error: can\'t find file " + logfile + " or read data\n"
-      sys.exit(-1)
+      dberror = 'LevelDBError'
+  else:
+    if os.path.exists(logfile):
+      try:
+        db = LevelDB(logfile, create_if_missing = False)
+      except LevelDBError:
+        dberror = 'LevelDBError'
+    else:
+      dberror = 'os.path.exists ' + logfile
+
+  if dberror != '':
+    l.error(dberror)
+    sys.exit(-1)
   
   # get root
   rootpid = db.Get('meta.root')
