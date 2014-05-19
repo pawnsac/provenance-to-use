@@ -11,10 +11,12 @@
 # }
 
 from subprocess import call
-import re, os, sys, time, datetime, glob, json, argparse, logging as l
+import re, os, sys, time, datetime, glob, json, argparse, logging as l, struct
 from collections import deque
+from datetime import datetime, timedelta
 from leveldb import LevelDB, LevelDBError
 
+epoch = datetime(1970, 1, 1)
 
 def isFilteredPath(path):
   if re.match('\/proc\/', path) is None \
@@ -96,7 +98,7 @@ def main():
   # prepare output file
   fout = open(dir + '/main.gv', 'w')
   fout.write("""digraph G {
-  ranksep=.75;
+  graph [rankdir = "RL" ];
   node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
   edge [fontname="Helvetica" fontsize="8"];
   """+
@@ -198,16 +200,25 @@ def printGraph(pidqueue, f1, f2):
         continue
       # replace this: prv.iopid.$(pid.usec).$action.$usec -> $filepath
       actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
-      actiontime = '.'.join(k.split('.')[-2:])
+      (action, time) = k.split('.')[-2:]
+      actiontime = '.'.join([action, time])
       db.Put('prv.iopid.'+actualpid+'.actual.'+actiontime, v)
       
       if filter and isFilteredPath(v):
         continue
       
       fnode = v.replace('\\', '\\\\').replace('"','\\"')
-      if not v in filelist:
-        printFileNode(fnode, v, f1)
-        filelist.append(v)
+      closetime = long(time)
+      try:
+        fd = db.Get(k + '.fd')
+        fd = str(struct.unpack('i', fd)[0])
+        fnode = pidkey + '.' + time + '.' + fd
+        closetime = db.Get('prv.file.'+pidkey+'.'+time+'.'+fd+'.close')
+        closetime = struct.unpack('Q', closetime)[0]
+      except KeyError:
+        pass # this access doesn't return an fd
+      printFileNode(fnode, v, time, closetime, f1)
+
       printFileEdge(pidkey, getFileAction(k), fnode, f1)
       
     except KeyError:
@@ -252,9 +263,13 @@ def printExecEdge(pidkey, f1, f2):
   f1.write(line)
   f2.write(line)
 
-def printFileNode(fnode, path, f1):
+def printFileNode(fnode, path, t1, t2, f1):
   filename=os.path.basename(path).replace('"','\\"')
-  nodedef='"' + fnode + '"[label="' + filename + '", shape="", fillcolor=' + colors[colorid] + ', tooltip="' + fnode + '"]\n'
+  nodedef='"' + fnode + '"[label="' + filename + '", shape="", ' + \
+      'fillcolor=' + colors[colorid] + ', tooltip="' + fnode + \
+      ' ' + str(epoch + timedelta(microseconds=long(t1))) + \
+      ' ' + str(epoch + timedelta(microseconds=t2)) + '" ' + \
+      'rank='+str(t2)+']\n'
   f1.write(nodedef)
   #f2.write(nodedef)
   
