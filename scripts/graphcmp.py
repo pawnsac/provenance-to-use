@@ -140,3 +140,14 @@ def main():
     return 0
     
 main()
+
+pseudo_code = """Algorithm:
+
+First step : match empty V with empty graph V'.
+Second step : try to math one node in V with one node in V'
+...
+Nth step : try to math one node in V with one new node in V', 
+if you cannot go back one step in the tree and try a new match in the previous step.. 
+and if you cant go back again etc...
+...
+END : when you find a leaf, i.e when you went through all the nodes in V' or when you went through the all tree without finding a leaf."""

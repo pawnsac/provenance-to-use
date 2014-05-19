@@ -38,6 +38,7 @@ parser.add_argument('--nofilter', action="store_true", default=False)
 parser.add_argument('--withfork', action="store_true", default=False)
 parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
 parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
+parser.add_argument('-r', action="store", dest="rootpid", default="")
 parser.add_argument('--withgraph', action="store_true", default=False)
 
 args = parser.parse_args()
@@ -48,6 +49,7 @@ withfork = args.withfork
 dir = args.dir_name
 logfile = args.fin_name
 withgraph = args.withgraph
+rootpid = args.rootpid
 
 meta = {}
 colors=['yellow','pink','lightgreen','lightblue'] 
@@ -60,7 +62,7 @@ filelist = []
 
 def main():
 
-  global timeline
+  global timeline, rootpid
   
   # open db
   global db
@@ -84,7 +86,8 @@ def main():
     sys.exit(-1)
   
   # get root
-  rootpid = db.Get('meta.root')
+  if rootpid=='':
+    rootpid = db.Get('meta.root')
   fullns = ""
   agent = ""
   try:
@@ -106,7 +109,7 @@ def main():
   node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
   edge [fontname="Helvetica" fontsize="8" weight=1];
   """+
-  rootpid + '[label="XXX" shape="box" fillcolor=' +colors[colorid]+ '];\n' + \
+  rootpid + '[label="ROOT" shape="box" fillcolor=' +colors[colorid]+ '];\n' + \
   "\"namespace:" + fullns + '"[shape=box label="' + agent + "@" + fullns + '" color=' +colors[colorid]+ ']\n')
   f2out = open(dir + '/main.process.gv', 'w')
   f2out.write("""digraph cdeprovshort2dot {
@@ -114,7 +117,7 @@ def main():
   node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
   edge [fontname="Helvetica" fontsize="8"];
   """+
-  rootpid + '[label="XXX" shape="box" fillcolor=' +colors[colorid]+ '];\n' + \
+  rootpid + '[label="ROOT" shape="box" fillcolor=' +colors[colorid]+ '];\n' + \
   "\"namespace:" + fullns + '"[shape=box label="' + agent + "@" + fullns + '" color=' +colors[colorid]+ ']\n')
   fhtml = open(dir + '/main.html', 'w')
   fhtml.write("""<h1>Overview</h1>
@@ -133,9 +136,11 @@ def main():
 
   # make the timeline
   timeline = sorted(set(timeline))
-  fout.write('{edge[weight=200]; node[group=timeline]; ')
-  for t in timeline:
-    fout.write('"'+str(t)+'"[shape=plaintext label="."];')
+  fout.write('{edge[weight=20000]; node[group=timeline]; ')
+  for i in range(len(timeline)):
+    t=timeline[i]
+    fout.write('"'+str(t)+'"[shape=plaintext label="'+\
+      str(epoch + timedelta(microseconds=long(t))).replace(' ','\\n')+'"];')
   fout.write('past -> ')
   for t in timeline:
     fout.write('"'+str(t)+'" -> ')
@@ -158,6 +163,7 @@ def main():
   print("Processing main.gv, this might take a long time ...\n")
   #removeMultiEdge("main.gv")
   os.system("dot -Tsvg main.gv -o main.svg")
+  # os.system("dot -Kfdp -Tpng main.gv -o main.png")
   #os.system("unflatten -f -l3 main.gv | dot -Tsvg -Edir=none -Gsplines=ortho -o main.svg")
   os.system("gnuplot *.gnu")
   for fname in glob.glob("./*.prov.gv"):
@@ -221,7 +227,7 @@ def printGraph(pidqueue, f1, f2):
       
       if filter and isFilteredPath(v):
         continue
-      print k, v
+
       fnode = v.replace('\\', '\\\\').replace('"','\\"')
       closetime = long(time)
       try:
@@ -232,7 +238,11 @@ def printGraph(pidqueue, f1, f2):
         closetime = struct.unpack('Q', closetime)[0]
       except KeyError:
         pass # this access doesn't return an fd
-      printFileNode(fnode, v, time, closetime, f1)
+      if action == '1': # read -> use open time for rank
+        rank = long(time)
+      else: # write/modify -> use close time for rank
+        rank = closetime
+      printFileNode(fnode, v, time, closetime, rank, f1)
 
       printFileEdge(pidkey, getFileAction(k), fnode, f1)
       
@@ -263,11 +273,16 @@ def hasKey(key):
     return False
     
 def printProc(pidkey, f1, f2):
+  global timeline;
   if hasKey('prv.pid.'+pidkey+'.ok'):
+    exectime = db.Get('prv.pid.'+pidkey+'.start')
     label = 'PID: ' + getPidFromKey(pidkey) + "\\n" + os.path.basename(getExecAttr(pidkey, 'path'))
     title = getExecStartTime(pidkey) + ' ' + getExecAttr(pidkey, 'pwd') + ' ' + \
-      getExecAttr(pidkey, 'args').replace('\\','\\\\  ').replace('"','\\"')
-    line = pidkey + ' [label="' + label + '" tooltip="' + title + '" shape="box" fillcolor="' + colors[colorid] + '" URL="' + pidkey + '.prov.svg"]\n'
+      getExecAttr(pidkey, 'args').replace('\\','\\\\  ').replace('"','\\"') + ' ' + exectime
+    line = '{rank=same; '+ pidkey + ' [label="' + label + '" tooltip="' + title + \
+      '" shape="box" fillcolor="' + colors[colorid] + '" URL="' + pidkey + '.prov.svg"];\n' + \
+      exectime + ';}\n'
+    timeline.append(long(exectime))
   else:
     line = pidkey + ' [shape="box"]\n'
   f1.write(line)
@@ -278,7 +293,7 @@ def printExecEdge(pidkey, f1, f2):
   f1.write(line)
   f2.write(line)
 
-def printFileNode(fnode, path, t1, t2, f1):
+def printFileNode(fnode, path, t1, t2, rank, f1):
   filename=os.path.basename(path).replace('"','\\"')
   nodedef='"' + fnode + '"[label="' + filename + '", shape="", ' + \
       'fillcolor=' + colors[colorid] + ', tooltip="' + fnode + \
@@ -287,9 +302,9 @@ def printFileNode(fnode, path, t1, t2, f1):
   f1.write(nodedef)
   #f2.write(nodedef)
 
-  timeline.append(t2)
+  timeline.append(rank)
   if fnode[0] != '/':
-    f1.write('{rank=same "'+str(t2)+'"; "'+fnode+'";}\n')
+    f1.write('{edge[weight=1000]; rank=same; "'+str(rank)+'"; "'+fnode+'"; "'+str(rank)+'"->"'+fnode+'"[style=invis];}\n')
   
   
 def printFileEdge(pidkey, action, path, f1):
