@@ -1,27 +1,25 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define PAUSE do {usleep(250000);} while (0)
+#define PAUSE do {usleep(1000000);} while (0)
 
 int main() {
-    const char *pathin = "in.txt";
-    const char *pathout = "out.txt";
     FILE *in, *out;
     
     PAUSE;
-    in = fopen(pathin, "r");
+    in = fopen("in1.txt", "r");
     PAUSE;
-    out = fopen(pathout, "w");
+    out = fopen("out2.txt", "w");
     PAUSE;
     fclose(in);
     PAUSE;
     fclose(out);
     PAUSE;
-    in = fopen(pathin, "r");
+    in = fopen("in3.txt", "r");
     PAUSE;
     fclose(in);
     PAUSE;
-    out = fopen(pathout, "w");
+    out = fopen("out4.txt", "w");
     PAUSE;
     fclose(out);
     

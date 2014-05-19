@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from leveldb import LevelDB, LevelDBError
 
 epoch = datetime(1970, 1, 1)
+timeline = []
 
 def isFilteredPath(path):
   if re.match('\/proc\/', path) is None \
@@ -58,6 +59,8 @@ db = None
 filelist = []
 
 def main():
+
+  global timeline
   
   # open db
   global db
@@ -98,9 +101,10 @@ def main():
   # prepare output file
   fout = open(dir + '/main.gv', 'w')
   fout.write("""digraph G {
-  graph [rankdir = "RL" ];
+  ranksep=.75;
+  rankdir="LR";
   node [fontname="Helvetica" fontsize="8" style="filled" margin="0.0,0.0"];
-  edge [fontname="Helvetica" fontsize="8"];
+  edge [fontname="Helvetica" fontsize="8" weight=1];
   """+
   rootpid + '[label="XXX" shape="box" fillcolor=' +colors[colorid]+ '];\n' + \
   "\"namespace:" + fullns + '"[shape=box label="' + agent + "@" + fullns + '" color=' +colors[colorid]+ ']\n')
@@ -126,6 +130,17 @@ def main():
   db.Put('prv.pid.'+rootpid+'.actualpid', rootpid)
   while len(pidqueue) > 0:
     printGraph(pidqueue, fout, f2out)
+
+  # make the timeline
+  timeline = sorted(set(timeline))
+  fout.write('{edge[weight=200]; node[group=timeline]; ')
+  for t in timeline:
+    fout.write('"'+str(t)+'"[shape=plaintext label="."];')
+  fout.write('past -> ')
+  for t in timeline:
+    fout.write('"'+str(t)+'" -> ')
+  fout.write('future;}')
+  fout.write('{rank=same; "'+rootpid+'"; past;}')
 
   # done
   db.Put('meta.nomalized', '1')
@@ -196,7 +211,7 @@ def printGraph(pidqueue, f1, f2):
       
   for (k, v) in db.RangeIter(key_from='prv.iopid.'+pidkey+'.', key_to='prv.iopid.'+pidkey+'.zzz'):
     try:
-      if k[-3:] == '.fd':
+      if k[-3:] == '.fd' or k.startswith('prv.iopid.'+pidkey+'.actual'):
         continue
       # replace this: prv.iopid.$(pid.usec).$action.$usec -> $filepath
       actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
@@ -206,7 +221,7 @@ def printGraph(pidqueue, f1, f2):
       
       if filter and isFilteredPath(v):
         continue
-      
+      print k, v
       fnode = v.replace('\\', '\\\\').replace('"','\\"')
       closetime = long(time)
       try:
@@ -268,10 +283,14 @@ def printFileNode(fnode, path, t1, t2, f1):
   nodedef='"' + fnode + '"[label="' + filename + '", shape="", ' + \
       'fillcolor=' + colors[colorid] + ', tooltip="' + fnode + \
       ' ' + str(epoch + timedelta(microseconds=long(t1))) + \
-      ' ' + str(epoch + timedelta(microseconds=t2)) + '" ' + \
-      'rank='+str(t2)+']\n'
+      ' ' + str(epoch + timedelta(microseconds=t2)) + '" ]\n'
   f1.write(nodedef)
   #f2.write(nodedef)
+
+  timeline.append(t2)
+  if fnode[0] != '/':
+    f1.write('{rank=same "'+str(t2)+'"; "'+fnode+'";}\n')
+  
   
 def printFileEdge(pidkey, action, path, f1):
   line = ''
