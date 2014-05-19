@@ -194,6 +194,8 @@ def printGraph(pidqueue, f1, f2):
       
   for (k, v) in db.RangeIter(key_from='prv.iopid.'+pidkey+'.', key_to='prv.iopid.'+pidkey+'.zzz'):
     try:
+      if k[-3:] == '.fd':
+        continue
       # replace this: prv.iopid.$(pid.usec).$action.$usec -> $filepath
       actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
       actiontime = '.'.join(k.split('.')[-2:])
