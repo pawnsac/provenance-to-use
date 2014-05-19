@@ -27,7 +27,9 @@ char* db_read_pid_key(lvldb_t *mydb, long pid);
 void db_write_root(lvldb_t *mydb, long pid);
 
 // io
-void db_write_io_prov(lvldb_t *mydb, long pid, int prv, const char *filename_abspath);
+void db_write_iofd_prov(lvldb_t *mydb, long pid, int prv, const char *filename_abspath, int fd);
+ull_t db_write_io_prov(lvldb_t *mydb, long pid, int prv, const char *filename_abspath);
+int db_markFileClosed(lvldb_t *mydb, long pid, int fd);
 
 // exec
 void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename_abspath, \

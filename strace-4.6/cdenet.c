@@ -976,7 +976,7 @@ void CDEnet_close(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
   vb(2);
   if (CDE_provenance_mode) {
-    print_sock_close(tcp);
+    print_fd_close(tcp);
   }
   if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
     db_remove_sock(currdb, tcp->pid, sockfd);

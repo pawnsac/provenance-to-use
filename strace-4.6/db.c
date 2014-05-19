@@ -210,10 +210,50 @@ void db_write_fmt(lvldb_t *mydb, const char *key, const char *fmt, ...) {
   db_write(mydb, key, val);
 }
 
-void db_write_io_prov(lvldb_t *mydb, long pid, int action, const char *filename_abspath) {
-  char key[KEYLEN];
+void db_write_iofd_prov(lvldb_t *mydb, long pid, int action, const char *filename_abspath, int fd) {
+  ull_t usec = db_write_io_prov(mydb, pid, action, filename_abspath);
+  char key[KEYLEN], value[KEYLEN];
   char *pidkey=db_read_pid_key(mydb, pid);
   if (pidkey == NULL) return;
+  
+  sprintf(key, "prv.iopid.%s.%d.%llu.fd", pidkey, action, usec);
+  db_nwrite(mydb, key, (char*) &fd, sizeof(int));
+
+  sprintf(key, "prv.file.%s.%llu.%d.path", pidkey, usec, fd);
+  db_write(mydb, key, filename_abspath);
+  
+  sprintf(value, "prv.file.%s.%llu.%d", pidkey, usec, fd);
+  sprintf(key, "file.%s.%d", pidkey, fd); // temporary lookup
+  db_write(mydb, key, value);
+
+  free(pidkey);
+}
+
+int db_markFileClosed(lvldb_t *mydb, long pid, int fd) {
+  char key[KEYLEN];
+  char *pidkey=db_read_pid_key(mydb, pid);
+  if (pidkey == NULL) return 0;
+  ull_t usec = getusec();
+  
+  sprintf(key, "file.%s.%d", pidkey, fd);
+  char *filekey = db_readc(mydb, key);
+  
+  sprintf(key, "%s.close", filekey);
+  db_nwrite(mydb, key, (char*) &usec, sizeof(ull_t));
+  
+  free(pidkey);
+  if (filekey != NULL) {
+    // todo: delete temp key from db
+    free(filekey);
+    return 1;
+  } else
+    return 0;
+}
+
+ull_t db_write_io_prov(lvldb_t *mydb, long pid, int action, const char *filename_abspath) {
+  char key[KEYLEN];
+  char *pidkey=db_read_pid_key(mydb, pid);
+  if (pidkey == NULL) return 0;
   ull_t usec = getusec();
 
   sprintf(key, "prv.iopid.%s.%d.%llu", pidkey, action, usec);
@@ -223,6 +263,7 @@ void db_write_io_prov(lvldb_t *mydb, long pid, int action, const char *filename_
   db_write_fmt(mydb, key, "%d", action);
 
   free(pidkey);
+  return usec;
 }
 
 char* db_create_pid(lvldb_t *mydb, long pid, ull_t usec, char* ppidkey) {

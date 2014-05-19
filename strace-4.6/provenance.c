@@ -238,6 +238,22 @@ void print_execdone_prov(struct tcb *tcp) {
   //~ db_write_io_prov(pid, action, path);
 //~ }
 
+void print_iofd_prov(struct tcb *tcp, int pos, int action, int fd) {
+  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
+  char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
+  assert(filename_abspath);
+
+  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
+      (action == PRV_RDONLY ? "READ" : (
+        action == PRV_WRONLY ? "WRITE" : (
+        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
+      filename_abspath);
+  db_write_iofd_prov(provdb, tcp->pid, action, filename_abspath, fd);
+
+  free(filename);
+  free(filename_abspath);
+}
+
 void print_io_prov(struct tcb *tcp, int pos, int action) {
   char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
@@ -284,20 +300,22 @@ void print_open_prov(struct tcb *tcp, const char *syscall_name) {
         case O_RDWR: action = PRV_RDWR; break;
         default: action = PRV_UNKNOWNIO; break;
       }
-      print_io_prov(tcp, pos - 1, action);
+      print_iofd_prov(tcp, pos - 1, action, tcp->u_rval);
       //~ print_file_prov((int)time(0), tcp->pid, PRV_RDONLY, filename_abspath);
       //~ print_file_prov((int)time(0), tcp->pid, PRV_WRONLY, filename_abspath);
       //~ print_file_prov((int)time(0), tcp->pid, PRV_RDWR, filename_abspath);
       //~ print_file_prov((int)time(0), tcp->pid, PRV_UNKNOWNIO, filename_abspath);
     }
   } else {
-    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
-        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
-    char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
-    char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
-    vbp(1, "%s: fd= %ld\n", filename_abspath, tcp->u_rval);
-    freeifnn(filename);
-    freeifnn(filename_abspath);
+    if (CDE_verbose_mode >= 1) {
+      int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
+          (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+      char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
+      char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
+      vbp(1, "%s: fd= %ld\n", filename_abspath, tcp->u_rval);
+      freeifnn(filename);
+      freeifnn(filename_abspath);
+    }
   }
 }
 
@@ -720,10 +738,14 @@ void print_getsockname_prov(struct tcb *tcp) {
   }
 }
 
-void print_sock_close(struct tcb *tcp) {
+void print_fd_close(struct tcb *tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && db_isCapturedSock(provdb, sockfd)) {
-    db_remove_sock(provdb, tcp->pid, sockfd);
+  if (CDE_provenance_mode) {
+    if (!db_markFileClosed(provdb, tcp->pid, sockfd)) {
+      if (db_isCapturedSock(provdb, sockfd)) {
+        db_remove_sock(provdb, tcp->pid, sockfd);
+      }
+    }
   }
 }
 

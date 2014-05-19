@@ -28,7 +28,7 @@ void print_listen_prov(struct tcb *tcp);
 int isProvCapturedSock(int sockfd);
 
 void print_accept_prov(struct tcb *tcp);
-void print_sock_close(struct tcb *tcp);
+void print_fd_close(struct tcb *tcp);
 
 void print_getsockname_prov(struct tcb *tcp);
 
