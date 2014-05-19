@@ -244,11 +244,31 @@ def printGraph(pidqueue, f1, f2):
         rank = closetime
       printFileNode(fnode, v, time, closetime, rank, f1)
 
-      printFileEdge(pidkey, getFileAction(k), fnode, f1)
+      printFileEdge(actualpid, getFileAction(k), fnode, f1)
       
     except KeyError:
       print 'keyerror: prv.pid.%s.actualpid.\n' % pidkey
       pass
+
+  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.insertid.', key_to='prv.db.'+pidkey+'.insertid.zzz'):
+    try:
+      # prv.db.$pidkey.insertid.$insertid.$version.$usec -> $sql
+      actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
+      (insertid, version, usec) = k.split('.')[-3:]
+      usec=long(usec)
+
+      printInsertNodeEdge(actualpid, insertid, version, v, usec, f1)
+      
+    except KeyError:
+      print 'keyerror: prv.pid.%s.actualpid.\n' % pidkey
+      pass
+
+def printInsertNodeEdge(pidkey, insertid, version, sql, time, f1):
+  global timeline
+  f1.write(insertid + '->' + pidkey + '[label=wasGeneratedBy];' + \
+    insertid + '[label="' + insertid + '.' + version + '\\n' + sql.replace('"','\\"') + '"];' + \
+    '{rank=same; ' + insertid + '; ' + str(time) + ';}\n')
+  timeline.append(time)
 
 def getPidFromKey(pidkey):
   return pidkey.split('.')[0]
@@ -296,9 +316,9 @@ def printExecEdge(pidkey, f1, f2):
 def printFileNode(fnode, path, t1, t2, rank, f1):
   filename=os.path.basename(path).replace('"','\\"')
   nodedef='"' + fnode + '"[label="' + filename + '", shape="", ' + \
-      'fillcolor=' + colors[colorid] + ', tooltip="' + fnode + \
+      'fillcolor=' + colors[colorid] + ', tooltip="' + filename + \
       ' ' + str(epoch + timedelta(microseconds=long(t1))) + \
-      ' ' + str(epoch + timedelta(microseconds=t2)) + '" ]\n'
+      ' ' + str(epoch + timedelta(microseconds=t2)) + ' ' + fnode + '" ]\n'
   f1.write(nodedef)
   #f2.write(nodedef)
 
