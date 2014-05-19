@@ -274,7 +274,10 @@ while 1:
   elif action == 'MEM':
     if showsub:
       rel_time = int(words[0]) - pid_starttime[node]
-      pid_mem[node].write(str(rel_time) + '\t' + str(int(words[3])>>10) + '\n')
+      try:
+        pid_mem[node].write(str(rel_time) + '\t' + str(int(words[3])>>10) + '\n')
+      except KeyError:
+        pass
   
   line = fin.readline()
   if line == '':
