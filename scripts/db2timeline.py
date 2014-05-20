@@ -176,6 +176,8 @@ def main():
 
 def printGraph(pidqueue, f1, f2):
   pidkey = pidqueue.popleft()
+  actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
+  
   for (k, v) in db.RangeIter(key_from='prv.pid.'+pidkey+'.exec.', key_to='prv.pid.'+pidkey+'.exec.zzz'):
     try:
       db.Get('prv.pid.'+v+'.ok') # assert process successfully run
@@ -197,7 +199,7 @@ def printGraph(pidqueue, f1, f2):
     except KeyError:
       print 'keyerror: pidkey %s k %s v %s' % (pidkey, k, v)
       pass
-      
+  
   for (k, v) in db.RangeIter(key_from='prv.pid.'+pidkey+'.spawn.', key_to='prv.pid.'+pidkey+'.spawn.zzz'):
     try:
       
@@ -220,7 +222,6 @@ def printGraph(pidqueue, f1, f2):
       if k[-3:] == '.fd' or k.startswith('prv.iopid.'+pidkey+'.actual'):
         continue
       # replace this: prv.iopid.$(pid.usec).$action.$usec -> $filepath
-      actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
       (action, time) = k.split('.')[-2:]
       actiontime = '.'.join([action, time])
       db.Put('prv.iopid.'+actualpid+'.actual.'+actiontime, v)
@@ -249,25 +250,46 @@ def printGraph(pidqueue, f1, f2):
     except KeyError:
       print 'keyerror: prv.pid.%s.actualpid.\n' % pidkey
       pass
-
-  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.insertid.', key_to='prv.db.'+pidkey+'.insertid.zzz'):
+  
+  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.insertid.sql.', key_to='prv.db.'+pidkey+'.insertid.sql.zzz'):
     try:
-      # prv.db.$pidkey.insertid.$insertid.$version.$usec -> $sql
-      actualpid = db.Get('prv.pid.'+pidkey+'.actualpid')
+      # prv.db.$pidkey.insertid.sql.$insertid.$version.$usec -> $sql
       (insertid, version, usec) = k.split('.')[-3:]
       usec=long(usec)
-
       printInsertNodeEdge(actualpid, insertid, version, v, usec, f1)
       
     except KeyError:
       print 'keyerror: prv.pid.%s.actualpid.\n' % pidkey
       pass
+      
+  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.selectid.sql.', key_to='prv.db.'+pidkey+'.selectid.sql.zzz'):
+    try:
+      # prv.db.$pidkey.selectid.sql.$queryid.$usec -> $sql
+      (queryid, usec) = k.split('.')[-2:]
+      usec=long(usec)
+      printSelectNodeEdge(actualpid, queryid, v, usec, f1)
+      
+    except KeyError:
+      print 'keyerror: prv.pid.%s.actualpid.\n' % pidkey
+      pass
 
+def printSelectNodeEdge(pidkey, queryid, sql, time, f1):
+  node = queryid+'.'+str(time)
+  label = node + '\\n ' + sql.replace('"','\\"')
+  f1.write(pidkey + '->' + node + '[label=used];' + \
+    node + '[label="' + label + '" tooltip="' + label + '"];' + \
+    '{rank=same; ' + node + '; ' + str(time) + ';}\n')
+  timeline.append(time)
+  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.selectid.insertid.', key_to='prv.db.'+pidkey+'.selectid.insertid.zzz'):
+    f1.write(node + '->' + v + '[label=used]\n')
+  
 def printInsertNodeEdge(pidkey, insertid, version, sql, time, f1):
   global timeline
-  f1.write(insertid + '->' + pidkey + '[label=wasGeneratedBy];' + \
-    insertid + '[label="' + insertid + '.' + version + '\\n' + sql.replace('"','\\"') + '"];' + \
-    '{rank=same; ' + insertid + '; ' + str(time) + ';}\n')
+  node = insertid+'.'+version
+  label = node + '\\n ' + sql.replace('"','\\"')
+  f1.write(node + '->' + pidkey + '[label=wasGeneratedBy];' + \
+    node + '[label="' + label + '" tooltip="' + label + '"];' + \
+    '{rank=same; ' + node + '; ' + str(time) + ';}\n')
   timeline.append(time)
 
 def getPidFromKey(pidkey):
