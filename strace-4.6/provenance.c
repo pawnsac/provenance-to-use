@@ -458,7 +458,7 @@ void retrieve_remote_new_dbs(char* remotehost, char* dbid) {
   // child
   if (pid == 0) {
     // sprintf(rpath, "%s:~/cde-package/provenance.cde-root.*", remotehost);
-	sprintf(rpath, "%s:~/cde-package/provenance.cde-root.1.log.id%s_db",
+	sprintf(rpath, "%s:/var/tmp/cde-root.%s/provenance.cde-root.1.log.id*",
 			remotehost, dbid);
     execlp("scp", "scp", "-r", "-q", rpath, 
         CDE_PACKAGE_DIR, (char *) NULL);

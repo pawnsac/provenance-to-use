@@ -4250,9 +4250,10 @@ char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host) {
   char const *argv[7];
   char dbid[KEYLEN], arg[KEYLEN];
   sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
-  sprintf(arg, "%s%s-I", 
+  sprintf(arg, "%s%s -o /var/tmp/cde-root.%s -I",
       (CDE_bare_run ? "-b " : ""), 
-      (CDE_network_content_mode ? "-w " : ""));
+      (CDE_network_content_mode ? "-w " : ""),
+      dbid);
   argv[0]=CDE_proc_self_exe;
   argv[1]=strdup(arg);
   argv[2]=strdup(dbid);
