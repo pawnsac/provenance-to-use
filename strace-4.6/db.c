@@ -346,11 +346,14 @@ void db_write_exec_prov(lvldb_t *mydb, long ppid, long pid, const char *filename
   free(ppidkey);
 }
 
-char* db_get_ssh_host(lvldb_t *mydb, long pid) {
+int db_get_ssh_host(lvldb_t *mydb, long pid, char** host, char** dbid) {
   char *pidkey=db_read_pid_key(mydb, pid);
   char key[KEYLEN];
   sprintf(key, "prv.pid.%s.sshhost", pidkey);
-  return db_readc(mydb, key);
+  *host = db_readc(mydb, key);
+  sprintf(key, "prv.pid.%s.dbid", pidkey);
+  *dbid = db_readc(mydb, key);
+  return (*host != NULL) && (*dbid != NULL);
 }
 
 char* db_getEnvVars(lvldb_t *mydb, char* pidkey) {

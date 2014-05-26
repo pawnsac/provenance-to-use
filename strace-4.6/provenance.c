@@ -444,7 +444,7 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
   }
 }
 
-void retrieve_remote_new_dbs(char* remotehost) {
+void retrieve_remote_new_dbs(char* remotehost, char* dbid) {
   char rpath[KEYLEN];
   vbp(2, "Retrieve dbs from %s\n", remotehost);
   
@@ -457,7 +457,9 @@ void retrieve_remote_new_dbs(char* remotehost) {
   
   // child
   if (pid == 0) {
-    sprintf(rpath, "%s:~/cde-package/provenance.cde-root.*", remotehost);
+    // sprintf(rpath, "%s:~/cde-package/provenance.cde-root.*", remotehost);
+	sprintf(rpath, "%s:~/cde-package/provenance.cde-root.1.log.id%s_db",
+			remotehost, dbid);
     execlp("scp", "scp", "-r", "-q", rpath, 
         CDE_PACKAGE_DIR, (char *) NULL);
     _exit(127);
@@ -488,11 +490,12 @@ void print_iexit_prov(struct tcb *tcp) {
 		rm_pid_prov(tcp->pid);
 		fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
     db_write_iexit_prov(provdb, tcp->pid);
-    char *ssh_host = db_get_ssh_host(provdb, tcp->pid);
-    if (ssh_host != NULL)
-      retrieve_remote_new_dbs(ssh_host);
+    char *ssh_host, *ssh_dbid;
+    if (db_get_ssh_host(provdb, tcp->pid, &ssh_host, &ssh_dbid))
+      retrieve_remote_new_dbs(ssh_host, ssh_dbid);
     freeifnn(ssh_host);
-	}
+    freeifnn(ssh_dbid);
+  }
 }
 
 void print_curr_prov(pidlist_t *pidlist_p) {
