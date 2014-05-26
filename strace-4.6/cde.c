@@ -4250,21 +4250,21 @@ char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host) {
   char const *argv[7];
   char dbid[KEYLEN], arg[KEYLEN];
   sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
-  sprintf(arg, "%s%s -o /var/tmp/cde-root.%s -I",
+  sprintf(arg, "%s%s -o /var/tmp/cde-root.%s -I %s",
       (CDE_bare_run ? "-b " : ""), 
       (CDE_network_content_mode ? "-w " : ""),
-      dbid);
+      dbid,
+      dbid); // arg passed for remote PTU
   argv[0]=CDE_proc_self_exe;
   argv[1]=strdup(arg);
-  argv[2]=strdup(dbid);
-  argv[3]=(char*) "/bin/sh";
-  argv[4]=(char*) "-c";
-  argv[5]=(char*) "\'true; ";
-  argv[6]=(char*) "\'";
-  *ssh_host = add_bashwrapper_to_ssh(tcp, argv, 7, 1, TRUE);
+  argv[2]=(char*) "/bin/sh";
+  argv[3]=(char*) "-c";
+  argv[4]=(char*) "\'true; ";
+  argv[5]=(char*) "\'";
+  *ssh_host = add_bashwrapper_to_ssh(tcp, argv, 6, 1, TRUE);
   
   freeifnn((char*)argv[1]);
-  return (char*) argv[2]; // let caller free the mem
+  return strdup(dbid);
 }
 
 char* add_echo_to_ssh(struct tcb *tcp) {
