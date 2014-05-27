@@ -4,11 +4,11 @@ rm -rf output.txt output barrier.txt
 
 touch barrier.txt
 
-~/assi/cde/mytest/scale-sim/split.py
+./split.py
 
 for l in `cat cslist.ln.txt`
 do
-  ~/assi/cde/mytest/scale-sim/single.sh $l &
+  ./single_lauch.sh $l &
 done
 
 # wait for every single jobs done
@@ -18,6 +18,6 @@ do
   sleep 1
 done
 
-~/assi/cde/mytest/scale-sim/aggregate.py
+./aggregate.py
 
 wc output.txt

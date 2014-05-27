@@ -3,7 +3,7 @@
 for n in 01 02 05 10 20 40
 do
   head -n $n cslist.txt > cslist.ln.txt
-  for i in `seq 10`
+  for i in `seq 5`
   do
     ./run.sh >> log.ptu.$n.txt 2>&1
   done

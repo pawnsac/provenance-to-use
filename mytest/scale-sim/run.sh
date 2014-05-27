@@ -2,7 +2,10 @@
 
 for l in `cat  cslist.ln.txt`
 do
-  ssh $l kill -9 -1
+  if [ "$l" != "plum" ]
+  then
+    ssh $l kill -9 -1
+  fi
 done
 
 rm -rf cde-package
