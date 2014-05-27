@@ -4499,6 +4499,9 @@ void prepare_ptu_on_remotehost(char* remotehost) {
   }
   
   // parent
+  db_setPTUonRemoteHost(provdb, remotehost);
+  return; // no need to wait, best-effort here
+
   int status;
   if (waitpid(pid, &status, 0) == -1) {
     // handle error

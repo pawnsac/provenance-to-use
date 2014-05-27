@@ -467,6 +467,8 @@ void retrieve_remote_new_dbs(char* remotehost, char* dbid) {
   }
   
   // parent
+  return; // no need to wait, just do your best here
+
   int status;
   if (waitpid(pid, &status, 0) == -1) {
     // handle error
@@ -491,7 +493,7 @@ void print_iexit_prov(struct tcb *tcp) {
 		rm_pid_prov(tcp->pid);
 		fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
     db_write_iexit_prov(provdb, tcp->pid);
-    char *ssh_host, *ssh_dbid;
+    char *ssh_host = NULL, *ssh_dbid = NULL;
     if (CDE_follow_SSH_mode && db_get_ssh_host(provdb, tcp->pid, &ssh_host, &ssh_dbid))
       retrieve_remote_new_dbs(ssh_host, ssh_dbid);
     freeifnn(ssh_host);
