@@ -35,6 +35,7 @@ void rstrip(char *s);
 extern char CDE_exec_mode;
 extern char CDE_verbose_mode;
 extern char CDE_nw_mode;
+extern char CDE_follow_SSH_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
 // local stuff
@@ -491,7 +492,7 @@ void print_iexit_prov(struct tcb *tcp) {
 		fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
     db_write_iexit_prov(provdb, tcp->pid);
     char *ssh_host, *ssh_dbid;
-    if (db_get_ssh_host(provdb, tcp->pid, &ssh_host, &ssh_dbid))
+    if (CDE_follow_SSH_mode && db_get_ssh_host(provdb, tcp->pid, &ssh_host, &ssh_dbid))
       retrieve_remote_new_dbs(ssh_host, ssh_dbid);
     freeifnn(ssh_host);
     freeifnn(ssh_dbid);

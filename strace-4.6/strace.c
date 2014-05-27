@@ -871,11 +871,11 @@ main(int argc, char *argv[])
     // MOVE qualify to after getopt
 
 	while ((c = getopt(argc, argv,
-		"+cCdfFhqrtTvVxzlsnbw"
+		"+cCdfFhqrtTvVxzlsSnbw"
 #ifndef USE_PROCFS
 		"D"
 #endif
-		"a:e:o:O:S:u:E:i:p:N:P:I:")) != EOF) {
+		"a:e:o:O:u:E:i:p:N:P:I:")) != EOF) {
 		switch (c) {
 		case 'c':
       // pgbovine - hijack for -c option
