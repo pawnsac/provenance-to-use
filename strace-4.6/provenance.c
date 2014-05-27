@@ -605,7 +605,6 @@ void init_prov() {
 
     // leveldb initialization
     sprintf(path+strlen(path), "_db");
-    fprintf(stderr, "Provenance db: %s\n", path);
     provdb = malloc(sizeof(lvldb_t));
     provdb->options = leveldb_options_create();
     leveldb_options_set_create_if_missing(provdb->options, 1);

@@ -4246,6 +4246,9 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
 //~ }
 
 // return DB_ID passed to ssh
+// TODO: more modification
+//   current: CDE_proc_self_exe [-b] [-w] -o /var/tmp/cde-root.$dbid -I $dbid /bin/sh -c \'true; $remote_stuff\'
+//   should be: /bin/sh -c \'$loop_till_ptu_size eq $size; CDE_proc_self_exe [-b] [-w] -o /var/tmp/cde-root.$dbid -I $dbid /bin/sh -c \'true; $remote_stuff\'\'
 char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host) {
   char const *argv[7];
   char dbid[KEYLEN], arg[KEYLEN];
@@ -4483,12 +4486,22 @@ void prepare_ptu_on_remotehost(char* remotehost) {
     return;
   }
 
+  if (pid != 0) {
+	// parent
+	db_setPTUonRemoteHost(provdb, remotehost);
+	return; // no need to wait
+  }
+
+  // child, now need to check, then waitpid,
+  // if check failed then scp
+
   int len = strlen(CDE_proc_self_exe) - 1;
   while (len > 0 && CDE_proc_self_exe[len] != '/') len--;
   strncpy(rdir, CDE_proc_self_exe, len);
   rdir[len] = '\0';
   vbp(2, "PTU remote dir: %s\n", rdir);
   
+  pid = fork();
   // child
   if (pid == 0) {
     execlp("ssh", "ssh", remotehost, 
@@ -4499,9 +4512,6 @@ void prepare_ptu_on_remotehost(char* remotehost) {
   }
   
   // parent
-  db_setPTUonRemoteHost(provdb, remotehost);
-  return; // no need to wait, best-effort here
-
   int status;
   if (waitpid(pid, &status, 0) == -1) {
     // handle error
@@ -4515,7 +4525,7 @@ void prepare_ptu_on_remotehost(char* remotehost) {
       if (WEXITSTATUS(status) == 0) {
         // file exists, do nothing
         vbp(1, "Ok: PTU binary exists\n");
-        db_setPTUonRemoteHost(provdb, remotehost);
+        //~ db_setPTUonRemoteHost(provdb, remotehost);
       } else {
         // file not exists yet, do a copy
 
@@ -4549,7 +4559,7 @@ void prepare_ptu_on_remotehost(char* remotehost) {
             if (WEXITSTATUS(status) == 0) {
               // scp done
               vbp(1, "Ok: scp done for PTU binary\n");
-              db_setPTUonRemoteHost(provdb, remotehost);
+              //~ db_setPTUonRemoteHost(provdb, remotehost);
             } else {
               // scp error
               vbp(0, "Error: scp error\n");
