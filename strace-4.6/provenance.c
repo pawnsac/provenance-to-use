@@ -13,6 +13,14 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include<stdio.h> //printf
+#include<string.h>    //memset
+#include<errno.h> //errno
+#include<sys/socket.h>
+#include<netdb.h>
+#include<ifaddrs.h>
+#include<stdlib.h>
+#include<unistd.h>
 
 #include "defs.h"
 #include "provenance.h"
@@ -567,6 +575,62 @@ void *capture_cont_prov(void* ptr) {
   return NULL;
 }
 
+char* get_local_ip() {
+	FILE *f;
+	char line[100] , *p , *c;
+
+	f = fopen("/proc/net/route" , "r");
+
+	while(fgets(line , 100 , f))  {
+		p = strtok(line , " \t");
+		c = strtok(NULL , " \t");
+
+		if(p!=NULL && c!=NULL) {
+			if(strcmp(c , "00000000") == 0) {
+				// printf("Default interface is : %s \n" , p);
+				break;
+			}
+		}
+	}
+
+	//which family do we require , AF_INET or AF_INET6
+	int fm = AF_INET;
+	struct ifaddrs *ifaddr, *ifa;
+	int family , s;
+	char host[NI_MAXHOST];
+
+	if (getifaddrs(&ifaddr) == -1)
+	{
+		perror("getifaddrs");
+		exit(EXIT_FAILURE);
+	}
+
+	//Walk through linked list, maintaining head pointer so we can free list later
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+		if (ifa->ifa_addr == NULL) {
+			continue;
+		}
+
+		family = ifa->ifa_addr->sa_family;
+
+		if(strcmp( ifa->ifa_name , p) == 0) {
+			if (family == fm) {
+				s = getnameinfo( ifa->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6) , host , NI_MAXHOST , NULL , 0 , NI_NUMERICHOST);
+
+				if (s != 0) {
+					printf("getnameinfo() failed: %s\n", gai_strerror(s));
+					exit(EXIT_FAILURE);
+				}
+				freeifaddrs(ifaddr);
+				return strdup(host);
+			}
+		}
+	}
+
+	freeifaddrs(ifaddr);
+	return NULL;
+}
+
 void init_prov() {
   pthread_t ptid;
   char *env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
@@ -645,6 +709,14 @@ void init_prov() {
     char *parentns = getenv("CDE_PROV_NAMESPACE");
     db_write(provdb, "meta.parentns", parentns == NULL ? "(null)" : parentns);
     db_write(provdb, "meta.dbid", DB_ID == NULL ? "(null)" : DB_ID);
+
+    char* host = get_local_ip();
+    if (host != NULL) {
+    	db_write(provdb, "meta.ip", host);
+    	free(host);
+    } else {
+    	db_write(provdb, "meta.ip", "(NULL)");
+    }
 
     db_write_root(provdb, getpid());
     setenv("CDE_PROV_NAMESPACE", fullns, 1);
