@@ -140,7 +140,7 @@ def main():
   for i in range(len(timeline)):
     t=timeline[i]
     fout.write('"'+str(t)+'"[shape=plaintext label="'+\
-      str(epoch + timedelta(microseconds=long(t))).replace(' ','\\n')+'"];')
+      str(epoch + timedelta(microseconds=long(t))).replace(' ','\\n')+'"];\n')
   fout.write('past -> ')
   for t in timeline:
     fout.write('"'+str(t)+'" -> ')
