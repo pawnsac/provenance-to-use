@@ -1,7 +1,10 @@
 #ifndef _PROVENANCE_H
 #define _PROVENANCE_H
 
+#ifndef ULL_T
+#define ULL_T
 typedef long long int ull_t;
+#endif
 
 void print_syscall_read_prov(struct tcb *tcp, const char *syscall_name, int pos);
 void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos);

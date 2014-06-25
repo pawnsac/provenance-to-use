@@ -13,7 +13,10 @@ typedef struct {
 } lvldb_t;
 #endif // _typedef_lvldb_t
 
+#ifndef ULL_T
+#define ULL_T
 typedef long long int ull_t;
+#endif
 
 // basic operations
 void db_write(lvldb_t *mydb, const char *key, const char *value);
