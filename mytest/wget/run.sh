@@ -7,7 +7,6 @@ rm spim.pdf*
 
 ### start
 #URL="http://128.135.164.139/~quanpt/spim.pdf"
-#URL="http://people.cs.uchicago.edu/~quanpt/solegui_0.17.tgz"
 URL="http://people.cs.uchicago.edu/~quanpt/spim.pdf"
 ../../ptu $@ wget $URL
 
@@ -15,4 +14,4 @@ URL="http://people.cs.uchicago.edu/~quanpt/spim.pdf"
 ../../scripts/db2dot.py -f cde-package/provenance.cde-root.1.log -d gv1 > /dev/null 2>&1
 
 echo " ==== rerun wget ===="
-./rrun.sh $@
+./rrun.sh

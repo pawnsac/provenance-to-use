@@ -26,9 +26,6 @@ def isFilteredPath(path):
     and re.match('\/var\/', path) is None \
     and re.match('\/dev\/', path) is None \
     and re.match('\/sys\/', path) is None \
-    and re.match('.*\/myapps/perm\/', path) is None \
-    and re.match('.*\/\.pgpass', path) is None \
-    and re.match('.*\/.*\.dblog', path) is None \
     and re.match('.*\/R\/x86_64-pc-linux-gnu-library\/', path) is None \
     and re.match('.*\/usr\/share\/', path) is None:
     return False
@@ -283,8 +280,8 @@ def printSelectNodeEdge(pidkey, queryid, sql, time, f1):
     node + '[label="' + label + '" tooltip="' + label + '"];' + \
     '{rank=same; ' + node + '; ' + str(time) + ';}\n')
   timeline.append(time)
-  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.selectid.insertid.'+queryid+'.', key_to='prv.db.'+pidkey+'.selectid.insertid.'+queryid+'.zzz'):
-    f1.write(node + '->"' + v + '"[label=used];\n')
+  for (k, v) in db.RangeIter(key_from='prv.db.'+pidkey+'.selectid.insertid.', key_to='prv.db.'+pidkey+'.selectid.insertid.zzz'):
+    f1.write(node + '->' + v + '[label=used]\n')
   
 def printInsertNodeEdge(pidkey, insertid, version, sql, time, f1):
   global timeline

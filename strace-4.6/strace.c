@@ -724,7 +724,7 @@ startup_child (char **argv)
       }
     }
 
-		execv(pathname, argv);
+		execvp(pathname, argv);
 fprintf(stderr, "%s %d\n", pathname, cde_exec_from_outside_cderoot);
 		perror("strace: exec");
 		_exit(1);

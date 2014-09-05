@@ -37,9 +37,9 @@
 #ifdef HAVE_SYS_POLL_H
 #include <sys/poll.h>
 #endif
-#ifdef HAVE_STROPTS_H
-#include <stropts.h>
-#endif
+//#ifdef HAVE_STROPTS_H
+//#include <stropts.h>
+//#endif
 #ifdef HAVE_SYS_CONF_H
 #include <sys/conf.h>
 #endif
@@ -52,7 +52,7 @@
 
 #if defined(HAVE_SYS_STREAM_H) || defined(LINUX) || defined(FREEBSD)
 
-#ifndef HAVE_STROPTS_H
+//#ifndef HAVE_STROPTS_H
 #define RS_HIPRI 1
 struct strbuf {
 	int     maxlen;                 /* no. of bytes in buffer */
@@ -61,7 +61,7 @@ struct strbuf {
 };
 #define MORECTL 1
 #define MOREDATA 2
-#endif /* !HAVE_STROPTS_H */
+//#endif /* !HAVE_STROPTS_H */
 
 #ifdef HAVE_SYS_TIUSER_H
 #include <sys/tiuser.h>

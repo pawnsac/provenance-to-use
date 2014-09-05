@@ -8,6 +8,7 @@ then
   cat provenance.cde-root-YP*.1.log  provenance.cde-root-Y6*.2.log > prov.log
   $PROV2DOT -f prov.log -d gv2
   $PROV2DOT -f provenance.cde-root-Y6*.2.log -d gv3 --withgraph
+  $PROV2DOT -f provenance.cde-root-YP*.1.log -d gv2 --withgraph
 fi
 #../../../scripts/graphcmp.py gv/main.graph gv3/main.graph
 dot -Tpng gv/main.gv -o exp1.png

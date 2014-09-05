@@ -1,5 +1,5 @@
 #!/bin/sh
-#cp ../../ptu-ex cde-package/cde-exec
+cp ../../ptu-ex cde-package/cde-exec
 rm -rf cde-package/provenance.cde-root.1.log_db.*
 
 ### rerun

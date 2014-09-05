@@ -64,8 +64,9 @@ static void run_client(int nclient)
 				//~ printf("Client got short message\n");
 				//~ break;
 			}
-			printf("Client got \"%s\" & \"%s\" back [%zu]\n", msg[0], msg[1], nrecv);
+			printf("Client %d got \"%s\" & \"%s\" back [%zu]\n", nclient, msg[0], msg[1], nrecv);
 		}
+		sleep(1);
 		close(fd_skt);
 	//~ }
 	return;
@@ -112,6 +113,7 @@ static void run_server(void)
 		sendmsg(fd_skt, &m, 0);
 	}
 	close(fd_skt);
+	sleep(1);
 	exit(0);
 
 }

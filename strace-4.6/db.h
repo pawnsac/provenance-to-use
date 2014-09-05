@@ -18,6 +18,7 @@ typedef struct {
 typedef long long int ull_t;
 #endif
 
+
 // basic operations
 void db_write(lvldb_t *mydb, const char *key, const char *value);
 void db_write_fmt(lvldb_t *mydb, const char *key, const char *fmt, ...);

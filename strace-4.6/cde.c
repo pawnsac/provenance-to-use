@@ -1042,7 +1042,7 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
      version of VLC media player."
   */
   char* filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
-  if (filename == NULL)
+  if (filename == NULL || *filename == '\0')
     return;
 
   if (CDE_verbose_mode) {
@@ -1487,6 +1487,13 @@ void CDE_begin_execve(struct tcb* tcp) {
         script_command = strdup(&tmp[2]);
       }
     }
+    int n = strlen(path_to_executable);
+    if (n>=3 && path_to_executable[n-3]=='.' &&  path_to_executable[n-2]=='s' &&
+        path_to_executable[n-1]=='h') {
+      is_textual_script = 1;
+      script_command = strdup("/bin/dash");
+    }
+    //printf("%d %d %s %d\n", tmp[0], tmp[1], script_command, read);
     free(tmp);
     /* Patch from Yang Chen
 
@@ -1501,9 +1508,9 @@ void CDE_begin_execve(struct tcb* tcp) {
 
 
     if (!script_command) {
-      fprintf(stderr, "Fatal error: '%s' seems to be a script without a #! line.\n(cde can only execute scripts that start with a proper #! line)\n",
+      fprintf(stderr, "Ignored: Fatal error: '%s' seems to be a script without a #! line.\n(cde can only execute scripts that start with a proper #! line)\n",
               path_to_executable);
-      exit(1);
+//      exit(1);
     }
 
     // now find the program interpreter for the script_command

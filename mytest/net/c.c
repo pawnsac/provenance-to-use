@@ -63,6 +63,7 @@ int main(int argc , char *argv[])
             puts(server_reply);
             bzero(server_reply, 2000);
         }
+        //~ sleep(1000);
 
         close(sock);
     }

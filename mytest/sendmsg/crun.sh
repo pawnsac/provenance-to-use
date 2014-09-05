@@ -6,7 +6,7 @@ rm -rf cde-package/
 
 ### start server
 ../../ptu $@ ./msg a &
-sleep 2
+sleep 3
 killall msg
 
 ### post-process db for indirect (spawn) links

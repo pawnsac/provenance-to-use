@@ -17,7 +17,7 @@ f.close()
 
 random.seed(inputname)
 secs = 30 + random.randrange(20)
-secs = 20
+secs = 30
 time.sleep(secs)
 
 fout.close()

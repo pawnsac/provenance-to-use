@@ -9,7 +9,7 @@ cp ./msg $AWD/
 cd $AWD
 ../../../../../../../cde-exec $@ -N provenance.cde-root.1.log_db ./msg a &
 cdepid=$!
-sleep 2
+sleep 4
 
 kill -9 $cdepid >/dev/null 2>&1
 ps ef | grep "cde-package/cde-root/lib64/ld-linux" | awk '{print $1}' | while read l; do kill -9 $l > /dev/null 2>&1; done
