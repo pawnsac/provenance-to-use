@@ -4078,6 +4078,10 @@ int get_repo_path_id(char* path) {
   return -1;
 }
 
+// =======================================================================
+// quanpt - additional stuffs for SSH implementation
+// =======================================================================
+
 // check if a path is a binary of ssh or not
 // currently implement by comparing path to "/ssh$"
 int is_ssh(char* path) {
