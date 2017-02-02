@@ -14,6 +14,7 @@ import re
 from subprocess import call
 import os, sys, time, datetime, glob, json
 import argparse
+import pickle_message_generator
 
 def isFilteredPath(path):
   if re.match('\/proc\/', path) is None \
@@ -32,7 +33,7 @@ parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
 parser.add_argument('--nofilter', action="store_true", default=False)
 parser.add_argument('--withfork', action="store_true", default=False)
-parser.add_argument('-f', action="store", dest="fin_name", default="provenance.log")
+parser.add_argument('-f', action="store", dest="fin_name", default="provenance.cde-root.1.log")
 parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
 parser.add_argument('--withgraph', action="store_true", default=False)
 
@@ -44,6 +45,8 @@ withfork = args.withfork
 dir = args.dir_name
 logfile = args.fin_name
 withgraph = args.withgraph
+
+pickle_message_generator.deliver_messages(logfile) #delivers messages about missing pickle files
 
 meta = {}
 colors=['yellow','pink','lightgreen','lightblue'] 
