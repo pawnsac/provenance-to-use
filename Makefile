@@ -21,6 +21,7 @@ snappy-1.1.1/Makefile:
 
 clean:
 	cd readelf-mini && make clean
+	cd snappy-1.1.1 && rm -f Makefile
 	cd strace-4.6 && make clean
 	rm -f ptu ptu-exec okapi
 
