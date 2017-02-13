@@ -27,7 +27,7 @@ disk space and 4GB of RAM.
 2. Install required PTU dependencies:
 
    ```bash
-   # apt-get install gcc gcc-c++ make git
+   # apt-get install gcc gcc-c++ make git gv graphviz libz-dev
    ```
 
 3. Download the PTU application via Bitbucket:
@@ -67,10 +67,12 @@ and 4GB of RAM.  Select the Gnome graphical environment option.  Deselect the
 Security Policy option (i.e. set "Apply Security Policy" to off, disabling
 SELinux).
 
-2. Install required PTU dependencies and create link to needed C++ library:
+2. Install the EPEL respository (which contains the gv package), then install
+required PTU dependencies and create link to needed C++ library:
 
    ```bash
-   # yum install gcc gcc-c++ git
+   # yum install epel-release
+   # yum install gcc gcc-c++ git graphviz gv
    # mkdir -p /usr/x86_64-redhat-linux/lib64/
    # ln -s /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libstdc++.so /usr/x86_64-redhat-linux/lib64/libstdc++.so
    ```
