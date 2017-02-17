@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Given a package root directory, argv[1], find all shared libraries (*.so*)
 # referenced by constant strings within all ELF binaries within the package, and
 # copy all of those shared libraries (and their transitive dependencies) into the

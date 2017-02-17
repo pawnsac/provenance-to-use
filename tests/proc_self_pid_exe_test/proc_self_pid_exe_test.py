@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # if a program does readlink("/proc/<pid>/exe"), then make sure it
 # returns the REAL path to that program rather than the path to the
 # dynamic linker

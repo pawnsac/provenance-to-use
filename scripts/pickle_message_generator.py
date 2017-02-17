@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 def python_process_detector(line, L1):
     """
     identifies all python processes listed in the log file

@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # common utilities for all CDE tests
 import os, time
 from subprocess import *

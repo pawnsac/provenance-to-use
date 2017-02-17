@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Make sure /proc/self/cwd returns the same program path on both the
 # original and subsequent runs
 

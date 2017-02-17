@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # dynamically load a crap-load of libraries!
 import numpy
 import scipy

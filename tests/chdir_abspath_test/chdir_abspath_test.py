@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # do a chdir into an absolute path and also getcwd
 
 import os

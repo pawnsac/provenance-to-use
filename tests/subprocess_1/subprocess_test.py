@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import os
 
 # spawn a sub-process

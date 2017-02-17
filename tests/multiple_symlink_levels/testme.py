@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 '''
 
 some programs like java are really picky about the EXACT directory

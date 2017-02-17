@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Deep copy an entire directory argv[1] into another directory argv[2]
 # ---
 #

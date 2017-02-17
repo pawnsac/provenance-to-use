@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # really crappy test runner
 
 import os
