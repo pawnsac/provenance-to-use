@@ -15,4 +15,5 @@ then
     cd ..
 fi
 
-python ./runpid.py -f $logfile "$@"
+/usr/bin/env python2 ./runpid.py -f $logfile "$@"
+

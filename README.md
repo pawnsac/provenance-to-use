@@ -161,7 +161,13 @@ NOTE: Since Antergos is a rolling distribution based on Arch Linux, its "version
 number" is best described as a given point in time; this setup was tested with
 an up-to-date Antergos install on 09 FEB 2017.
 
-2. Download the PTU application via Bitbucket:
+2. Install required PTU dependencies:
+
+   ```bash
+   # pacman -S graphviz gv
+   ```
+
+3. Download the PTU application via Bitbucket:
 
    ```bash
    $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
@@ -170,19 +176,19 @@ an up-to-date Antergos install on 09 FEB 2017.
    NOTE: to avoid future naming conflicts, do not rename the cloned directory to
    "PTU"
 
-3. Change to the newly-cloned PTU directory:
+4. Change to the newly-cloned PTU directory:
 
    ```bash
    $ cd provenance-to-use
    ```
 
-4. Compile and install PTU:
+5. Compile and install PTU:
 
    ```bash
    $ make
    ```
 
-5. Temporarily export the PTU directory location to the expected environment
+6. Temporarily export the PTU directory location to the expected environment
 variable.  For a permanent export, place this line in your user ~/.bash_profile
 file.
 

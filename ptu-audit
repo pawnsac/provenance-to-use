@@ -13,7 +13,7 @@ cp $package/cde-exec $package/cde-exec.org 2>/dev/null
 cp $PTU_HOME/ptu-exec $package/ 2>/dev/null
 cp $PTU_HOME/scripts/runpid.py $package/ 2>/dev/null
 
-python $PTU_HOME/scripts/prov2dot.py 2>/dev/null
+/usr/bin/env python2 $PTU_HOME/scripts/prov2dot.py 2>/dev/null
 cp -f ptu/provenance.cde-root.1.log gv/provenance.log 2>/dev/null
 
 mv gv $package/

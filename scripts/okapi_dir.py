@@ -39,7 +39,7 @@ Now you run:
 
 In order to copy the entirety of /tmp/A into B/, you run:
 
-  python CDE/scripts/okapi_dir.py /tmp/A/ B/
+  /usr/bin/env python2 CDE/scripts/okapi_dir.py /tmp/A/ B/
 
 and now the contents of B will look like:
 
