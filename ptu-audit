@@ -1,22 +1,27 @@
+# ptu-audit: capture an application's code, data, and environment
+# usage: /path/to/ptu-audit /path/to/binary-or-script [binary-or-script args]
+# limitations: you may NOT run ptu-audit from within the ptu program dir!
 #!/bin/sh
-if [ -z "${PTU_HOME+xxx}" ]
-then 
-  echo PTU_HOME is not set
+
+# check if user has exported PTU_HOME env var correctly
+if [ ! -d "${PTU_HOME}" ]; then
+  echo "Error: PTU_HOME environment variable is not set correctly"
   exit
 fi
 
+# set the dir to capture the app in, then capture it
 package=./ptu
+${PTU_HOME}/ptu -o ${package} "$@"
 
-# make the package
-$PTU_HOME/ptu -o $package "$@"
-cp $package/cde-exec $package/cde-exec.org 2>/dev/null
-cp $PTU_HOME/ptu-exec $package/ 2>/dev/null
-cp $PTU_HOME/scripts/runpid.py $package/ 2>/dev/null
+# copy the entire ptu program to the capture dir
+cp ${PTU_HOME}/ptu-exec ${package}/
+cp ${PTU_HOME}/scripts/runpid.py ${package}/
+cp -r ${PTU_HOME} ${package}/src
 
-/usr/bin/env python2 $PTU_HOME/scripts/prov2dot.py 2>/dev/null
-cp -f ptu/provenance.cde-root.1.log gv/provenance.log 2>/dev/null
+# generate the process graph and move its output to graph dir "gv"
+/usr/bin/env python2 ${PTU_HOME}/scripts/prov2dot.py
+mv gv ${package}/
 
-mv gv $package/
-
-cp -r $PTU_HOME $package/src
+# copy ptu log file needed by graph to the graph dir
+cp ${package}/provenance.cde-root.1.log ${package}/gv/provenance.log
 
