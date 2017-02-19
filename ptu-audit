@@ -20,7 +20,7 @@ cp -r ${PTU_HOME} ${package}/src
 
 # generate the process graph and move its output to graph dir "gv"
 /usr/bin/env python2 ${PTU_HOME}/scripts/prov2dot.py
-mv gv ${package}/
+mv -f gv ${package}/
 
 # copy ptu log file needed by graph to the graph dir
 cp ${package}/provenance.cde-root.1.log ${package}/gv/provenance.log

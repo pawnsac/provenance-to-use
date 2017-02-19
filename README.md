@@ -8,8 +8,8 @@ machine.
 
 ## Table of Contents
 
-- [Installation](#installation)
-- [Usage](#usage)
+- [Installation](#markdown-header-installation)
+- [Usage](#markdown-header-usage)
 
 ## Installation
 
@@ -22,40 +22,30 @@ disk space and 4GB of RAM.
 
 2. Install required PTU dependencies and create link to needed C++ library:
 
-```bash
-# dnf install gcc-c++ libstdc++-static graphviz gv python2
-# mkdir -p /usr/x86_64-redhat-linux/lib64/
-# ln -s /usr/lib/gcc/x86_64-redhat-linux/6.3.1/libstdc++.so /usr/x86_64-redhat-linux/lib64/libstdc++.so
-```
+        # dnf install gcc-c++ libstdc++-static graphviz gv gnuplot python2
+        # mkdir -p /usr/x86_64-redhat-linux/lib64/
+        # ln -s /usr/lib/gcc/x86_64-redhat-linux/6.3.1/libstdc++.so /usr/x86_64-redhat-linux/lib64/libstdc++.so
 
 3. Download the PTU application via Bitbucket:
 
-```bash
-$ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
-```
+        $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
 
 NOTE: to avoid future naming conflicts, do not rename the cloned directory to
 "PTU"
 
 4. Change to the newly-cloned PTU directory:
 
-```bash
-$ cd provenance-to-use
-```
+        $ cd provenance-to-use
 
 5. Compile and install PTU:
 
-```bash
-$ make
-```
+        $ make
 
 6. Temporarily export the PTU directory location to the expected environment
 variable.  For a permanent export, place this line in your user ~/.bash_profile
 file.
 
-```bash
-$ export PTU_HOME=/path/to/provenance-to-use
-```
+        $ export PTU_HOME=/path/to/provenance-to-use
 
 ### Ubuntu
 
@@ -68,7 +58,7 @@ disk space and 4GB of RAM.
 2. Install required PTU dependencies:
 
 ```bash
-# apt-get install gcc gcc-c++ make git gv graphviz libz-dev
+# apt-get install gcc gcc-c++ make git gv graphviz gnuplot libz-dev
 ```
 
 3. Download the PTU application via Bitbucket:
@@ -113,7 +103,7 @@ required PTU dependencies and create link to needed C++ library:
 
 ```bash
 # yum install epel-release
-# yum install gcc gcc-c++ libstdc++-static git graphviz gv
+# yum install gcc gcc-c++ libstdc++-static git graphviz gv gnuplot
 # mkdir -p /usr/x86_64-redhat-linux/lib64/
 # ln -s /usr/lib/gcc/x86_64-redhat-linux/4.8.2/libstdc++.so /usr/x86_64-redhat-linux/lib64/libstdc++.so
 ```
@@ -234,4 +224,13 @@ processes and files used by the captured application.
 * `gv/main.html` file: an html representation of the graph, viewable in any
 browser.
 
+### Viewing The Capture Graphs
+
+PTU produces many graphs that depict the captured application's process
+hierarchy, memory usage, etc.  You can view them using firefox (or your browser
+of choice) with the following command:
+
+```bash
+$ firefox ptu/gv/main.html
+```
 
