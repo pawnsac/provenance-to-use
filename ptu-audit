@@ -1,7 +1,7 @@
-# ptu-audit: capture an application's code, data, and environment
-# usage: /path/to/ptu-audit /path/to/binary-or-script [binary-or-script args]
-# limitations: you may NOT run ptu-audit from within the ptu program dir!
 #!/bin/sh
+# PURPOSE: capture an application's code, data, environment, and provenance
+# USAGE: /path/to/ptu-audit /path/to/binary-or-script [binary-or-script args]
+# LIMITATIONS: you may NOT run ptu-audit from within the ptu program dir!
 
 # check if user has exported PTU_HOME env var correctly
 if [ ! -d "${PTU_HOME}" ]; then

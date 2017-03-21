@@ -1,19 +1,27 @@
 #!/bin/sh
+# PURPOSE: run only part (i.e. a specific process) of a reference execution
+#          (i.e. a captured application)
+# USAGE: /path/to/ptu-exec -p [PID]
+# LIMITATIONS: assumes this script run from within "ptu" directory
 
-logfile=./gv/provenance.log
+# log file containing processes, files, memory, and resources used by ref exec
+logfile=provenance.cde-root.1.log
+# ptu executable file (exists if ptu has already been built from source)
+built_exec=cde-exec
 
-if [ ! -f $logfile ]
-then
-    echo "File" $logfile " not found!"
+# no log file (therefore, no app has been captured yet with ptu-audit): abort
+if [ ! -f "${logfile}" ]; then
+    echo "Error: file ${logfile} not found!"
 fi
 
-if [ ! -f ./cde-exec ]
-then
+# no cde-exec file exists (therefore PTU has not been built yet): build it
+if [ ! -f "./${built_exec}" ]; then
     cd src
     make
-    cp ptu ../cde-exec
+    cp ptu "../${built_exec}"
     cd ..
 fi
 
-/usr/bin/env python2 ./runpid.py -f $logfile "$@"
+# run specific process of captured app by calling runpid.py
+/usr/bin/env python2 ./runpid.py -f ${logfile} "$@"
 
