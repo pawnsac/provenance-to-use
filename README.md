@@ -8,19 +8,38 @@ the whole application (or a specific subpart of it) on a bare Linux machine.
 
 ## Table of Contents
 
-- [Terms-And-Definitions](#markdown-header-terms-and-definitions)
-- [Installation](#markdown-header-installation)
-- [Usage](#markdown-header-usage)
-- [Architecture](#markdown-header-architecture)
-- [Project-Team](#markdown-header-project-team)
-- [License](#markdown-header-license)
+* [Terms-And-Definitions](#markdown-header-terms-and-definitions)
+* [Installation](#markdown-header-installation)
+    * [Fedora](#markdown-header-fedora)
+        * [Fedora-25-Workstation](#markdown-header-fedora-25-workstation)
+    * [Ubuntu](#markdown-header-ubuntu)
+        * [Ubuntu-Mate-16.10](#markdown-header-ubuntu-mate-16.10)
+    * [CentOS](#markdown-header-centos)
+        * [CentOS-7](#markdown-header-centos-7)
+    * [Arch-Linux](#markdown-header-arch-linux)
+        * [Antergos-17-2](#markdown-header-antergos-17-2)
+* [Usage](#markdown-header-usage)
+    * [Capturing-An-Application](#markdown-header-capturing-an-application)
+        * [Capture-Commands](#markdown-header-capture-commands)
+        * [Created-Capture-Files](#markdown-header-created-capture-files)
+        * [Viewing-The-Capture-Graphs](#markdown-header-viewing-the-capture-graphs)
+    * [Running-A-Captured-Application](#markdown-header-running-a-captured-application)
+        * [Running-The-Whole-Captured-Application](#markdown-header-running-the-whole-captured-application)
+        * [Running-Only-Part-Of-The-Captured-Application](#markdown-header-running-only-part-of-the-captured-application)
+        * [Created-Subprocess-Run-Files](#markdown-header-created-subprocess-run-files)
+* [Architecture](#markdown-header-architecture)
+    * [High-Level-Architecture](#markdown-header-high-level-architecture)
+    * [Source-Code-Layout](#markdown-header-source-code-layout)
+    * [Executable-Code-Layout](#markdown-header-executable-code-layout)
+* [Project-Team](#markdown-header-project-team)
+* [License](#markdown-header-license)
 
 ## Terms And Definitions
 
-  * __audit__: capture an application by running it with PTU
-  * __reference execution__: a single "run" of a captured application.  If the
-    same application is captured multiple times, each run will produce a new
-    reference execution.
+* __audit__: capture an application by running it with PTU
+* __reference execution__: a single "run" of a captured application.  If the
+  same application is captured multiple times, each run will produce a new
+  reference execution.
 
 ## Installation
 
@@ -41,7 +60,7 @@ disk space and 4GB of RAM.
 
         $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
 
-  * NOTE: to avoid future naming conflicts, do not rename the cloned directory
+    NOTE: to avoid future naming conflicts, do not rename the cloned directory
     to "PTU"
 
 4. Change to the newly-cloned PTU directory:
@@ -73,7 +92,7 @@ disk space and 4GB of RAM.
 
         $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
 
-  * NOTE: to avoid future naming conflicts, do not rename the cloned directory
+    NOTE: to avoid future naming conflicts, do not rename the cloned directory
     to "PTU"
 
 4. Change to the newly-cloned PTU directory:
@@ -111,7 +130,7 @@ required PTU dependencies and create link to needed C++ library:
 
         $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
 
-  * NOTE: to avoid future naming conflicts, do not rename the cloned directory
+    NOTE: to avoid future naming conflicts, do not rename the cloned directory
     to "PTU"
 
 4. Change to the newly-cloned PTU directory:
@@ -135,7 +154,7 @@ variable.  For a permanent export, place this line in your user
 1. Install an Antegros 17-2 iso to a machine or VM with at least 20GB of
 disk space and 4GB of RAM.  Select the KDE desktop environment option.
 
-  * NOTE: Since Antergos is a rolling distribution based on Arch Linux, its
+    NOTE: Since Antergos is a rolling distribution based on Arch Linux, its
     "version number" is best described as a given point in time; this setup was
     tested with an up-to-date Antergos install on 09 FEB 2017.
 
@@ -147,7 +166,7 @@ disk space and 4GB of RAM.  Select the KDE desktop environment option.
 
         $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
 
-  * NOTE: to avoid future naming conflicts, do not rename the cloned directory
+    NOTE: to avoid future naming conflicts, do not rename the cloned directory
     to "PTU"
 
 4. Change to the newly-cloned PTU directory:
@@ -247,12 +266,12 @@ file `[binary-or-script-name.cde]` (See
 [Created Capture Files](#markdown-header-created-capture-files) above for
 explanation).
 
-3. Run the special executable file by invoking the same command (with the same
+3. Run the shortcut script file by invoking the same command (with the same
 options) that was run to capture the application:
 
         $ /path/to/cde-root/path/to/binary-or-script.cde [binary-or-script arguments]
 
-For the above example, the following command would run the captured application:
+    For the above example, the following command would run the captured application:
 
         $ /home/user1/ptu/cde-root/home/user1/mutt.cde -R
 
