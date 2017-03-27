@@ -1,7 +1,7 @@
 #!/bin/bash
 AWD=cde-package/cde-root/home/quanpt/assi/cde/mytest/sendmsg
 
-cp ../../ptu-ex cde-package/cde-exec
+cp ../../ptu cde-package/cde-exec
 rm -rf cde-package/provenance.cde-root.1.log_db.*
 cp ./msg $AWD/
 

@@ -8,7 +8,6 @@ all: strace-4.6/Makefile okapi snappy-1.1.1/Makefile leveldb-1.14.0/Makefile
 	cd leveldb-1.14.0 && export CXXFLAGS=-I../snappy-1.1.1 && make
 	cd strace-4.6 && make
 	mv -f strace-4.6/strace ./ptu
-	cp ptu ptu-ex
 
 install: all
 	install ptu ptu-exec $(PREFIX)/bin
@@ -23,7 +22,7 @@ clean:
 	cd readelf-mini && make clean
 	cd snappy-1.1.1 && rm -f Makefile
 	cd strace-4.6 && make clean
-	rm -f ptu ptu-ex okapi
+	rm -f ptu okapi
 
 okapi: strace-4.6/okapi.c strace-4.6/okapi.h
 	gcc -Wall -g -O2 -D_GNU_SOURCE -DOKAPI_STANDALONE strace-4.6/okapi.c -o okapi
