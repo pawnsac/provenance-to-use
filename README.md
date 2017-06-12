@@ -13,7 +13,8 @@ the whole application (or a specific subpart of it) on a bare Linux machine.
     * [Fedora](#markdown-header-fedora)
         * [Fedora 25 Workstation](#markdown-header-fedora-25-workstation)
     * [Ubuntu](#markdown-header-ubuntu)
-        * [Ubuntu Mate 16.10](#markdown-header-ubuntu-mate-16.10)
+        * [Ubuntu Mate 16-10](#markdown-header-ubuntu-mate-16-10)
+        * [Ubuntu Desktop 17-04](#markdown-header-ubuntu-desktop-17-04)
     * [CentOS](#markdown-header-centos)
         * [CentOS 7](#markdown-header-centos-7)
     * [Arch Linux](#markdown-header-arch-linux)
@@ -79,7 +80,7 @@ variable.  For a permanent export, place this line in your user
 
 ### Ubuntu
 
-#### Ubuntu Mate 16.10
+#### Ubuntu Mate 16-10
 
 1. Install an Ubuntu Mate 16.10 iso to a machine or VM with at least 20GB of
 disk space and 4GB of RAM.
@@ -87,6 +88,36 @@ disk space and 4GB of RAM.
 2. Install required PTU dependencies:
 
         $ apt-get install gcc gcc-c++ make git gv graphviz gnuplot libz-dev
+
+3. Download the PTU application via Bitbucket:
+
+        $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
+
+    NOTE: to avoid future naming conflicts, do not rename the cloned directory
+    to "PTU"
+
+4. Change to the newly-cloned PTU directory:
+
+        $ cd provenance-to-use
+
+5. Compile and install PTU:
+
+        $ make
+
+6. Temporarily export the PTU directory location to the expected environment
+variable.  For a permanent export, place this line in your user `~/.profile`
+file.
+
+        $ export PTU_HOME=/path/to/provenance-to-use
+
+#### Ubuntu Desktop 17-04
+
+1. Install an Ubuntu Desktop 17-04 iso to a machine or VM with at least 20GB of
+disk space and 4GB of RAM.
+
+2. Install required PTU dependencies:
+
+        $ apt-get install make git gv graphviz gnuplot zlib1g-dev
 
 3. Download the PTU application via Bitbucket:
 
