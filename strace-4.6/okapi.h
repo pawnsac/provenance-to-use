@@ -53,6 +53,8 @@ CDE is currently licensed under GPL v3:
 // quick check for whether a path is absolute
 #define IS_ABSPATH(p) ((p) && p[0] == '/')
 
+float audit_file_ops;  // audit file copy performance timing
+
 // to shut up gcc warnings without going thru #include hell
 extern char* basename(const char *fname);
 extern char *dirname(char *path);

@@ -1491,7 +1491,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (n>=3 && path_to_executable[n-3]=='.' &&  path_to_executable[n-2]=='s' &&
         path_to_executable[n-1]=='h') {
       is_textual_script = 1;
-      script_command = strdup("/bin/dash");
+      script_command = strdup("/bin/sh");
     }
     //printf("%d %d %s %d\n", tmp[0], tmp[1], script_command, read);
     free(tmp);

@@ -53,6 +53,9 @@
 #include <limits.h>
 #include <dirent.h>
 
+// audit file copy performance timing
+#include <stdio.h>
+#include "okapi.h"
 
 #ifdef LINUX
 # include <asm/unistd.h>
@@ -818,9 +821,13 @@ test_ptrace_setoptions(void)
 }
 #endif
 
+extern float audit_file_ops;  // audit file copy performance timing
+
 int
 main(int argc, char *argv[])
 {
+    audit_file_ops = 0.0f;  // audit file copy performance timing
+
 	struct tcb *tcp;
 	int c, pid = 0;
 	int optF = 0;
@@ -1267,6 +1274,10 @@ main(int argc, char *argv[])
 		   Exit with 128 + signo then.  */
 		exit_code += 128;
 	}
+
+    // audit file copy performance timing
+    printf("total time doing file copying during audit: %.3f\n", audit_file_ops);
+
 	exit(exit_code);
 }
 
