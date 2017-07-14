@@ -21,9 +21,10 @@ LINK=$(CXX) -rdynamic -pthread -static-libgcc  -static-libstdc++ -o $@
 strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \
 		 io.c ioctl.c mem.c net.c process.c bjm.c quota.c \
 		 resource.c signal.c sock.c system.c term.c time.c \
-                proc.c scsi.c stream.c block.c cde.c okapi.c \
-		cdenet.c provenance.c db.c multi.c
-noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h db.h multi.h
+         proc.c scsi.c stream.c block.c cde.c okapi.c \
+		 cdenet.c provenance.c db.c multi.c perftimers.c
+noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h db.h multi.h \
+		 perftimers.h
 
 EXTRA_DIST = $(man_MANS) errnoent.sh signalent.sh syscallent.sh ioctlsort.c \
 	     debian/changelog debian/compat debian/control debian/copyright \
