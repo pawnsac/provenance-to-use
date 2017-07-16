@@ -3,21 +3,25 @@ module:   perftimers
 author:   digimokan
 date:     14 JUL 2017 (created)
 purpose:  start, stop, and output specific pre-configured performance timers
+timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 *******************************************************************************/
 
 #ifndef PERFTIMERS_H
 #define PERFTIMERS_H
 
-#define ENABLED 0
-#define DISABLED 1
-
-typedef enum perf_timers {
-  NO_TIMERS =           0,
+// the current set of pre-defined perf timers
+typedef enum {
   AUDIT_FILE_COPYING =  0x01,
-  NUM_PERF_TIMERS =     3
-} PerfTimers;
+} PerfTimer;
 
-typedef enum timer_action {
+// for enabling, disabling, or getting status of specific perf timer
+typedef enum {
+  DISABLED = 0,
+  ENABLED =  1
+} TimerStatus;
+
+// for returning success of the enable/stop/start/get-total timer action
+typedef enum {
   SUCCESS_TIMER_ENABLED,
   SUCCESS_TIMER_DISBLED,
   SUCCESS_TIMER_STARTED,
@@ -30,13 +34,17 @@ typedef enum timer_action {
   ERR_TIMER_ALREADY_DISABLED
 } TimerAction;
 
-extern int timers_enabled;
-extern int timers_running;
+// enable or disable specific perf timer and return success/error of the action
+extern inline TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus enable);
 
-TimerAction set_perf_timer (const PerfTimers pt, const int enabled_or_disabled);
-TimerAction start_perf_timer (const PerfTimers pt);
-TimerAction stop_perf_timer (const PerfTimers pt);
-TimerAction get_total_perf_time (const PerfTimers pt, double* total_time);
+// start specific perf timer and return success/error of the action
+extern inline TimerAction start_perf_timer (const PerfTimer pt);
 
-#endif /* PERFTIMERS_H */
+// stop specific perf timer and return success/error of the action
+extern inline TimerAction stop_perf_timer (const PerfTimer pt);
+
+// get total accum time of specific perf timer and return success/error of the action
+extern inline TimerAction get_total_perf_time (const PerfTimer pt, double* total_time);
+
+#endif // PERFTIMERS_H
 
