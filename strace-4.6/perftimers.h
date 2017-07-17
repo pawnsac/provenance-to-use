@@ -31,10 +31,12 @@ typedef enum {
   ERR_TIMER_ALREADY_ENABLED,
   ERR_TIMER_ALREADY_STARTED,
   ERR_TIMER_ALREADY_STOPPED,
-  ERR_TIMER_ALREADY_DISABLED
+  ERR_TIMER_ALREADY_DISABLED,
+  ERR_UNKNOWN_ERROR
 } TimerAction;
 
 // enable or disable specific perf timer and return success/error of the action
+// NOTE successful enable will zero out a timer's accumulated time
 TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus enable);
 
 // start specific perf timer and return success/error of the action
