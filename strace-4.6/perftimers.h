@@ -25,7 +25,7 @@ typedef enum {
 // for returning success of the enable/stop/start/get-total timer action
 typedef enum {
   SUCCESS_TIMER_ENABLED,
-  SUCCESS_TIMER_DISBLED,
+  SUCCESS_TIMER_DISABLED,
   SUCCESS_TIMER_STARTED,
   SUCCESS_TIMER_STOPPED,
   SUCCESS_TIMER_TOTAL_RETURNED,

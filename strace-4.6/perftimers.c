@@ -25,8 +25,22 @@ timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 
 static int timers_status = NO_TIMERS;   // bit flags track which timers enabled/disabled
 static int timers_running = NO_TIMERS;  // bit flags track which timers started/stopped
-static struct timespec fileops_start;   // save timer start times
-static struct timespec fileops_total;   // save cumulative timer start-to-stop times
+static struct timespec start_times[NUM_TIMERS]; // save timer start times
+static struct timespec total_times[NUM_TIMERS]; // save timer cumulative start-to-stop times
+
+// convert a PerfTimer enum into an array index based on its bit pos
+static inline int get_index (const PerfTimer pt) {
+  int bitpos = 1;   // start from right and shift this bit to left
+  int index = 0;    // use to find index of bit set in pt (0 is rightmost index)
+
+  // iterate until we find the '1' bit set in pt
+  while (! (bitpos & pt)) {
+    bitpos <<= 1;
+    index++;
+  }
+
+  return index;
+}
 
 // return true if specific perf timer bit flag is "enabled"
 static inline bool is_enabled (const PerfTimer pt) {
@@ -88,15 +102,15 @@ static inline TimerAction set_timer (const PerfTimer pt, const TimerStatus stat_
     act = ERR_TIMER_ALREADY_ENABLED;
   // trying to enable timer that's currently disabled: enable it
   } else if ( (stat_req == ENABLED) && (!pt_enabled) ) {
-    fileops_total.tv_sec = 0;
-    fileops_total.tv_nsec = 0;
+    const int ptindex = get_index(pt);
+    total_times[ptindex].tv_sec = 0;
+    total_times[ptindex].tv_nsec = 0;
     set_enabled(pt);
     act = SUCCESS_TIMER_ENABLED;
-    printf("timer enabled.\n");
   // trying to disable timer that's currently enabled: disable it
   } else if ( ((stat_req == DISABLED)) && pt_enabled ) {
     set_disabled(pt);
-    act = SUCCESS_TIMER_DISBLED;
+    act = SUCCESS_TIMER_DISABLED;
   // trying to disable timer that's already disabled: return err
   } else if ( ((stat_req == DISABLED)) && (!pt_enabled) ) {
     act = ERR_TIMER_ALREADY_DISABLED;
@@ -112,16 +126,15 @@ static inline TimerAction start_timer (const PerfTimer pt) {
   // trying to start timer that's not yet enabled: return err
   if (!is_enabled(pt)) {
     act = ERR_TIMER_NOT_ENABLED;
-    printf("start_timer: ERR_TIMER_NOT_ENABLED.\n");
   // trying to start timer that's already started: return err
   } else if (is_started(pt)) {
     act = ERR_TIMER_ALREADY_STARTED;
   // timer is enabled but not currently running: start it
   } else {
-    clock_gettime(CLOCK_MONOTONIC, &fileops_start);
+    const int ptindex = get_index(pt);
+    clock_gettime(CLOCK_MONOTONIC, &start_times[ptindex]);
     set_started(pt);
     act = SUCCESS_TIMER_STARTED;
-    printf("timer started.\n");
   }
 
   return act;
@@ -130,8 +143,8 @@ static inline TimerAction start_timer (const PerfTimer pt) {
 // stop specific perf timer and return success/error of the action
 static inline TimerAction stop_timer (const PerfTimer pt) {
   TimerAction act = ERR_UNKNOWN_ERROR;
-  struct timespec fileops_stop;
-  struct timespec fileops_subtotal;
+  struct timespec tsstop;
+  struct timespec tssubtotal;
 
   // trying to stop timer that's not yet enabled: return err
   if (!is_enabled(pt)) {
@@ -139,15 +152,14 @@ static inline TimerAction stop_timer (const PerfTimer pt) {
   // trying to stop timer that's not yet started: return err
   } else if (!is_started(pt)) {
     act = ERR_TIMER_ALREADY_STOPPED;
-    printf("start_timer: ERR_TIMER_ALREADY_STOPPED.\n");
   // timer is enabled and running: stop it and accumulate the run time
   } else {
-    clock_gettime(CLOCK_MONOTONIC, &fileops_stop);
-    sub_ts(&fileops_subtotal, &fileops_stop, &fileops_start);
-    add_ts(&fileops_total, &fileops_total, &fileops_subtotal);
+    clock_gettime(CLOCK_MONOTONIC, &tsstop);
+    const int ptindex = get_index(pt);
+    sub_ts(&tssubtotal, &tsstop, &start_times[ptindex]);
+    add_ts(&total_times[ptindex], &total_times[ptindex], &tssubtotal);
     set_stopped(pt);
     act = SUCCESS_TIMER_STOPPED;
-    printf("timer stopped.\n");
   }
 
   return act;
@@ -165,9 +177,10 @@ static inline TimerAction get_total_time (const PerfTimer pt, double* total_time
     act = ERR_TIMER_RUNNING;
   // timer is enabled and stopped: return the total accumulated run time
   } else {
-    *total_time = (double)fileops_total.tv_sec + ( (double)fileops_total.tv_nsec / DOUBLE_NSEC_PER_SEC );
+    const int ptindex = get_index(pt);
+    *total_time = (double)total_times[ptindex].tv_sec +
+                  ( (double)total_times[ptindex].tv_nsec / DOUBLE_NSEC_PER_SEC );
     act = SUCCESS_TIMER_TOTAL_RETURNED;
-    printf("timer total returned.\n");
   }
 
   return act;
