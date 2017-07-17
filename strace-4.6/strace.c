@@ -829,7 +829,7 @@ int main (int argc, char *argv[]) {
   static char buf[BUFSIZ];
 
   // digimokan: set performance timer for okapi file copying during audit
-  set_perf_timer(AUDIT_FILE_COPYING, ENABLED);
+  set_perf_timer(AUDIT_FILE_COPYING, DISABLED);
 
   // pgbovine - make sure this constant is a reasonable number and not something KRAZY
   if (MAXPATHLEN > (1024 * 4096)) {
@@ -1273,8 +1273,9 @@ int main (int argc, char *argv[]) {
 
     // print audit file copying total time
     double audit_time;
-    TimerAction act = get_total_perf_time(AUDIT_FILE_COPYING, &audit_time);
-    printf("total time doing file copying during audit: %.3f\n", audit_time);
+    if (get_total_perf_time(AUDIT_FILE_COPYING, &audit_time) == SUCCESS_TIMER_TOTAL_RETURNED) {
+      printf("total time doing file copying during audit: %.3f\n", audit_time);
+    }
 
 	exit(exit_code);
 }

@@ -42,13 +42,13 @@ typedef enum {
 // NOTE successful enable will zero out a timer's accumulated time
 TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus stat_req);
 
-// start specific perf timer and return success/error of the action
+// start specific enabled perf timer and return success/error of the action
 TimerAction start_perf_timer (const PerfTimer pt);
 
-// stop specific perf timer and return success/error of the action
+// stop specific enabled perf timer and return success/error of the action
 TimerAction stop_perf_timer (const PerfTimer pt);
 
-// get total accum time of specific perf timer and return success/error of the action
+// get total accum time of specific enabled perf timer and return success/error of the action
 TimerAction get_total_perf_time (const PerfTimer pt, double* total_time);
 
 #endif // PERFTIMERS_H

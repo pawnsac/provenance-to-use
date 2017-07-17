@@ -190,23 +190,23 @@ static inline TimerAction get_total_time (const PerfTimer pt, double* total_time
  * PUBLIC INTERFACE
  ******************************************************************************/
 
-// enable or disable specific perf timer and return success/error of the action
+// enable or disable specific enabled perf timer and return success/error of the action
 // NOTE successful enable will zero out a timer's accumulated time
 inline TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus stat_req) {
   return set_timer(pt, stat_req);
 }
 
-// start specific perf timer and return success/error of the action
+// start specific enabled perf timer and return success/error of the action
 inline TimerAction start_perf_timer (const PerfTimer pt) {
   return start_timer(pt);
 }
 
-// stop specific perf timer and return success/error of the action
+// stop specific enabled perf timer and return success/error of the action
 inline TimerAction stop_perf_timer (const PerfTimer pt) {
   return stop_timer(pt);
 }
 
-// get total accum time of specific perf timer and return success/error of the action
+// get total accum time of specific enabled perf timer and return success/error of the action
 inline TimerAction get_total_perf_time (const PerfTimer pt, double* total_time) {
   return get_total_time(pt, total_time);
 }
