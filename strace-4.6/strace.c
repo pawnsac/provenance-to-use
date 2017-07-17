@@ -1271,9 +1271,10 @@ int main (int argc, char *argv[]) {
 		exit_code += 128;
 	}
 
-    // audit file copying performance timing
-    /*float fctime;*/
-    /*printf("total time doing file copying during audit: %.3f\n", get_total_perf_time(AUDIT_FILE_COPYING));*/
+    // print audit file copying total time
+    double audit_time;
+    TimerAction act = get_total_perf_time(AUDIT_FILE_COPYING, &audit_time);
+    printf("total time doing file copying during audit: %.3f\n", audit_time);
 
 	exit(exit_code);
 }

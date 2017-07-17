@@ -13,6 +13,8 @@ timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 typedef enum {
   AUDIT_FILE_COPYING =  0x01,
 } PerfTimer;
+// current num timers defined in PerfTimer enum
+#define NUM_TIMERS 1
 
 // for enabling, disabling, or getting status of specific perf timer
 typedef enum {
@@ -30,6 +32,7 @@ typedef enum {
   ERR_TIMER_NOT_ENABLED,
   ERR_TIMER_ALREADY_ENABLED,
   ERR_TIMER_ALREADY_STARTED,
+  ERR_TIMER_RUNNING,
   ERR_TIMER_ALREADY_STOPPED,
   ERR_TIMER_ALREADY_DISABLED,
   ERR_UNKNOWN_ERROR
@@ -37,7 +40,7 @@ typedef enum {
 
 // enable or disable specific perf timer and return success/error of the action
 // NOTE successful enable will zero out a timer's accumulated time
-TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus enable);
+TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus stat_req);
 
 // start specific perf timer and return success/error of the action
 TimerAction start_perf_timer (const PerfTimer pt);
