@@ -24,5 +24,5 @@ clean:
 	cd strace-4.6 && make clean
 	rm -f ptu ptu-exec okapi
 
-okapi: strace-4.6/okapi.c strace-4.6/okapi.h
-	gcc -Wall -g -O2 -D_GNU_SOURCE -DOKAPI_STANDALONE strace-4.6/okapi.c -o okapi
+okapi: strace-4.6/okapi.c strace-4.6/okapi.h strace-4.6/perftimers.c strace-4.6/perftimers.h
+	gcc -Wall -g -O2 -D_GNU_SOURCE -DOKAPI_STANDALONE strace-4.6/okapi.c strace-4.6/perftimers.c strace-4.6/perftimers.h -o okapi

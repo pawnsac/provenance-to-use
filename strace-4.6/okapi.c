@@ -47,24 +47,18 @@ CDE is currently licensed under GPL v3:
 
 */
 
+// system includes
+#include <stdarg.h>
+
+// user includes
 #include "okapi.h"
+#include "perftimers.h"   // performance timing of certain code segments
+
+// forward declares
+extern char* format (const char *format, ...);
+static struct path* new_path (char is_abspath);
 
 char OKAPI_VERBOSE = 1; // print out warning messages?
-
-
-// TODO: eliminate this hack if it results in a compile-time error
-#include "config.h" // to get I386 definition
-#if defined (I386)
-// This forces gcc to use an older version of realpath from glibc 2.0,
-// to maximize backwards compatibility
-// See: http://www.trevorpounds.com/blog/?p=103
-__asm__(".symver realpath,realpath@GLIBC_2.0");
-#endif
-
-#include <stdarg.h>
-extern char* format(const char *format, ...);
-
-static struct path* new_path(char is_abspath);
 
 // note that realpath_strdup and realpath_nofollow seem to do funny
 // things to arguments that are directories (okay for regular files,
@@ -522,9 +516,6 @@ done:
 // if pop_one is non-zero, then pop last element of original_abspath
 // before doing the "mkdir -p".
 void create_mirror_dirs(char* original_abspath, char* src_prefix, char* dst_prefix, int pop_one) {
-  /*extern float audit_file_ops;  // audit file copy performance timing*/
-  /*struct timespec fileops_start, fileops_stop;  // audit file copy performance timing*/
-
   assert(IS_ABSPATH(original_abspath));
   assert(IS_ABSPATH(dst_prefix));
 
@@ -558,11 +549,11 @@ void create_mirror_dirs(char* original_abspath, char* src_prefix, char* dst_pref
         }
         else {
           assert(S_ISDIR(src_dn_stat.st_mode));
-          /*clock_gettime(CLOCK_REALTIME, &fileops_start); // audit file copy performance timing*/
+
+          // create required dir, and optionally track time of creating
+          start_perf_timer(AUDIT_FILE_COPYING);
           mkdir(dst_dirname, 0777);
-          /*clock_gettime(CLOCK_REALTIME, &fileops_stop); // audit file copy performance timing*/
-          /*audit_file_ops += ( ( ((float)fileops_stop.tv_sec) - ((float)fileops_start.tv_sec) ) +*/
-                              /*( (((float)fileops_stop.tv_nsec) - ((float)fileops_start.tv_nsec)) / 1E9F) );*/
+          stop_perf_timer(AUDIT_FILE_COPYING);
         }
       }
 
@@ -588,9 +579,6 @@ void create_mirror_dirs(char* original_abspath, char* src_prefix, char* dst_pref
 //
 // Pre: $src_prefix/$filename_abspath is actually a symlink
 void create_mirror_symlink_and_target(char* filename_abspath, char* src_prefix, char* dst_prefix) {
-  /*extern float audit_file_ops;  // audit file copy performance timing*/
-  /*struct timespec fileops_start, fileops_stop;  // audit file copy performance timing*/
-
   assert(IS_ABSPATH(filename_abspath));
   assert(IS_ABSPATH(dst_prefix));
 
@@ -665,28 +653,26 @@ void create_mirror_symlink_and_target(char* filename_abspath, char* src_prefix, 
     assert(strstr(relative_symlink_target, "//"));
 
     // EEXIST means the file already exists, which isn't really a symlink failure ...
-    /*clock_gettime(CLOCK_REALTIME, &fileops_start); // audit file copy performance timing*/
+    // create required symlink, and optionally track time of creating
+    start_perf_timer(AUDIT_FILE_COPYING);
     if (symlink(relative_symlink_target, dst_symlink_path) != 0 && (errno != EEXIST)) {
       if (OKAPI_VERBOSE) {
         fprintf(stderr, "WARNING: symlink('%s', '%s') failed\n", relative_symlink_target, dst_symlink_path);
       }
     }
-    /*clock_gettime(CLOCK_REALTIME, &fileops_stop); // audit file copy performance timing*/
-    /*audit_file_ops += ( ( ((float)fileops_stop.tv_sec) - ((float)fileops_start.tv_sec) ) +*/
-                        /*( (((float)fileops_stop.tv_nsec) - ((float)fileops_start.tv_nsec)) / 1E9F) );*/
+    stop_perf_timer(AUDIT_FILE_COPYING);
   }
   else {
     symlink_target_abspath = format("%s/%s", dir_realpath, orig_symlink_target);
     // EEXIST means the file already exists, which isn't really a symlink failure ...
-    /*clock_gettime(CLOCK_REALTIME, &fileops_start); // audit file copy performance timing*/
+    // create required symlink, and optionally track time of creating
+    start_perf_timer(AUDIT_FILE_COPYING);
     if (symlink(orig_symlink_target, dst_symlink_path) != 0 && (errno != EEXIST)) {
       if (OKAPI_VERBOSE) {
         fprintf(stderr, "WARNING: symlink('%s', '%s') failed\n", orig_symlink_target, dst_symlink_path);
       }
     }
-    /*clock_gettime(CLOCK_REALTIME, &fileops_stop); // audit file copy performance timing*/
-    /*audit_file_ops += ( ( ((float)fileops_stop.tv_sec) - ((float)fileops_start.tv_sec) ) +*/
-                        /*( (((float)fileops_stop.tv_nsec) - ((float)fileops_start.tv_nsec)) / 1E9F) );*/
+    stop_perf_timer(AUDIT_FILE_COPYING);
   }
 
   assert(symlink_target_abspath);
@@ -792,9 +778,6 @@ done:
 // its permissions set to perms.
 // note that this WILL follow symlinks
 void copy_file(char* src_filename, char* dst_filename, int perms) {
-  /*extern float audit_file_ops;  // audit file copy performance timing*/
-  /*struct timespec fileops_start, fileops_stop;  // audit file copy performance timing*/
-
   int inF;
   int outF;
   int bytes;
@@ -817,7 +800,8 @@ void copy_file(char* src_filename, char* dst_filename, int perms) {
     perms = 0777;
   }
 
-  /*clock_gettime(CLOCK_REALTIME, &fileops_start); // audit file copy performance timing*/
+  // optionally track time of creating file
+  start_perf_timer(AUDIT_FILE_COPYING);
 
   inF = open(src_filename, O_RDONLY); // note that we might not have permission to open src_filename
   if ((outF = open(dst_filename, O_WRONLY | O_CREAT, perms)) < 0) {
@@ -839,9 +823,8 @@ void copy_file(char* src_filename, char* dst_filename, int perms) {
 
   close(outF);
 
-  /*clock_gettime(CLOCK_REALTIME, &fileops_stop); // audit file copy performance timing*/
-  /*audit_file_ops += ( ( ((float)fileops_stop.tv_sec) - ((float)fileops_start.tv_sec) ) +*/
-                      /*( (((float)fileops_stop.tv_nsec) - ((float)fileops_start.tv_nsec)) / 1E9F) );*/
+  // optionally track time of creating file
+  stop_perf_timer(AUDIT_FILE_COPYING);
 }
 
 

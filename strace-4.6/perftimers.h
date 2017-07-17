@@ -35,16 +35,16 @@ typedef enum {
 } TimerAction;
 
 // enable or disable specific perf timer and return success/error of the action
-extern inline TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus enable);
+TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus enable);
 
 // start specific perf timer and return success/error of the action
-extern inline TimerAction start_perf_timer (const PerfTimer pt);
+TimerAction start_perf_timer (const PerfTimer pt);
 
 // stop specific perf timer and return success/error of the action
-extern inline TimerAction stop_perf_timer (const PerfTimer pt);
+TimerAction stop_perf_timer (const PerfTimer pt);
 
 // get total accum time of specific perf timer and return success/error of the action
-extern inline TimerAction get_total_perf_time (const PerfTimer pt, double* total_time);
+TimerAction get_total_perf_time (const PerfTimer pt, double* total_time);
 
 #endif // PERFTIMERS_H
 

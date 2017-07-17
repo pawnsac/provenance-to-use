@@ -40,18 +40,21 @@ static inline void timer_disable (const PerfTimer pt) {
 // enable or disable specific perf timer and return success/error of the action
 static inline TimerAction set_timer (const PerfTimer pt, const TimerStatus enable) {
   const bool pt_enabled = timer_is_enabled(pt);
+  TimerAction act = SUCCESS_TIMER_ENABLED;
 
   if ( enable && pt_enabled ) {
-    return ERR_TIMER_ALREADY_ENABLED;
+    act = ERR_TIMER_ALREADY_ENABLED;
   } else if ( enable && (!pt_enabled) ) {
     timer_enable(pt);
-    return SUCCESS_TIMER_ENABLED;
+    act = SUCCESS_TIMER_ENABLED;
   } else if ( (!enable) && pt_enabled ) {
     timer_disable(pt);
-    return SUCCESS_TIMER_DISBLED;
+    act = SUCCESS_TIMER_DISBLED;
   } else if ( (!enable) && (!pt_enabled) ) {
-    return ERR_TIMER_ALREADY_DISABLED;
+    act = ERR_TIMER_ALREADY_DISABLED;
   }
+
+  return act;
 }
 
 // start specific perf timer and return success/error of the action
@@ -81,11 +84,15 @@ inline TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus enable)
 // start specific perf timer and return success/error of the action
 inline TimerAction start_perf_timer (const PerfTimer pt) {
   return start_timer(pt);
+  /*clock_gettime(CLOCK_REALTIME, &fileops_start);*/
 }
 
 // stop specific perf timer and return success/error of the action
 inline TimerAction stop_perf_timer (const PerfTimer pt) {
   return stop_timer(pt);
+  /*clock_gettime(CLOCK_REALTIME, &fileops_stop);*/
+  /*audit_file_ops += ( ( ((float)fileops_stop.tv_sec) - ((float)fileops_start.tv_sec) ) +*/
+                      /*( (((float)fileops_stop.tv_nsec) - ((float)fileops_start.tv_nsec)) / 1E9F) );*/
 }
 
 // get total accum time of specific perf timer and return success/error of the action

@@ -37,9 +37,7 @@
  *	$Id$
  */
 
-#include "defs.h"
-
-// system libs
+// system includes
 #include <sys/types.h>
 #include <signal.h>
 #include <errno.h>
@@ -54,7 +52,8 @@
 #include <limits.h>
 #include <dirent.h>
 
-// user modules
+// user includes
+#include "defs.h"
 #include "perftimers.h"
 
 #ifdef LINUX
@@ -821,15 +820,16 @@ test_ptrace_setoptions(void)
 }
 #endif
 
-int
-main(int argc, char *argv[])
-{
-	struct tcb *tcp;
-	int c, pid = 0;
-	int optF = 0;
-	struct sigaction sa;
+int main (int argc, char *argv[]) {
+  struct tcb* tcp;
+  int c, pid = 0;
+  int optF = 0;
+  struct sigaction sa;
 
-	static char buf[BUFSIZ];
+  static char buf[BUFSIZ];
+
+  // digimokan: set performance timer for okapi file copying during audit
+  set_perf_timer(AUDIT_FILE_COPYING, ENABLED);
 
   // pgbovine - make sure this constant is a reasonable number and not something KRAZY
   if (MAXPATHLEN > (1024 * 4096)) {
