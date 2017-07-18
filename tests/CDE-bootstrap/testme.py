@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # copy in all the contents of the CDE/strace-4.5.20 source code into
 # this directory first before running this test
 

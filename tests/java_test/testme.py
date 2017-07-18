@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import os, sys
 sys.path.insert(0, '..')
 from cde_test_common import *

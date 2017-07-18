@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # also, if you try to MOVE this test to another directory to re-run it,
 # does it still work properly?
 import os

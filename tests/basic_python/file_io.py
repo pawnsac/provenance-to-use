@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 print "Executing file_io.py"
 of = open('outfile.txt', 'w')
 for line in open('infile.txt'):

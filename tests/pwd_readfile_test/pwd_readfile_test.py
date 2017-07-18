@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import os
 
 # generate an ABSOLUTE PATH to my-file.txt

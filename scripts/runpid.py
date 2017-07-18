@@ -1,10 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 import sys
 import os
 import re
 import argparse
-import checkpid
 
 parser = argparse.ArgumentParser(description='Find and execute the node specified by pid and cmd.')
 parser.add_argument('-f', action="store", dest="file_name", default="provenance.log")
@@ -31,7 +30,7 @@ def run_prog(wd, cmd, par):
   print 'Running in "' + temppkg + '"'
   os.system('rm -rf "' + temppkg +'"')
   os.system('mkdir -p "' + temppkg +'"')
-  os.system('cp -r . "' + temppkg + '" 2>/dev/null')
+  os.system('cp -a ./* "' + temppkg + '" 2>/dev/null')
   os.system('cp cde-exec "' + temppkg + '"')
   os.system('cp cde.* "' + temppkg + '"')
   

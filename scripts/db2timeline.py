@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 # dot -Tsvg -o out.svg in.gv
 # digraph cdeprov2dot {

@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Test to make sure the coreutils pwd program prints out the right thing
 # even when we move the CDE package to another directory
 
