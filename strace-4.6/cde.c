@@ -1319,7 +1319,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
 //  if (CDE_provenance_mode) {
-//    print_exec_prov(tcp);
+//    print_begin_execve_prov(tcp);
 //  }
   char is_runable_count = 0;
 
@@ -1346,7 +1346,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      tcp->isCDEprocess = 1;
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
+        print_begin_execve_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
         is_runable_count += 8;
         detach(tcp, 0);
       }
@@ -1383,7 +1383,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_cde_binary(exe_filename_abspath)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
+        print_begin_execve_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
         is_runable_count += 16;
         detach(tcp, 0);
       }
@@ -1588,7 +1588,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   //   to modify the execv of ssh
   if (!tcp->childshm) {
     begin_setup_shmat(tcp);
-    is_runable_count += 32; // DON'T RECORD print_exec_prov HERE
+    is_runable_count += 32; // DON'T RECORD print_begin_execve_prov HERE
     goto done; // MUST punt early here!!!
   }
 
@@ -2078,7 +2078,7 @@ done:
     if (CDE_verbose_mode)
       vbprintf("  will %sbe captured in provenance (%d).\n", is_runable_count > 0 ? "NOT " : "", is_runable_count);
     if (is_runable_count==0) {
-      print_exec_prov(tcp, ssh_dbid, ssh_host);
+      print_begin_execve_prov(tcp, ssh_dbid, ssh_host);
       freeifnn(ssh_dbid);
       freeifnn(ssh_host);
     }
@@ -2125,7 +2125,7 @@ void CDE_end_execve(struct tcb* tcp) {
     tcp->childshm = NULL;
   }
   if (tcp->u_rval == 0) {
-    print_execdone_prov(tcp);
+    print_end_execve_prov(tcp);
   }
 
 }

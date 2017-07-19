@@ -96,10 +96,6 @@ void print_newsock_prov(struct tcb *tcp, int action, \
   unsigned int s_port, unsigned long s_ipv4, \
   unsigned int d_port, unsigned long d_ipv4, int sk);
 
-void rm_pid_prov(pid_t pid);
-
-void add_pid_prov(pid_t pid);
-
 /*******************************************************************************
  * PRIVATE FUNCTIONS
  ******************************************************************************/
@@ -116,6 +112,71 @@ char* get_env_from_pid (int pid, int* length) {
   environment[*length - 1] = '\0'; // NULL terminate the string
   close(full_environment_fd);
   return environment;
+}
+
+// print something (? pidlist ?) to provlog & leveldb
+void print_curr_prov (pidlist_t* pidlist_p) {
+  int i, curr_time;
+  FILE *f;
+  char buff[1024];
+  long unsigned int rss;
+
+  pthread_mutex_lock(&mut_pidlist);
+  curr_time = (int)time(0);
+  for (i = 0; i < pidlist_p->pc; i++) {
+    sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
+    f = fopen(buff, "r");
+    if (f==NULL) { // remove this invalid pid
+      fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i]); // lost_pid exit
+      db_write_lexit_prov(provdb, pidlist_p->pv[i]);
+      pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
+      pidlist_p->pc--;
+      continue;
+    }
+    if (fgets(buff, 1024, f) == NULL)
+      rss= 0;
+    else
+      // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
+      sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u "
+          "%*u %*u %*u %*u %*u %*d %*d %*d %*d %*d %*d %*u %lu ", &rss);
+    fclose(f);
+    fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
+    db_write_prov_stat(provdb, pidlist_p->pv[i], "stat", buff);
+    sprintf(buff, "/proc/%d/io", pidlist_p->pv[i]);
+    f = fopen(buff, "r");
+    if (f==NULL) continue; 
+    
+    int iostat = fread(buff, 1, 1024, f);
+    if (iostat > 0) {
+      buff[iostat] = 0;
+      db_write_prov_stat(provdb, pidlist_p->pv[i], "iostat", buff);
+    }
+    fclose(f);
+  }
+  pthread_mutex_unlock(&mut_pidlist);
+}
+
+// add input pid to end of pidlist array
+void add_pid_prov (const pid_t pid) {
+  pthread_mutex_lock(&mut_pidlist);
+  pidlist.pv[pidlist.pc] = pid;
+  pidlist.pc++;
+  pthread_mutex_unlock(&mut_pidlist);
+  print_curr_prov(&pidlist);
+}
+
+// remove input pid from pidlist array
+void rm_pid_prov (const pid_t pid) {
+  int i=0;
+  if (pidlist.pc<=0) return;
+  print_curr_prov(&pidlist);
+  pthread_mutex_lock(&mut_pidlist);
+  while (pidlist.pv[i] != pid && i < pidlist.pc) i++;
+  if (i < pidlist.pc) {
+    pidlist.pv[i] = pidlist.pv[pidlist.pc-1];
+    pidlist.pc--;
+  }
+  pthread_mutex_unlock(&mut_pidlist);
 }
 
 /*
@@ -206,27 +267,6 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 		len += sprintf(argstr+len, "%s...", sep);
 
 	len += sprintf(argstr+len, "]");
-}
-
-void print_execdone_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode || CDE_nw_mode) {
-    int ppid = -1;
-    if (tcp->parent) ppid = tcp->parent->pid;
-    if (CDE_provenance_mode) {
-      int env_len;
-      char *env_str = get_env_from_pid(tcp->pid, &env_len);
-      db_write_execdone_prov(provdb, ppid, tcp->pid, env_str, env_len);
-      fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
-      add_pid_prov(tcp->pid);
-      if (CDE_verbose_mode) {
-        vbprintf("[%d-prov] BEGIN execve2\n", tcp->pid);
-      }
-      freeifnn(env_str);
-    }
-    if (CDE_nw_mode) {
-      db_write_execdone_prov(currdb, ppid, tcp->pid, NULL, 0);
-    }
-  }
 }
 
 void print_iofd_prov(struct tcb *tcp, int pos, int action, int fd) {
@@ -442,49 +482,6 @@ void print_iexit_prov(struct tcb *tcp) {
   }
 }
 
-void print_curr_prov(pidlist_t *pidlist_p) {
-  int i, curr_time;
-  FILE *f;
-  char buff[1024];
-  long unsigned int rss;
-
-  pthread_mutex_lock(&mut_pidlist);
-  curr_time = (int)time(0);
-  for (i = 0; i < pidlist_p->pc; i++) {
-    sprintf(buff, "/proc/%d/stat", pidlist_p->pv[i]);
-    f = fopen(buff, "r");
-    if (f==NULL) { // remove this invalid pid
-      fprintf(CDE_provenance_logfile, "%d %u LEXIT\n", curr_time, pidlist_p->pv[i]); // lost_pid exit
-      db_write_lexit_prov(provdb, pidlist_p->pv[i]);
-      pidlist_p->pv[i] = pidlist_p->pv[pidlist_p->pc-1];
-      pidlist_p->pc--;
-      continue;
-    }
-    if (fgets(buff, 1024, f) == NULL)
-      rss= 0;
-    else
-      // details of format: http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=blob_plain;f=fs/proc/array.c;hb=d1c3ed669a2d452cacfb48c2d171a1f364dae2ed
-      //~ sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu "
-          //~ "%*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %lu ", &rss);
-      sscanf(buff, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u "
-          "%*u %*u %*u %*u %*u %*d %*d %*d %*d %*d %*d %*u %lu ", &rss);
-    fclose(f);
-    fprintf(CDE_provenance_logfile, "%d %u MEM %lu\n", curr_time, pidlist_p->pv[i], rss);
-    db_write_prov_stat(provdb, pidlist_p->pv[i], "stat", buff);
-    sprintf(buff, "/proc/%d/io", pidlist_p->pv[i]);
-    f = fopen(buff, "r");
-    if (f==NULL) continue; 
-    
-    int iostat = fread(buff, 1, 1024, f);
-    if (iostat > 0) {
-      buff[iostat] = 0;
-      db_write_prov_stat(provdb, pidlist_p->pv[i], "iostat", buff);
-    }
-    fclose(f);
-  }
-  pthread_mutex_unlock(&mut_pidlist);
-}
-
 void *capture_cont_prov(void* ptr) {
   pidlist_t *pidlist_p = (pidlist_t*) ptr;
   // Wait till we have the first pid, which should be the traced process.
@@ -562,27 +559,6 @@ char* get_local_ip() {
 
 	freeifaddrs(ifaddr);
 	return NULL;
-}
-
-void add_pid_prov(pid_t pid) {
-  pthread_mutex_lock(&mut_pidlist);
-  pidlist.pv[pidlist.pc] = pid;
-  pidlist.pc++;
-  pthread_mutex_unlock(&mut_pidlist);
-  print_curr_prov(&pidlist);
-}
-
-void rm_pid_prov(pid_t pid) {
-  int i=0;
-  if (pidlist.pc<=0) return;
-  print_curr_prov(&pidlist);
-  pthread_mutex_lock(&mut_pidlist);
-  while (pidlist.pv[i] != pid && i < pidlist.pc) i++;
-  if (i < pidlist.pc) {
-    pidlist.pv[i] = pidlist.pv[pidlist.pc-1];
-    pidlist.pc--;
-  }
-  pthread_mutex_unlock(&mut_pidlist);
 }
 
 void rstrip(char *s) {
@@ -768,8 +744,8 @@ void init_prov () {
   }
 }
 
-// log proc exec call to provlog & leveldb if auditing, to stderr if verbose
-void print_exec_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
+// log beginning proc exec call to provlog & leveldb if auditing, to stderr if verbose
+void print_begin_execve_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
   if (CDE_provenance_mode || CDE_nw_mode) {
     char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
@@ -792,6 +768,29 @@ void print_exec_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
     }
     free(filename_abspath);
     free(opened_filename);
+  }
+}
+
+// log ending proc exec call to provlog if auditing, to stderr if verbose
+// log ending proc exec call, proc environ vars, and [something in add_pid_prov] to leveldb
+void print_end_execve_prov (struct tcb* tcp) {
+  if (CDE_provenance_mode || CDE_nw_mode) {
+    int ppid = -1;
+    if (tcp->parent) ppid = tcp->parent->pid;
+    if (CDE_provenance_mode) {
+      int env_len;
+      char *env_str = get_env_from_pid(tcp->pid, &env_len);
+      db_write_execdone_prov(provdb, ppid, tcp->pid, env_str, env_len);
+      fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
+      add_pid_prov(tcp->pid);
+      if (CDE_verbose_mode) {
+        vbprintf("[%d-prov] BEGIN execve2\n", tcp->pid);
+      }
+      freeifnn(env_str);
+    }
+    if (CDE_nw_mode) {
+      db_write_execdone_prov(currdb, ppid, tcp->pid, NULL, 0);
+    }
   }
 }
 

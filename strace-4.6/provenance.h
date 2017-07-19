@@ -10,7 +10,9 @@ typedef long long int ull_t;
 void init_prov ();
 
 // log proc exec call to provlog & leveldb if auditing, to stderr if verbose
-void print_exec_prov (struct tcb* tcp, char* dbid, char* ssh_host);
+void print_begin_execve_prov (struct tcb* tcp, char* dbid, char* ssh_host);
+// log ending proc exec call to provlog & leveldb if auditing, to stderr if verbose
+void print_end_execve_prov (struct tcb* tcp);
 // log file open/openat to provlog & leveldb if auditing, to stderr if verbose
 void print_open_prov (struct tcb* tcp, const char* syscall_name);
 // log file read to provlog & leveldb if auditing, to stderr if verbose
@@ -22,7 +24,6 @@ void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posre
 
 void print_rename_prov(struct tcb *tcp, int renameat);
 
-void print_execdone_prov(struct tcb *tcp);
 
 void print_act_prov(struct tcb *tcp, const char *action);
 void print_sock_prov(struct tcb *tcp, int action, 
