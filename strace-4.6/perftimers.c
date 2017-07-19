@@ -10,8 +10,6 @@ timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 #include <stdbool.h>        // for bool data type
 #include <time.h>           // for struct timespec, clock_gettime
 
-#include <stdio.h>
-
 // user includes
 #include "perftimers.h"
 
