@@ -2207,7 +2207,7 @@ sys_link(struct tcb *tcp)
     CDE_begin_file_link(tcp);
   } else {
     // int link(const char *oldpath, const char *newpath);
-    print_syscall_two_prov(tcp, "sys_link", 0, 1);
+    print_link_prov(tcp, "sys_link", 0, 1);
   }
   return 0;
   // pgbovine
@@ -2235,7 +2235,7 @@ sys_linkat(struct tcb *tcp)
   } else {
     // int linkat(int olddirfd, const char *oldpath,
     //              int newdirfd, const char *newpath, int flags);
-    print_syscall_two_prov(tcp, "sys_linkat", 1, 3);
+    print_link_prov(tcp, "sys_linkat", 1, 3);
   }
   return 0;
   // pgbovine
@@ -2327,7 +2327,7 @@ sys_symlink(struct tcb *tcp)
   }
   else {
     // int symlink(const char *oldpath, const char *newpath);
-    print_syscall_two_prov(tcp, "sys_symlink", 0, 1);
+    print_link_prov(tcp, "sys_symlink", 0, 1);
   }
   return 0;
   //~ // pgbovine
@@ -2355,7 +2355,7 @@ sys_symlinkat(struct tcb *tcp)
   }
   else {
     // int symlinkat(const char *oldpath, int newdirfd, const char *newpath);
-    print_syscall_two_prov(tcp, "sys_symlinkat", 0, 2); // <-- strange huh? quanpt
+    print_link_prov(tcp, "sys_symlinkat", 0, 2); // <-- strange huh? quanpt
   }
   return 0;
   //~ // pgbovine

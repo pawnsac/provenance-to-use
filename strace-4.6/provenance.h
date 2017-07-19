@@ -16,11 +16,11 @@ void print_end_execve_prov (struct tcb* tcp);
 // log file open/openat to provlog & leveldb if auditing, to stderr if verbose
 void print_open_prov (struct tcb* tcp, const char* syscall_name);
 // log file read to provlog & leveldb if auditing, to stderr if verbose
-void print_read_prov (struct tcb* tcp, const char* syscall_name, int pos);
+void print_read_prov (struct tcb* tcp, const char* syscall_name, const int path_index);
 // log file write to provlog & leveldb if auditing, to stderr if verbose
-void print_write_prov (struct tcb* tcp, const char* syscall_name, int pos);
-
-void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posread, int poswrite);
+void print_write_prov (struct tcb* tcp, const char* syscall_name, const int path_index);
+// log file hardlink/symlink to provlog & leveldb if auditing
+void print_link_prov (struct tcb* tcp, const char* syscall_name, const int realpath_index, const int linkpath_index);
 
 void print_rename_prov(struct tcb *tcp, int renameat);
 

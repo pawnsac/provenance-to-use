@@ -180,8 +180,8 @@ void rm_pid_prov (const pid_t pid) {
 }
 
 // log file read/write/rw to provlog & leveldb
-void print_io_prov (struct tcb* tcp, const int pos, const int action) {
-  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
+void print_io_prov (struct tcb* tcp, const int path_index, const int action) {
+  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
   assert(filename_abspath);
 
@@ -197,8 +197,8 @@ void print_io_prov (struct tcb* tcp, const int pos, const int action) {
 }
 
 // log file read/write/rw + file fd to provlog & leveldb
-void print_iofd_prov (struct tcb* tcp, const int pos, const int action, const int fd) {
-  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
+void print_iofd_prov (struct tcb* tcp, const int path_index, const int action, const int fd) {
+  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
   assert(filename_abspath);
 
@@ -303,12 +303,6 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 	len += sprintf(argstr+len, "]");
 }
 
-// TODO: think what to do with
-//    int chmod(const char* path, mode_t mod);
-//    int chown(const char* path, uid_t owner, gid_t grp); --> write META data of a file
-//    int utimes(const char* path, const struct timeval* times);
-//    int lutimes(const char* path, const struct timeval* times); --> read META data of a file
-
 // assume renameAT use the same current_dir with PWD (from CDE code)
 void print_rename_prov(struct tcb *tcp, int renameat) {
   if (CDE_provenance_mode) {
@@ -317,34 +311,6 @@ void print_rename_prov(struct tcb *tcp, int renameat) {
       int poswrite = renameat == 0 ? 1 : 3;
       print_io_prov(tcp, posread, PRV_RDWR);
       print_io_prov(tcp, poswrite, PRV_WRONLY);
-    }
-  }
-}
-
-void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posread, int poswrite) {
-  //vbprintf("[%d-prov] print_syscall_two_prov: %s %d\n", tcp->pid, syscall_name, tcp->u_rval);
-  if (CDE_provenance_mode) {
-    if (tcp->u_rval == 0) {
-      print_io_prov(tcp, posread, PRV_RDONLY);
-      print_io_prov(tcp, poswrite, PRV_WRONLY);
-      //~ int pos = -1, file1_action = PRV_RDONLY;
-      //~ if (strcmp(syscall_name, "sys_rename") == 0) {
-        //~ pos = 0;
-        //~ file1_action = PRV_RDWR;
-      //~ } else if (strcmp(syscall_name, "sys_link") == 0) {
-        //~ pos = 0;
-      //~ } else if (strcmp(syscall_name, "sys_symlink") == 0) {
-        //~ pos = 0;
-      //~ } else if (strcmp(syscall_name, "sys_renameat") == 0) {
-        //~ pos = 1;
-        //~ file1_action = PRV_RDWR;
-      //~ } else if (strcmp(syscall_name, "sys_linkat") == 0) {
-        //~ pos = 1;
-      //~ } else if (strcmp(syscall_name, "sys_symlinkat") == 0) {
-        //~ pos = 1;
-      //~ }
-      //~ print_io_prov(tcp, pos, file1_action);
-      //~ print_io_prov(tcp, pos+pos+1, PRV_WRONLY);
     }
   }
 }
@@ -800,14 +766,16 @@ void print_end_execve_prov (struct tcb* tcp) {
 void print_open_prov (struct tcb* tcp, const char* syscall_name) {
   // assume openAT use the same current_dir with PWD (from CDE code)
   if (CDE_provenance_mode) {
-    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
-        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+    const int path_index =
+      strcmp(syscall_name, "sys_open") == 0 ?
+      1 :
+      (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
 
     // track open, rename syscalls
-    if (tcp->u_rval >= 0 && pos > 0) {
+    if (tcp->u_rval >= 0 && path_index > 0) {
 
       // Note: tcp->u_arg[1] is only for open(), tcp->u_arg[2] for openat()
-      unsigned char open_mode = (tcp->u_arg[pos] & 3);
+      unsigned char open_mode = (tcp->u_arg[path_index] & 3);
       int action;
       switch (open_mode) {
         case O_RDONLY: action = PRV_RDONLY; break;
@@ -815,7 +783,7 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
         case O_RDWR: action = PRV_RDWR; break;
         default: action = PRV_UNKNOWNIO; break;
       }
-      print_iofd_prov(tcp, pos - 1, action, tcp->u_rval);
+      print_iofd_prov(tcp, path_index - 1, action, tcp->u_rval);
     }
   } else if (CDE_verbose_mode >= 1) {
     int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
@@ -829,16 +797,25 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
 }
 
 // log file read to provlog & leveldb if auditing, to stderr if verbose
-void print_read_prov (struct tcb* tcp, const char* syscall_name, int pos) {
+void print_read_prov (struct tcb* tcp, const char* syscall_name, const int path_index) {
   if (CDE_provenance_mode && tcp->u_rval >= 0) {
-    print_io_prov(tcp, pos, PRV_RDONLY);
+    print_io_prov(tcp, path_index, PRV_RDONLY);
   }
 }
 
 // log file write to provlog & leveldb if auditing, to stderr if verbose
-void print_write_prov (struct tcb* tcp, const char* syscall_name, int pos) {
+void print_write_prov (struct tcb* tcp, const char* syscall_name, const int path_index) {
   if (CDE_provenance_mode && tcp->u_rval >= 0) {
-    print_io_prov(tcp, pos, PRV_WRONLY);
+    print_io_prov(tcp, path_index, PRV_WRONLY);
+  }
+}
+
+// log file hardlink/symlink to provlog & leveldb if auditing
+void print_link_prov (struct tcb* tcp, const char* syscall_name,
+                      const int realpath_index, const int linkpath_index) {
+  if ( (CDE_provenance_mode) && (tcp->u_rval == 0) ) {
+      print_io_prov(tcp, realpath_index, PRV_RDONLY);
+      print_io_prov(tcp, linkpath_index, PRV_WRONLY);
   }
 }
 
