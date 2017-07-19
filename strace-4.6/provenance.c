@@ -1,3 +1,4 @@
+// system includes
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
@@ -22,12 +23,13 @@
 #include<stdlib.h>
 #include<unistd.h>
 
+// user includes
 #include "defs.h"
 #include "provenance.h"
 #include "const.h"
 #include "db.h"
 
-/* macros */
+// macros
 #ifndef MAX
 #define MAX(a,b)		(((a) > (b)) ? (a) : (b))
 #endif
@@ -84,9 +86,6 @@ extern int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock);
 extern int getPort(union sockaddr_t *addrbuf);
 extern void get_ip_info(long pid, int sockfd, char *buf);
 
-void init_prov();
-
-void print_IO_prov(struct tcb *tcp, char* filename, const char* syscall_name);
 void print_spawn_prov(struct tcb *tcp);
 void print_sock_prov(struct tcb *tcp, int action, unsigned int port, unsigned long ipv4);
 void print_act_prov(struct tcb *tcp, const char* action);
@@ -99,6 +98,10 @@ void rm_pid_prov(pid_t pid);
 void add_pid_prov(pid_t pid);
 
 char* get_env_from_pid(int pid, int *len);
+
+/*******************************************************************************
+ * PRIVATE IMPLEMENTATION
+ ******************************************************************************/
 
 /*
  * Print string specified by address `addr' and length `len'.
@@ -238,15 +241,6 @@ void print_execdone_prov(struct tcb *tcp) {
   }
 }
 
-//~ void print_file_prov(int sec, unsigned int pid, int action, char *path) {
-  //~ fprintf(CDE_provenance_logfile, "%d %u %s %s\n", sec, pid,
-      //~ (action == PRV_RDONLY ? "READ" : (
-        //~ action == PRV_WRONLY ? "WRITE" : (
-        //~ action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
-      //~ path);
-  //~ db_write_io_prov(pid, action, path);
-//~ }
-
 void print_iofd_prov(struct tcb *tcp, int pos, int action, int fd) {
   char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
@@ -277,55 +271,6 @@ void print_io_prov(struct tcb *tcp, int pos, int action) {
 
   free(filename);
   free(filename_abspath);
-}
-
-void print_syscall_read_prov(struct tcb *tcp, const char *syscall_name, int pos) {
-  if (CDE_provenance_mode && tcp->u_rval >= 0) {
-    print_io_prov(tcp, pos, PRV_RDONLY);
-  }
-}
-
-void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos) {
-  if (CDE_provenance_mode && tcp->u_rval >= 0) {
-    print_io_prov(tcp, pos, PRV_WRONLY);
-  }
-}
-
-// assume openAT use the same current_dir with PWD (from CDE code)
-void print_open_prov(struct tcb *tcp, const char *syscall_name) {
-  if (CDE_provenance_mode) {
-    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
-        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
-
-    // track open, rename syscalls
-    if (tcp->u_rval >= 0 && pos > 0) {
-
-      // Note: tcp->u_arg[1] is only for open(), tcp->u_arg[2] for openat()
-      unsigned char open_mode = (tcp->u_arg[pos] & 3);
-      int action;
-      switch (open_mode) {
-        case O_RDONLY: action = PRV_RDONLY; break;
-        case O_WRONLY: action = PRV_WRONLY; break;
-        case O_RDWR: action = PRV_RDWR; break;
-        default: action = PRV_UNKNOWNIO; break;
-      }
-      print_iofd_prov(tcp, pos - 1, action, tcp->u_rval);
-      //~ print_file_prov((int)time(0), tcp->pid, PRV_RDONLY, filename_abspath);
-      //~ print_file_prov((int)time(0), tcp->pid, PRV_WRONLY, filename_abspath);
-      //~ print_file_prov((int)time(0), tcp->pid, PRV_RDWR, filename_abspath);
-      //~ print_file_prov((int)time(0), tcp->pid, PRV_UNKNOWNIO, filename_abspath);
-    }
-  } else {
-    if (CDE_verbose_mode >= 1) {
-      int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
-          (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
-      char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
-      char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
-      vbp(1, "%s: fd= %ld\n", filename_abspath, tcp->u_rval);
-      freeifnn(filename);
-      freeifnn(filename_abspath);
-    }
-  }
 }
 
 // TODO: think what to do with
@@ -631,102 +576,6 @@ char* get_local_ip() {
 	return NULL;
 }
 
-void init_prov() {
-  pthread_t ptid;
-  char *env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
-  char path[PATH_MAX];
-  int subns=1;
-  char *err = NULL;
-
-  if (env_prov_mode != NULL)
-    CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
-  else
-    CDE_provenance_mode = !CDE_exec_mode;
-  if (CDE_provenance_mode) {
-    setenv("IN_CDE_PROVENANCE_MODE", "1", 1);
-    pthread_mutex_init(&mut_logfile, NULL);
-    // create NEW provenance log file
-    bzero(path, sizeof(path));
-    if (DB_ID == NULL)
-      sprintf(path, "%s/provenance.%s.1.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME);
-    else
-      sprintf(path, "%s/provenance.%s.1.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, DB_ID);
-    if (access(path, R_OK)==-1)
-      CDE_provenance_logfile = fopen(path, "w");
-    else {
-      // check through provenance.$subns.log to find a new file name
-      do {
-        subns++;
-        bzero(path, sizeof(path));
-        if (DB_ID == NULL)
-          sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
-        else
-          sprintf(path, "%s/provenance.%s.%d.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns, DB_ID);
-      } while (access(path, R_OK)==0);
-      fprintf(stderr, "Provenance log file: %s\n", path);
-      CDE_provenance_logfile = fopen(path, "w");
-    }
-
-    // leveldb initialization
-    sprintf(path+strlen(path), "_db");
-    provdb = malloc(sizeof(lvldb_t));
-    provdb->options = leveldb_options_create();
-    leveldb_options_set_create_if_missing(provdb->options, 1);
-    provdb->db = leveldb_open(provdb->options, path, &err);
-    if (err != NULL || provdb->db == NULL) {
-      fprintf(stderr, "Leveldb open fail!\n");
-      exit(-1);
-    }
-    assert(provdb->db!=NULL);
-    provdb->woptions = leveldb_writeoptions_create();
-    provdb->roptions = leveldb_readoptions_create();
-    /* reset error var */
-    leveldb_free(err); err = NULL;
-
-    struct passwd *pw = getpwuid(getuid()); // don't free this pointer
-    FILE *fp;
-    char uname[PATH_MAX];
-    fp = popen("uname -a", "r");
-    if (fgets(uname, PATH_MAX, fp) == NULL)
-      sprintf(uname, "(unknown architecture)");
-    pclose(fp);
-    rstrip(uname);
-    char fullns[PATH_MAX];
-    sprintf(fullns, "%s.%d", CDE_ROOT_NAME, subns);
-    fprintf(CDE_provenance_logfile, "# @agent: %s\n", pw == NULL ? "(noone)" : pw->pw_name);
-    fprintf(CDE_provenance_logfile, "# @machine: %s\n", uname);
-    fprintf(CDE_provenance_logfile, "# @namespace: %s\n", CDE_ROOT_NAME);
-    fprintf(CDE_provenance_logfile, "# @subns: %d\n", subns);
-    fprintf(CDE_provenance_logfile, "# @fullns: %s\n", fullns);
-    fprintf(CDE_provenance_logfile, "# @parentns: %s\n", getenv("CDE_PROV_NAMESPACE"));
-
-    // provenance meta data in lvdb
-    db_write(provdb, "meta.agent", pw == NULL ? "(noone)" : pw->pw_name);
-    db_write(provdb, "meta.machine", uname);
-    db_write(provdb, "meta.namespace", CDE_ROOT_NAME);
-    db_write_fmt(provdb, "meta.subns", "%d", subns);
-    db_write(provdb, "meta.fullns", fullns);
-    char *parentns = getenv("CDE_PROV_NAMESPACE");
-    db_write(provdb, "meta.parentns", parentns == NULL ? "(null)" : parentns);
-    db_write(provdb, "meta.dbid", DB_ID == NULL ? "(null)" : DB_ID);
-
-    char* host = get_local_ip();
-    if (host != NULL) {
-    	db_write(provdb, "meta.ip", host);
-    	free(host);
-    } else {
-    	db_write(provdb, "meta.ip", "(NULL)");
-    }
-
-    db_write_root(provdb, getpid());
-    setenv("CDE_PROV_NAMESPACE", fullns, 1);
-
-    pthread_mutex_init(&mut_pidlist, NULL);
-    pidlist.pc = 0;
-    pthread_create( &ptid, NULL, capture_cont_prov, &pidlist);
-  }
-}
-
 void add_pid_prov(pid_t pid) {
   pthread_mutex_lock(&mut_pidlist);
   pidlist.pv[pidlist.pc] = pid;
@@ -843,3 +692,151 @@ char* get_env_from_pid(int pid, int *length) {
   close(full_environment_fd);
   return environment;
 }
+
+/*******************************************************************************
+ * PUBLIC INTERFACE
+ ******************************************************************************/
+
+// initialize leveldb prov-db and provlog file
+void init_prov () {
+  pthread_t ptid;
+  char *env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
+  char path[PATH_MAX];
+  int subns=1;
+  char *err = NULL;
+
+  if (env_prov_mode != NULL)
+    CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
+  else
+    CDE_provenance_mode = !CDE_exec_mode;
+  if (CDE_provenance_mode) {
+    setenv("IN_CDE_PROVENANCE_MODE", "1", 1);
+    pthread_mutex_init(&mut_logfile, NULL);
+    // create NEW provenance log file
+    bzero(path, sizeof(path));
+    if (DB_ID == NULL)
+      sprintf(path, "%s/provenance.%s.1.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME);
+    else
+      sprintf(path, "%s/provenance.%s.1.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, DB_ID);
+    if (access(path, R_OK)==-1)
+      CDE_provenance_logfile = fopen(path, "w");
+    else {
+      // check through provenance.$subns.log to find a new file name
+      do {
+        subns++;
+        bzero(path, sizeof(path));
+        if (DB_ID == NULL)
+          sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
+        else
+          sprintf(path, "%s/provenance.%s.%d.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns, DB_ID);
+      } while (access(path, R_OK)==0);
+      fprintf(stderr, "Provenance log file: %s\n", path);
+      CDE_provenance_logfile = fopen(path, "w");
+    }
+
+    // leveldb initialization
+    sprintf(path+strlen(path), "_db");
+    provdb = malloc(sizeof(lvldb_t));
+    provdb->options = leveldb_options_create();
+    leveldb_options_set_create_if_missing(provdb->options, 1);
+    provdb->db = leveldb_open(provdb->options, path, &err);
+    if (err != NULL || provdb->db == NULL) {
+      fprintf(stderr, "Leveldb open fail!\n");
+      exit(-1);
+    }
+    assert(provdb->db!=NULL);
+    provdb->woptions = leveldb_writeoptions_create();
+    provdb->roptions = leveldb_readoptions_create();
+    /* reset error var */
+    leveldb_free(err); err = NULL;
+
+    struct passwd *pw = getpwuid(getuid()); // don't free this pointer
+    FILE *fp;
+    char uname[PATH_MAX];
+    fp = popen("uname -a", "r");
+    if (fgets(uname, PATH_MAX, fp) == NULL)
+      sprintf(uname, "(unknown architecture)");
+    pclose(fp);
+    rstrip(uname);
+    char fullns[PATH_MAX];
+    sprintf(fullns, "%s.%d", CDE_ROOT_NAME, subns);
+    fprintf(CDE_provenance_logfile, "# @agent: %s\n", pw == NULL ? "(noone)" : pw->pw_name);
+    fprintf(CDE_provenance_logfile, "# @machine: %s\n", uname);
+    fprintf(CDE_provenance_logfile, "# @namespace: %s\n", CDE_ROOT_NAME);
+    fprintf(CDE_provenance_logfile, "# @subns: %d\n", subns);
+    fprintf(CDE_provenance_logfile, "# @fullns: %s\n", fullns);
+    fprintf(CDE_provenance_logfile, "# @parentns: %s\n", getenv("CDE_PROV_NAMESPACE"));
+
+    // provenance meta data in lvdb
+    db_write(provdb, "meta.agent", pw == NULL ? "(noone)" : pw->pw_name);
+    db_write(provdb, "meta.machine", uname);
+    db_write(provdb, "meta.namespace", CDE_ROOT_NAME);
+    db_write_fmt(provdb, "meta.subns", "%d", subns);
+    db_write(provdb, "meta.fullns", fullns);
+    char *parentns = getenv("CDE_PROV_NAMESPACE");
+    db_write(provdb, "meta.parentns", parentns == NULL ? "(null)" : parentns);
+    db_write(provdb, "meta.dbid", DB_ID == NULL ? "(null)" : DB_ID);
+
+    char* host = get_local_ip();
+    if (host != NULL) {
+    	db_write(provdb, "meta.ip", host);
+    	free(host);
+    } else {
+    	db_write(provdb, "meta.ip", "(NULL)");
+    }
+
+    db_write_root(provdb, getpid());
+    setenv("CDE_PROV_NAMESPACE", fullns, 1);
+
+    pthread_mutex_init(&mut_pidlist, NULL);
+    pidlist.pc = 0;
+    pthread_create( &ptid, NULL, capture_cont_prov, &pidlist);
+  }
+}
+
+// log file open/openat to provlog & leveldb if auditing, to stderr if verbose
+void print_open_prov (struct tcb* tcp, const char* syscall_name) {
+  // assume openAT use the same current_dir with PWD (from CDE code)
+  if (CDE_provenance_mode) {
+    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
+        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+
+    // track open, rename syscalls
+    if (tcp->u_rval >= 0 && pos > 0) {
+
+      // Note: tcp->u_arg[1] is only for open(), tcp->u_arg[2] for openat()
+      unsigned char open_mode = (tcp->u_arg[pos] & 3);
+      int action;
+      switch (open_mode) {
+        case O_RDONLY: action = PRV_RDONLY; break;
+        case O_WRONLY: action = PRV_WRONLY; break;
+        case O_RDWR: action = PRV_RDWR; break;
+        default: action = PRV_UNKNOWNIO; break;
+      }
+      print_iofd_prov(tcp, pos - 1, action, tcp->u_rval);
+    }
+  } else if (CDE_verbose_mode >= 1) {
+    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
+        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+    char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
+    char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
+    vbp(1, "%s: fd= %ld\n", filename_abspath, tcp->u_rval);
+    freeifnn(filename);
+    freeifnn(filename_abspath);
+  }
+}
+
+// log file read to provlog & leveldb if auditing, to stderr if verbose
+void print_syscall_read_prov (struct tcb* tcp, const char* syscall_name, int pos) {
+  if (CDE_provenance_mode && tcp->u_rval >= 0) {
+    print_io_prov(tcp, pos, PRV_RDONLY);
+  }
+}
+
+// log file write to provlog & leveldb if auditing, to stderr if verbose
+void print_syscall_write_prov (struct tcb* tcp, const char* syscall_name, int pos) {
+  if (CDE_provenance_mode && tcp->u_rval >= 0) {
+    print_io_prov(tcp, pos, PRV_WRONLY);
+  }
+}
+

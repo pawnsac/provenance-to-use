@@ -1065,8 +1065,6 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     }
   }
 
-  // print_IO_prov(tcp, filename, syscall_name);
-
   free(filename);
 }
 
@@ -1095,8 +1093,6 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
   if (CDE_verbose_mode) {
     vbprintf("[%d] BEGIN %s '%s' (dirfd=%u)\n", tcp->pid, syscall_name, filename, (unsigned int)tcp->u_arg[0]);
   }
-  
-  // print_IO_prov(tcp, filename, syscall_name);
 
   if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
     fprintf(stderr,

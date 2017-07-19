@@ -6,11 +6,18 @@
 typedef long long int ull_t;
 #endif
 
-void print_syscall_read_prov(struct tcb *tcp, const char *syscall_name, int pos);
-void print_syscall_write_prov(struct tcb *tcp, const char *syscall_name, int pos);
+// initialize leveldb prov-db and provlog file
+void init_prov ();
+
+// log file open/openat to provlog & leveldb if auditing, to stderr if verbose
+void print_open_prov (struct tcb* tcp, const char* syscall_name);
+// log file read to provlog & leveldb if auditing, to stderr if verbose
+void print_syscall_read_prov (struct tcb* tcp, const char* syscall_name, int pos);
+// log file write to provlog & leveldb if auditing, to stderr if verbose
+void print_syscall_write_prov (struct tcb* tcp, const char* syscall_name, int pos);
+
 void print_syscall_two_prov(struct tcb *tcp, const char *syscall_name, int posread, int poswrite);
 
-void print_open_prov(struct tcb *tcp, const char *syscall_name);
 void print_rename_prov(struct tcb *tcp, int renameat);
 
 void print_exec_prov(struct tcb *tcp, char *dbid, char *ssh_host);
@@ -36,3 +43,4 @@ void print_fd_close(struct tcb *tcp);
 void print_getsockname_prov(struct tcb *tcp);
 
 #endif // _PROVENANCE_H
+
