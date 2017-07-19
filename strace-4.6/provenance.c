@@ -303,18 +303,6 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 	len += sprintf(argstr+len, "]");
 }
 
-// assume renameAT use the same current_dir with PWD (from CDE code)
-void print_rename_prov(struct tcb *tcp, int renameat) {
-  if (CDE_provenance_mode) {
-    if (tcp->u_rval == 0) {
-      int posread = renameat == 0 ? 0 : 1;
-      int poswrite = renameat == 0 ? 1 : 3;
-      print_io_prov(tcp, posread, PRV_RDWR);
-      print_io_prov(tcp, poswrite, PRV_WRONLY);
-    }
-  }
-}
-
 void print_spawn_prov(struct tcb *tcp) {
   if (CDE_provenance_mode || CDE_nw_mode) {
     if (CDE_provenance_mode) {
@@ -816,6 +804,19 @@ void print_link_prov (struct tcb* tcp, const char* syscall_name,
   if ( (CDE_provenance_mode) && (tcp->u_rval == 0) ) {
       print_io_prov(tcp, realpath_index, PRV_RDONLY);
       print_io_prov(tcp, linkpath_index, PRV_WRONLY);
+  }
+}
+
+// log file rename/move to provlog & leveldb if auditing
+void print_rename_prov (struct tcb* tcp, const int renameat) {
+  if (CDE_provenance_mode) {
+    if (tcp->u_rval == 0) {
+      // assume renameat uses the same current_dir with PWD (from CDE code)
+      int origpath_index = renameat == 0 ? 0 : 1;
+      int newpath_index = renameat == 0 ? 1 : 3;
+      print_io_prov(tcp, origpath_index, PRV_RDWR);
+      print_io_prov(tcp, newpath_index, PRV_WRONLY);
+    }
   }
 }
 

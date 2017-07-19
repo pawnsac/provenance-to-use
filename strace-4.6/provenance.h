@@ -8,7 +8,6 @@ typedef long long int ull_t;
 
 // initialize leveldb prov-db and provlog file
 void init_prov ();
-
 // log proc exec call to provlog & leveldb if auditing, to stderr if verbose
 void print_begin_execve_prov (struct tcb* tcp, char* dbid, char* ssh_host);
 // log ending proc exec call to provlog & leveldb if auditing, to stderr if verbose
@@ -21,9 +20,8 @@ void print_read_prov (struct tcb* tcp, const char* syscall_name, const int path_
 void print_write_prov (struct tcb* tcp, const char* syscall_name, const int path_index);
 // log file hardlink/symlink to provlog & leveldb if auditing
 void print_link_prov (struct tcb* tcp, const char* syscall_name, const int realpath_index, const int linkpath_index);
-
-void print_rename_prov(struct tcb *tcp, int renameat);
-
+// log file rename/move to provlog & leveldb if auditing
+void print_rename_prov (struct tcb* tcp, const int renameat);
 
 void print_act_prov(struct tcb *tcp, const char *action);
 void print_sock_prov(struct tcb *tcp, int action, 
