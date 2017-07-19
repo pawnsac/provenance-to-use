@@ -105,7 +105,7 @@ char* get_env_from_pid (int pid, int* length) {
   char fullenviron_fn[KEYLEN];
   char *environment = malloc(ENV_LEN);
   if (environment == NULL) return NULL;
-  
+
   sprintf(fullenviron_fn, "/proc/%d/environ", pid);
   int full_environment_fd = open(fullenviron_fn, O_RDONLY);
   *length = read (full_environment_fd, environment, ENV_LEN) + 1;
@@ -145,7 +145,7 @@ void print_curr_prov (pidlist_t* pidlist_p) {
     sprintf(buff, "/proc/%d/io", pidlist_p->pv[i]);
     f = fopen(buff, "r");
     if (f==NULL) continue; 
-    
+
     int iostat = fread(buff, 1, 1024, f);
     if (iostat > 0) {
       buff[iostat] = 0;
@@ -177,6 +177,40 @@ void rm_pid_prov (const pid_t pid) {
     pidlist.pc--;
   }
   pthread_mutex_unlock(&mut_pidlist);
+}
+
+// log file read/write/rw to provlog & leveldb
+void print_io_prov (struct tcb* tcp, const int pos, const int action) {
+  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
+  char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
+  assert(filename_abspath);
+
+  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
+      (action == PRV_RDONLY ? "READ" : (
+        action == PRV_WRONLY ? "WRITE" : (
+        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
+      filename_abspath);
+  db_write_io_prov(provdb, tcp->pid, action, filename_abspath);
+
+  free(filename);
+  free(filename_abspath);
+}
+
+// log file read/write/rw + file fd to provlog & leveldb
+void print_iofd_prov (struct tcb* tcp, const int pos, const int action, const int fd) {
+  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
+  char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
+  assert(filename_abspath);
+
+  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
+      (action == PRV_RDONLY ? "READ" : (
+        action == PRV_WRONLY ? "WRITE" : (
+        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
+      filename_abspath);
+  db_write_iofd_prov(provdb, tcp->pid, action, filename_abspath, fd);
+
+  free(filename);
+  free(filename_abspath);
 }
 
 /*
@@ -267,38 +301,6 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 		len += sprintf(argstr+len, "%s...", sep);
 
 	len += sprintf(argstr+len, "]");
-}
-
-void print_iofd_prov(struct tcb *tcp, int pos, int action, int fd) {
-  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
-  char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
-  assert(filename_abspath);
-
-  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
-      (action == PRV_RDONLY ? "READ" : (
-        action == PRV_WRONLY ? "WRITE" : (
-        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
-      filename_abspath);
-  db_write_iofd_prov(provdb, tcp->pid, action, filename_abspath, fd);
-
-  free(filename);
-  free(filename_abspath);
-}
-
-void print_io_prov(struct tcb *tcp, int pos, int action) {
-  char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos]);
-  char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
-  assert(filename_abspath);
-
-  fprintf(CDE_provenance_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
-      (action == PRV_RDONLY ? "READ" : (
-        action == PRV_WRONLY ? "WRITE" : (
-        action == PRV_RDWR ? "READ-WRITE" : "UNKNOWNIO"))),
-      filename_abspath);
-  db_write_io_prov(provdb, tcp->pid, action, filename_abspath);
-
-  free(filename);
-  free(filename_abspath);
 }
 
 // TODO: think what to do with
