@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # dependencies: bsdiff, md5sum
 
 import os, sys, stat

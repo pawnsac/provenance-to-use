@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Try to read the contents of /proc/self/maps
 # and grab the full path to our python executable.
 # Then try to stat that file to get its filesize and print it out.

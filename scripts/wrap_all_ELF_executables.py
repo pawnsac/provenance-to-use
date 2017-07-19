@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Find all ELF executables (NOT shared libraries) within the package root
 # directory and create wrappers for all of them using create_ELF_wrapper.py
 #

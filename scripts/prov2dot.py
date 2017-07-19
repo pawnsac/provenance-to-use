@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 # dot -Tsvg -o out.svg in.gv
 # digraph cdeprov2dot {
@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser(description='Process provenance log file.')
 parser.add_argument('--nosub', action="store_true", default=False)
 parser.add_argument('--nofilter', action="store_true", default=False)
 parser.add_argument('--withfork', action="store_true", default=False)
-parser.add_argument('-f', action="store", dest="fin_name", default="provenance.cde-root.1.log")
+parser.add_argument('-f', action="store", dest="fin_name", default="ptu/provenance.cde-root.1.log")
 parser.add_argument('-d', action="store", dest="dir_name", default="./gv")
 parser.add_argument('--withgraph', action="store_true", default=False)
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Script that interactively guides the user to completing a package
 
 # TODO: fix limitation with rsync NOT properly handling symlinks to absolute paths

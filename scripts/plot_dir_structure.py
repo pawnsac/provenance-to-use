@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # traverses a directory tree and plots out the resulting directory
 # structure to stdout in GraphViz .dot format
 

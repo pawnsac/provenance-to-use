@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 for line in open('../test_file.link'):
   print line,
 

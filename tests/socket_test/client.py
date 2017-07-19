@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
+
 # test case courtesy of William Schaub (wschaub@steubentech.com)
 
 import os, sys

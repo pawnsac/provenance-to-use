@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 '''
 Setup: libc.so.6 in this directory is a symlink to the following absolute path:
   /lib/libc.so.6

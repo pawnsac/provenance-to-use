@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Creates a wrapper script for a specified program, which:
 #   1.) Explicitly invokes the dynamic linker (ld-linux*) within the package
 #       that the program requires (specified by the LD_LINUX_PATH constant)

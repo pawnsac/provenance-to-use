@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Make sure /proc/self/exe returns the actual program name and NOT the
 # dynamic linker's name
 
