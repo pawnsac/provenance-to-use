@@ -94,7 +94,6 @@ void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n);
 char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host);
 char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, 
   int isBash, int doScp);
-void prepare_ptu_on_remotehost(char* remotehost);
 
 #if defined(X86_64)
 // current_personality == 1 means that a 64-bit cde-exec is actually tracking a
@@ -4422,8 +4421,6 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
         } else { // not an opt or an optarg
           is_lastone_param_host_cmd ++; // == 2 ->this is "[user@]hostname"
           ssh_host = strdup(tmp);
-          if (doScp)
-            prepare_ptu_on_remotehost(tmp);
         }
         if (tmp) free(tmp);
       } else if (is_lastone_param_host_cmd == 2) {
@@ -4476,105 +4473,5 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
 
   ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
   return ssh_host;
-}
-
-// copy CDE_proc_self_exe to remotehost
-void prepare_ptu_on_remotehost(char* remotehost) {
-  char rpath[KEYLEN], rdir[KEYLEN];
-  
-  extern void *provdb;
-  if (db_hasPTUonRemoteHost(provdb, remotehost)) return;
-  
-  // do the fork
-  pid_t pid = fork();
-  if (pid == -1) {
-    // error, no child created
-    vbp(0, "Error fork\n");
-    return;
-  }
-
-  if (pid != 0) {
-	// parent
-	db_setPTUonRemoteHost(provdb, remotehost);
-	return; // no need to wait
-  }
-
-  // child, now need to check, then waitpid,
-  // if check failed then scp
-
-  int len = strlen(CDE_proc_self_exe) - 1;
-  while (len > 0 && CDE_proc_self_exe[len] != '/') len--;
-  strncpy(rdir, CDE_proc_self_exe, len);
-  rdir[len] = '\0';
-  vbp(2, "PTU remote dir: %s\n", rdir);
-  
-  pid = fork();
-  // child
-  if (pid == 0) {
-    execlp("ssh", "ssh", remotehost, 
-        "mkdir -p ", rdir, " && "
-        "test", "-f", CDE_proc_self_exe, (char *) NULL);
-    /* if exec() was successful, this won't be reached */
-    _exit(127);
-  }
-  
-  // parent
-  int status;
-  if (waitpid(pid, &status, 0) == -1) {
-    // handle error
-    vbp(0, "Error waitpid %d\n", pid);
-  } else {
-    // child exit code in status
-    // use WIFEXITED, WEXITSTATUS, etc. on status
-    if (WEXITSTATUS(status) == 127) {
-      vbp(0, "Error: ssh not found\n");
-    } else {
-      if (WEXITSTATUS(status) == 0) {
-        // file exists, do nothing
-        vbp(1, "Ok: PTU binary exists\n");
-        //~ db_setPTUonRemoteHost(provdb, remotehost);
-      } else {
-        // file not exists yet, do a copy
-
-        // do the fork
-        pid_t pid = fork();
-        if (pid == -1) {
-          // error, no child created
-          vbp(0, "Error fork\n");
-          return;
-        }
-        // child
-        if (pid == 0) {
-          sprintf(rpath, "%s:%s", remotehost, rdir);
-          vbp(3, "Remote host:dir: %s\n", rpath);
-          execlp("scp", "scp", "-B", "-p", "-q", CDE_proc_self_exe, rpath, (char *) NULL);
-          /* if exec() was successful, this won't be reached */
-          _exit(127);
-        }
-        
-        // parent
-        int status;
-        if (waitpid(pid, &status, 0) == -1) {
-          // handle error
-          vbp(0, "Error waitpid %d\n", pid);
-        } else {
-          // child exit code in status
-          // use WIFEXITED, WEXITSTATUS, etc. on status
-          if (WEXITSTATUS(status) == 127) {
-            vbp(0, "Error: scp not found\n");
-          } else {
-            if (WEXITSTATUS(status) == 0) {
-              // scp done
-              vbp(1, "Ok: scp done for PTU binary\n");
-              //~ db_setPTUonRemoteHost(provdb, remotehost);
-            } else {
-              // scp error
-              vbp(0, "Error: scp error\n");
-            }
-          }
-        }
-      }
-    }
-  }
 }
 

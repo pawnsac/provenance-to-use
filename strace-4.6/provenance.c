@@ -1,4 +1,7 @@
-// system includes
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
@@ -14,36 +17,42 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include<stdio.h> //printf
-#include<string.h>    //memset
-#include<errno.h> //errno
-#include<sys/socket.h>
-#include<netdb.h>
-#include<ifaddrs.h>
-#include<stdlib.h>
-#include<unistd.h>
+#include <stdio.h>      //printf
+#include <string.h>     //memset
+#include <errno.h>      //errno
+#include <sys/socket.h>
+#include <netdb.h>
+#include <ifaddrs.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-// user includes
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
 #include "defs.h"
 #include "provenance.h"
 #include "const.h"
 #include "db.h"
 
-// macro functions
+/*******************************************************************************
+ * MACRO FUNCTIONS
+ ******************************************************************************/
+
 #ifndef MAX
-#define MAX(a,b)		(((a) > (b)) ? (a) : (b))
+#  define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #endif
+
 #ifndef MIN
-#define MIN(a,b)		(((a) < (b)) ? (a) : (b))
+#  define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
-// constants
-#define ENV_LEN 16384   // max length of str to hold environ vars
+/*******************************************************************************
+ * EXTERNALLY-DEFINED FUNCTIONS
+ ******************************************************************************/
 
-extern char* strcpy_from_child(struct tcb* tcp, long addr);
-extern void vbprintf(const char *fmt, ...);
-extern void print_trace (void);
-void rstrip(char *s);
+extern void vbprintf (const char* fmt, ...); // cde.c
+extern void print_trace (void);              // strace's util.c
 
 extern char CDE_exec_mode;
 extern char CDE_verbose_mode;
@@ -51,7 +60,12 @@ extern char CDE_nw_mode;
 extern char CDE_follow_SSH_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
-// local stuff
+/*******************************************************************************
+ * PRIVATE VARIABLES
+ ******************************************************************************/
+
+#define ENV_LEN 16384   // max length of str to hold environ vars
+
 char *DB_ID = NULL;
 char CDE_provenance_mode = 0;
 char CDE_bare_run = 0;
@@ -66,7 +80,7 @@ typedef struct {
 static pidlist_t pidlist;
 
 // provenance leveldb
-lvldb_t *provdb;
+static lvldb_t* provdb;
 
 // current execution db
 // import to use in exec capture
@@ -80,6 +94,11 @@ typedef struct socketdata {
     unsigned char ipv6[16];   /* IPv6 address */
   } ip;
 } socketdata_t;
+
+#ifndef ULL_T
+#define ULL_T
+typedef long long int ull_t;
+#endif
 
 extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);

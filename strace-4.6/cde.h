@@ -38,7 +38,6 @@ void *shmat(int shmid, const void *shmaddr, int shmflg);
 int shmdt(const void *shmaddr);
 int shmctl(int shmid, int cmd, struct shmid_ds *buf);
 
-
 // like an assert except that it always fires
 #define EXITIF(x) do { \
   if (x) { \
@@ -48,3 +47,4 @@ int shmctl(int shmid, int cmd, struct shmid_ds *buf);
 } while(0)
 
 #endif // _CDE_H
+
