@@ -83,12 +83,12 @@ extern void CDE_end_getcwd(struct tcb* tcp);
 
 #define print_syscall_read_prov_macro(tcp, pos) \
   if (!entering(tcp)) { \
-    print_syscall_read_prov(tcp, __FUNCTION__, pos); \
+    print_read_prov(tcp, __FUNCTION__, pos); \
   }
 
 #define print_syscall_write_prov_macro(tcp, pos) \
   if (!entering(tcp)) { \
-    print_syscall_write_prov(tcp, __FUNCTION__, pos); \
+    print_write_prov(tcp, __FUNCTION__, pos); \
   }
 
 #include <dirent.h>

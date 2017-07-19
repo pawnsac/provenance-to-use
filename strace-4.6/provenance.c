@@ -29,13 +29,16 @@
 #include "const.h"
 #include "db.h"
 
-// macros
+// macro functions
 #ifndef MAX
 #define MAX(a,b)		(((a) > (b)) ? (a) : (b))
 #endif
 #ifndef MIN
 #define MIN(a,b)		(((a) < (b)) ? (a) : (b))
 #endif
+
+// constants
+#define ENV_LEN 16384   // max length of str to hold environ vars
 
 extern char* strcpy_from_child(struct tcb* tcp, long addr);
 extern void vbprintf(const char *fmt, ...);
@@ -97,11 +100,23 @@ void rm_pid_prov(pid_t pid);
 
 void add_pid_prov(pid_t pid);
 
-char* get_env_from_pid(int pid, int *len);
-
 /*******************************************************************************
- * PRIVATE IMPLEMENTATION
+ * PRIVATE FUNCTIONS
  ******************************************************************************/
+
+// return string of current environ vars for input PID
+char* get_env_from_pid (int pid, int* length) {
+  char fullenviron_fn[KEYLEN];
+  char *environment = malloc(ENV_LEN);
+  if (environment == NULL) return NULL;
+  
+  sprintf(fullenviron_fn, "/proc/%d/environ", pid);
+  int full_environment_fd = open(fullenviron_fn, O_RDONLY);
+  *length = read (full_environment_fd, environment, ENV_LEN) + 1;
+  environment[*length - 1] = '\0'; // NULL terminate the string
+  close(full_environment_fd);
+  return environment;
+}
 
 /*
  * Print string specified by address `addr' and length `len'.
@@ -191,33 +206,6 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 		len += sprintf(argstr+len, "%s...", sep);
 
 	len += sprintf(argstr+len, "]");
-}
-
-
-void print_exec_prov(struct tcb *tcp, char *db_id, char *ssh_host) {
-  if (CDE_provenance_mode || CDE_nw_mode) {
-    char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
-    char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
-    assert(filename_abspath);
-    int parentPid = tcp->parent == NULL ? getpid() : tcp->parent->pid;
-    char args[KEYLEN*10];
-    print_arg_prov(args, tcp, tcp->u_arg[1]);
-    if (CDE_provenance_mode) {
-      fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
-        parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
-      db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, 
-          tcp->current_dir, args, db_id, ssh_host);
-      if (CDE_verbose_mode) {
-        vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
-      }
-    }
-    if (CDE_nw_mode) {
-      db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, 
-          tcp->current_dir, args, db_id, ssh_host);
-    }
-    free(filename_abspath);
-    free(opened_filename);
-  }
 }
 
 void print_execdone_prov(struct tcb *tcp) {
@@ -679,20 +667,6 @@ int isProvCapturedSock(int sockfd) {
   return db_isCapturedSock(provdb, sockfd);
 }
 
-#define ENV_LEN 16384
-char* get_env_from_pid(int pid, int *length) {
-  char fullenviron_fn[KEYLEN];
-  char *environment = malloc(ENV_LEN);
-  if (environment == NULL) return NULL;
-  
-  sprintf(fullenviron_fn, "/proc/%d/environ", pid);
-  int full_environment_fd = open(fullenviron_fn, O_RDONLY);
-  *length = read (full_environment_fd, environment, ENV_LEN) + 1;
-  environment[*length - 1] = '\0'; // NULL terminate the string
-  close(full_environment_fd);
-  return environment;
-}
-
 /*******************************************************************************
  * PUBLIC INTERFACE
  ******************************************************************************/
@@ -794,6 +768,33 @@ void init_prov () {
   }
 }
 
+// log proc exec call to provlog & leveldb if auditing, to stderr if verbose
+void print_exec_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
+  if (CDE_provenance_mode || CDE_nw_mode) {
+    char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
+    char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
+    assert(filename_abspath);
+    int parentPid = tcp->parent == NULL ? getpid() : tcp->parent->pid;
+    char args[KEYLEN*10];
+    print_arg_prov(args, tcp, tcp->u_arg[1]);
+    if (CDE_provenance_mode) {
+      fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
+        parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
+      db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, 
+          tcp->current_dir, args, db_id, ssh_host);
+      if (CDE_verbose_mode) {
+        vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
+      }
+    }
+    if (CDE_nw_mode) {
+      db_write_exec_prov(currdb, parentPid, tcp->pid, filename_abspath, 
+          tcp->current_dir, args, db_id, ssh_host);
+    }
+    free(filename_abspath);
+    free(opened_filename);
+  }
+}
+
 // log file open/openat to provlog & leveldb if auditing, to stderr if verbose
 void print_open_prov (struct tcb* tcp, const char* syscall_name) {
   // assume openAT use the same current_dir with PWD (from CDE code)
@@ -827,14 +828,14 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
 }
 
 // log file read to provlog & leveldb if auditing, to stderr if verbose
-void print_syscall_read_prov (struct tcb* tcp, const char* syscall_name, int pos) {
+void print_read_prov (struct tcb* tcp, const char* syscall_name, int pos) {
   if (CDE_provenance_mode && tcp->u_rval >= 0) {
     print_io_prov(tcp, pos, PRV_RDONLY);
   }
 }
 
 // log file write to provlog & leveldb if auditing, to stderr if verbose
-void print_syscall_write_prov (struct tcb* tcp, const char* syscall_name, int pos) {
+void print_write_prov (struct tcb* tcp, const char* syscall_name, int pos) {
   if (CDE_provenance_mode && tcp->u_rval >= 0) {
     print_io_prov(tcp, pos, PRV_WRONLY);
   }
