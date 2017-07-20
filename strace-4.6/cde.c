@@ -1,25 +1,5 @@
-/*
-
-CDE: Code, Data, and Environment packaging for Linux
-http://www.stanford.edu/~pgbovine/cde.html
-Philip Guo
-
-CDE is currently licensed under GPL v3:
-
-  Copyright (c) 2010-2011 Philip Guo <pg@cs.stanford.edu>
-
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-*/
-
+// CDE is GPL v3: Copyright (c) 2010-2011 Philip Guo <pg@cs.stanford.edu>.
+// See LICENSE file in project root directory.
 
 /* Linux system call calling conventions:
 
@@ -40,32 +20,35 @@ CDE is currently licensed under GPL v3:
 
 */
 
+//#define _GNU_SOURCE // for vasprintf (now we include _GNU_SOURCE in Makefile)
+
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
+#include <sys/mman.h>    // PROT_READ, PROT_WRITE, PROT_EXEC, MAP_PRIVATE, mmap(), munmap()
+#include <sys/socket.h>  // IPv4/IPv6 library
+#include <sys/un.h>      // UNIX domain sockets
+#include <sys/utsname.h> // struct utsname, uname()
+#include <linux/shm.h>   // shared memory blocks
+#include <dirent.h>      // stuct dirent, DIR, readdir(), opendir(), closedir()
+#include <pthread.h>     // pthread_mutex_t, pthread_mutex_init(), pthread_mutex_lock/unlock()
+
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
 #include "cde.h"
+#include "config.h"      // automake output to get I386 / X86_64 definitions
+#include "defs.h"        // strace module
 #include "okapi.h"
 #include "cdenet.h"
 #include "provenance.h"
 #include "db.h"
 #include "const.h"
-#include <dirent.h>
 
 // quanpt - making find_ELF_program_interpreter thread safe
-#include <pthread.h>
 pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER;
-
-// for CDE_begin_socket_bind_or_connect
-#include <sys/socket.h>
-#include <sys/un.h>
-
-#include <time.h>
-
-#include <sys/utsname.h> // for uname
-
-// TODO: eliminate this hack if it results in a compile-time error
-#include "config.h" // to get I386 / X86_64 definitions
-#if defined (I386)
-__asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 dependency
-#endif
-
 
 // 1 if we are executing code in a CDE package,
 // 0 for tracing regular execution
@@ -114,19 +97,6 @@ static Trie* TrieNew(void) {
   // VERY important to blank out the contents with a calloc()
   return (Trie*)calloc(1, sizeof(Trie));
 }
-
-/* currently unused ... but could be useful in the future
-static void TrieDelete(Trie* t) {
-  // free all your children before freeing yourself
-  unsigned char i;
-  for (i = 0; i < 128; i++) {
-    if (t->children[i]) {
-      TrieDelete(t->children[i]);
-    }
-  }
-  free(t);
-}
-*/
 
 static void TrieInsert(Trie* t, char* ascii_string) {
   while (*ascii_string != '\0') {

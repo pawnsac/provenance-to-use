@@ -30,22 +30,11 @@
  * USER INCLUDES
  ******************************************************************************/
 
-#include "defs.h"
+#include "defs.h"       // strace module, must go first
 #include "provenance.h"
+#include "cde.h"
 #include "const.h"
 #include "db.h"
-
-/*******************************************************************************
- * MACRO FUNCTIONS
- ******************************************************************************/
-
-#ifndef MAX
-#  define MAX(a,b) (((a) > (b)) ? (a) : (b))
-#endif
-
-#ifndef MIN
-#  define MIN(a,b) (((a) < (b)) ? (a) : (b))
-#endif
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED FUNCTIONS
@@ -54,17 +43,14 @@
 extern void vbprintf (const char* fmt, ...); // cde.c
 extern void print_trace (void);              // strace's util.c
 
-extern char CDE_exec_mode;
 extern char CDE_verbose_mode;
 extern char CDE_nw_mode;
 extern char CDE_follow_SSH_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
 /*******************************************************************************
- * PRIVATE VARIABLES
+ * MACRO FUNCTIONS
  ******************************************************************************/
-
-#define ENV_LEN 16384   // max length of str to hold environ vars
 
 char *DB_ID = NULL;
 char CDE_provenance_mode = 0;
@@ -79,9 +65,6 @@ typedef struct {
 } pidlist_t;
 static pidlist_t pidlist;
 
-// provenance leveldb
-static lvldb_t* provdb;
-
 // current execution db
 // import to use in exec capture
 extern lvldb_t *currdb;
@@ -94,11 +77,6 @@ typedef struct socketdata {
     unsigned char ipv6[16];   /* IPv6 address */
   } ip;
 } socketdata_t;
-
-#ifndef ULL_T
-#define ULL_T
-typedef long long int ull_t;
-#endif
 
 extern int string_quote(const char *instr, char *outstr, int len, int size);
 extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
@@ -116,8 +94,24 @@ void print_newsock_prov(struct tcb *tcp, int action, \
   unsigned int d_port, unsigned long d_ipv4, int sk);
 
 /*******************************************************************************
+ * PRIVATE VARIABLES
+ ******************************************************************************/
+
+#define ENV_LEN 16384     // max length of str to hold environ vars
+
+static lvldb_t* provdb;   // provenance leveldb
+
+/*******************************************************************************
  * PRIVATE FUNCTIONS
  ******************************************************************************/
+
+#ifndef MAX
+#  define MAX(a,b) (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef MIN
+#  define MIN(a,b) (((a) < (b)) ? (a) : (b))
+#endif
 
 // return string of current environ vars for input PID
 char* get_env_from_pid (int pid, int* length) {

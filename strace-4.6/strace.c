@@ -41,7 +41,7 @@
  * SYSTEM INCLUDES
  ******************************************************************************/
 
-#include "defs.h"  // strace defs must go first
+#include "defs.h"         // strace defs must go first
 
 #include <sys/types.h>
 #include <signal.h>
