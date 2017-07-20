@@ -122,12 +122,11 @@ extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
 // quanpt
-extern char CDE_provenance_mode;
+extern char Cde_provenance_mode;
 extern char CDE_bare_run;
 extern char CDE_nw_mode;
 extern char* DB_NAME;
 extern char* PIDKEY;
-extern char* DB_ID;
 extern char CDE_network_content_mode;
 extern char CDE_follow_SSH_mode;
 
@@ -2766,7 +2765,7 @@ int main (int argc, char *argv[]) {
 			break;
 		case 'I':
 			// quanpt - id of the new db in SSH replacement mode
-			DB_ID = strdup(optarg);
+			Provdb_id = strdup(optarg);
 			break;
 		case 'T':
 			dtime++;
@@ -3007,7 +3006,7 @@ int main (int argc, char *argv[]) {
 
     init_prov(); // quanpt: initialize leveldb prov-db and provlog file
 	extern void init_nwdb();
-	if (CDE_nw_mode && CDE_exec_mode && !CDE_provenance_mode)
+	if (CDE_nw_mode && CDE_exec_mode && !Cde_provenance_mode)
 		init_nwdb();
 		
 	extern void CDE_load_environment_vars(char* repo_name);

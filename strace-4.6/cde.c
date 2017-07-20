@@ -53,7 +53,7 @@ pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER;
 // 1 if we are executing code in a CDE package,
 // 0 for tracing regular execution
 char CDE_exec_mode;
-extern char CDE_provenance_mode; // quanpt
+extern char Cde_provenance_mode; // quanpt
 extern char CDE_bare_run; // quanpt
 extern char CDE_nw_mode; // quanpt
 extern int CDE_network_content_mode;
@@ -66,7 +66,6 @@ char* CDE_ROOT_DIR = NULL;
 char CDE_proc_self_exe[MAXPATHLEN];
 
 char CDE_block_net_access = 0; // -n option
-
 
 // only relevant if CDE_exec_mode = 1
 char CDE_exec_streaming_mode = 0; // -s option
@@ -124,7 +123,6 @@ static int TrieContains(Trie* t, char* ascii_string) {
 
   return t->elt_is_present;
 }
-
 
 // 1 if we should use the dynamic linker from within the package
 //   (much more portable, but might be less robust since the dynamic linker
@@ -1287,9 +1285,6 @@ void CDE_begin_execve(struct tcb* tcp) {
     vbprintf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
   }
 
-//  if (CDE_provenance_mode) {
-//    print_begin_execve_prov(tcp);
-//  }
   char is_runable_count = 0;
 
   if (CDE_exec_mode) {
@@ -2043,7 +2038,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
 done:
-  if (CDE_provenance_mode || CDE_nw_mode) {
+  if (Cde_provenance_mode || CDE_nw_mode) {
     if (CDE_verbose_mode)
       vbprintf("  will %sbe captured in provenance (%d).\n", is_runable_count > 0 ? "NOT " : "", is_runable_count);
     if (is_runable_count==0) {
@@ -2981,7 +2976,7 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     tcp->p_ignores = tcp->parent->p_ignores;
 
 //     to think: this is called on startup_attach, startup_child (trace.c), internal_fork, handle_new_child (process)
-//     if (CDE_provenance_mode) {
+//     if (Cde_provenance_mode) {
 //       fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
 //     }
   }
@@ -4065,11 +4060,11 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   int offset1 = strlen(CDE_proc_self_exe) + 1;
   
   char* ptu_1 = (char*)(base + offset1);
-  strcpy(ptu_1, "-I"); // parameter for ptu: DB_ID
+  strcpy(ptu_1, "-I"); // parameter for ptu: Provdb_id
   int offset2 = strlen(ptu_1) + 1;
   
   char* ptu_2 = (char*)(base + offset1 + offset2);
-  sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for DB_ID
+  sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for Provdb_id
   int offset3 = strlen(ptu_2) + 1;
 
   // We need to use raw numeric arithmetic to get the proper offsets, since
@@ -4209,26 +4204,14 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   return ptu_2;
 }
 
-// return DB_ID passed to ssh
-//~ char* add_cdewrapper_to_ssh(struct tcb *tcp) {
-  //~ char const *argv[3];
-  //~ char dbid[KEYLEN];
-  //~ sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
-  //~ argv[0]=CDE_proc_self_exe;
-  //~ argv[1]=(char*) "-I";
-  //~ argv[2]=strdup(dbid);
-  //~ add_wrapper_to_ssh(tcp, argv, 3);
-  //~ return (char*) argv[2];
-//~ }
-
-// return DB_ID passed to ssh
+// return Provdb_id passed to ssh
 // TODO: more modification
 //   current: CDE_proc_self_exe [-b] [-w] -o /var/tmp/cde-root.$dbid -I $dbid /bin/sh -c \'true; $remote_stuff\'
 //   should be: /bin/sh -c \'$loop_till_ptu_size eq $size; CDE_proc_self_exe [-b] [-w] -o /var/tmp/cde-root.$dbid -I $dbid /bin/sh -c \'true; $remote_stuff\'\'
 char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host) {
   char const *argv[7];
   char dbid[KEYLEN], arg[KEYLEN];
-  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
+  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for Provdb_id
   sprintf(arg, "%s%s -o /var/tmp/cde-root.%s -I %s",
       (CDE_bare_run ? "-b " : ""), 
       (CDE_network_content_mode ? "-w " : ""),
@@ -4289,11 +4272,11 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
   //~ int offset1 = strlen(CDE_proc_self_exe) + 1;
   //~ 
   //~ char* ptu_1 = (char*)(base + offset1);
-  //~ strcpy(ptu_1, "-I"); // parameter for ptu: DB_ID
+  //~ strcpy(ptu_1, "-I"); // parameter for ptu: Provdb_id
   //~ int offset2 = strlen(ptu_1) + 1;
   //~ 
   //~ char* ptu_2 = (char*)(base + offset1 + offset2);
-  //~ sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for DB_ID
+  //~ sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for Provdb_id
   //~ int offset3 = strlen(ptu_2) + 1;
 
   // We need to use raw numeric arithmetic to get the proper offsets, since

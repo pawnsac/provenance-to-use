@@ -23,6 +23,7 @@ CDEnet is currently licensed under GPL v3:
 
 #include "config.h"
 #include "defs.h"
+#include "cde.h"
 #include "provenance.h"
 #include "cdenet.h"
 #include "../leveldb-1.14.0/include/leveldb/c.h"
@@ -225,8 +226,6 @@ linux_call_type(long codesegment)
 #endif /* !X86_64 */
 
 // variables from cde.c
-extern int CDE_exec_mode;
-extern int CDE_provenance_mode;
 extern int CDE_verbose_mode;
 
 // function from cde.c
@@ -487,8 +486,8 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
   addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
   
   //~ printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
-  //~ if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
-  if (CDE_provenance_mode) {
+  //~ if (Cde_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
+  if (Cde_provenance_mode) {
     int port = getPort((void*)addrbuf.pad);
     char buf[KEYLEN];
     bzero(buf, sizeof(buf));
@@ -511,7 +510,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
 
 int socket_data_handle(struct tcb* tcp, int action) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     long len = tcp->u_rval;
     char *buf = NULL;
     if (len >0) {
@@ -542,7 +541,7 @@ void CDEnet_begin_recv(struct tcb* tcp) {
 }
 void CDEnet_end_recv(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
+  if (Cde_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     socket_data_handle(tcp, SOCK_RECV);
   }
@@ -606,7 +605,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
   struct msghdr mh;
   struct iovec *msg_iov = NULL;
   char memop_ok = 1;
-  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
+  if (Cde_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     int len = tcp->u_rval;
     //~ char *msg_name = NULL, *msg_control = NULL;
     char *storage = NULL;
@@ -743,7 +742,7 @@ void CDEnet_begin_send(struct tcb* tcp) {
 
 void CDEnet_end_send(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
+  if (Cde_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     if (socket_data_handle(tcp, SOCK_SEND) < 0) {
       // TODO
@@ -806,7 +805,7 @@ void CDEnet_begin_getsockname(struct tcb* tcp) {
 void CDEnet_end_getsockname(struct tcb* tcp) {
   static int count = 1;
   vbp(0, "%ld\n", tcp->u_rval);
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     print_getsockname_prov(tcp);
   }
   if (CDE_nw_mode) {
@@ -869,7 +868,7 @@ char* db_getAcceptResult(lvldb_t *mydb, char* pidkey, ull_t listenid, ull_t acce
 }
 void CDEnet_end_accept(struct tcb* tcp) {
   vb(2);
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     print_accept_prov(tcp);
   }
   if (CDE_nw_mode) {
@@ -918,7 +917,7 @@ void CDEnet_begin_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
 }
 void CDEnet_end_listen(struct tcb* tcp) { // TODO
   vb(2);
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     print_listen_prov(tcp);
   }
   if (CDE_nw_mode) {
@@ -975,7 +974,7 @@ void CDEnet_end_write(struct tcb* tcp) { // TODO
 void CDEnet_close(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
   vb(2);
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     print_fd_close(tcp);
   }
   if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {

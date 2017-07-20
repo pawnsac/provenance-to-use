@@ -1,6 +1,9 @@
 #ifndef _PROVENANCE_H
 #define _PROVENANCE_H
 
+extern char* Provdb_id;          // leveldb provdb id
+extern char Cde_provenance_mode; // true if auditing (opposite of Cde_exec_mode)
+
 // initialize leveldb prov-db and provlog file
 void init_prov ();
 // log proc exec call to provlog & leveldb if auditing, to stderr if verbose

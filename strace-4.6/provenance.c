@@ -43,17 +43,15 @@
 extern void vbprintf (const char* fmt, ...); // cde.c
 extern void print_trace (void);              // strace's util.c
 
+/*******************************************************************************
+ * STUFF TO SORT!!
+ ******************************************************************************/
+
 extern char CDE_verbose_mode;
 extern char CDE_nw_mode;
 extern char CDE_follow_SSH_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 
-/*******************************************************************************
- * MACRO FUNCTIONS
- ******************************************************************************/
-
-char *DB_ID = NULL;
-char CDE_provenance_mode = 0;
 char CDE_bare_run = 0;
 FILE* CDE_provenance_logfile = NULL;
 pthread_mutex_t mut_logfile = PTHREAD_MUTEX_INITIALIZER;
@@ -94,7 +92,14 @@ void print_newsock_prov(struct tcb *tcp, int action, \
   unsigned int d_port, unsigned long d_ipv4, int sk);
 
 /*******************************************************************************
- * PRIVATE VARIABLES
+ * PUBLIC VARIABLES
+ ******************************************************************************/
+
+char* Provdb_id = NULL;       // leveldb provdb id
+char Cde_provenance_mode = 0; // true if auditing (opposite of Cde_exec_mode)
+
+/*******************************************************************************
+ * PRIVATE CONSTANTS / VARIABLES
  ******************************************************************************/
 
 #define ENV_LEN 16384     // max length of str to hold environ vars
@@ -102,7 +107,7 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 static lvldb_t* provdb;   // provenance leveldb
 
 /*******************************************************************************
- * PRIVATE FUNCTIONS
+ * PRIVATE MACROS / FUNCTIONS
  ******************************************************************************/
 
 #ifndef MAX
@@ -317,8 +322,8 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 }
 
 void print_spawn_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode || CDE_nw_mode) {
-    if (CDE_provenance_mode) {
+  if (Cde_provenance_mode || CDE_nw_mode) {
+    if (Cde_provenance_mode) {
       fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
       db_write_spawn_prov(provdb, tcp->parent->pid, tcp->pid);
     }
@@ -329,7 +334,7 @@ void print_spawn_prov(struct tcb *tcp) {
 }
 
 void print_act_prov(struct tcb *tcp, const char *action) {
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     fprintf(CDE_provenance_logfile, "%d %u %s 0\n", (int)time(0), tcp->pid, action);
     db_write_io_prov(provdb, tcp->pid, PRV_ACTION, action);
   }
@@ -343,7 +348,7 @@ void print_newsock_prov(struct tcb *tcp, int action, \
     unsigned int d_port, unsigned long d_ipv4, int sk) {
   struct in_addr s_in, d_in;
   char saddr[32], daddr[32];
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     s_in.s_addr = s_ipv4;
     strcpy(saddr, inet_ntoa(s_in));
     d_in.s_addr = d_ipv4;
@@ -358,7 +363,7 @@ void print_newsock_prov(struct tcb *tcp, int action, \
 
 void print_connect_prov(struct tcb *tcp, 
     int sockfd, char* addrbuf, int addr_len, long u_rval, char *ips) {
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     db_setCapturedSock(provdb, sockfd);
     db_write_connect_prov(provdb, tcp->pid, sockfd, addrbuf, addr_len, u_rval, ips);
     //~ struct in_addr d_in;
@@ -439,7 +444,7 @@ void retrieve_remote_new_dbs(char* remotehost, char* dbid) {
 }
 
 void print_iexit_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode) { // not handle exit by signal yet
+  if (Cde_provenance_mode) { // not handle exit by signal yet
 		rm_pid_prov(tcp->pid);
 		fprintf(CDE_provenance_logfile, "%d %u EXIT\n", (int)time(0), tcp->pid);
     db_write_iexit_prov(provdb, tcp->pid);
@@ -547,14 +552,14 @@ void rstrip(char *s) {
 }
 
 void print_listen_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     db_write_listen_prov(provdb, tcp->pid, 
         tcp->u_arg[0], tcp->u_arg[1], tcp->u_rval);
   }
 }
 
 void print_accept_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     char addrbuf[KEYLEN], buf[KEYLEN];
     bzero(buf, sizeof(buf));
     socklen_t len = 0;
@@ -579,7 +584,7 @@ void print_accept_prov(struct tcb *tcp) {
 }
 
 void print_getsockname_prov(struct tcb *tcp) {
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     char addrbuf[KEYLEN];
     socklen_t len = 0;
     if (tcp->u_arg[1] != 0) {
@@ -599,7 +604,7 @@ void print_getsockname_prov(struct tcb *tcp) {
 
 void print_fd_close(struct tcb *tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     if (!db_markFileClosed(provdb, tcp->pid, sockfd)) {
       if (db_isCapturedSock(provdb, sockfd)) {
         db_remove_sock(provdb, tcp->pid, sockfd);
@@ -625,18 +630,18 @@ void init_prov () {
   char *err = NULL;
 
   if (env_prov_mode != NULL)
-    CDE_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
+    Cde_provenance_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
   else
-    CDE_provenance_mode = !CDE_exec_mode;
-  if (CDE_provenance_mode) {
+    Cde_provenance_mode = !CDE_exec_mode;
+  if (Cde_provenance_mode) {
     setenv("IN_CDE_PROVENANCE_MODE", "1", 1);
     pthread_mutex_init(&mut_logfile, NULL);
     // create NEW provenance log file
     bzero(path, sizeof(path));
-    if (DB_ID == NULL)
+    if (Provdb_id == NULL)
       sprintf(path, "%s/provenance.%s.1.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME);
     else
-      sprintf(path, "%s/provenance.%s.1.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, DB_ID);
+      sprintf(path, "%s/provenance.%s.1.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, Provdb_id);
     if (access(path, R_OK)==-1)
       CDE_provenance_logfile = fopen(path, "w");
     else {
@@ -644,10 +649,10 @@ void init_prov () {
       do {
         subns++;
         bzero(path, sizeof(path));
-        if (DB_ID == NULL)
+        if (Provdb_id == NULL)
           sprintf(path, "%s/provenance.%s.%d.log", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns);
         else
-          sprintf(path, "%s/provenance.%s.%d.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns, DB_ID);
+          sprintf(path, "%s/provenance.%s.%d.log.id%s", cde_pseudo_pkg_dir, CDE_ROOT_NAME, subns, Provdb_id);
       } while (access(path, R_OK)==0);
       fprintf(stderr, "Provenance log file: %s\n", path);
       CDE_provenance_logfile = fopen(path, "w");
@@ -694,7 +699,7 @@ void init_prov () {
     db_write(provdb, "meta.fullns", fullns);
     char *parentns = getenv("CDE_PROV_NAMESPACE");
     db_write(provdb, "meta.parentns", parentns == NULL ? "(null)" : parentns);
-    db_write(provdb, "meta.dbid", DB_ID == NULL ? "(null)" : DB_ID);
+    db_write(provdb, "meta.dbid", Provdb_id == NULL ? "(null)" : Provdb_id);
 
     char* host = get_local_ip();
     if (host != NULL) {
@@ -715,14 +720,14 @@ void init_prov () {
 
 // log beginning proc exec call to provlog & leveldb if auditing, to stderr if verbose
 void print_begin_execve_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
-  if (CDE_provenance_mode || CDE_nw_mode) {
+  if (Cde_provenance_mode || CDE_nw_mode) {
     char *opened_filename = strcpy_from_child_or_null(tcp, tcp->u_arg[0]);
     char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     assert(filename_abspath);
     int parentPid = tcp->parent == NULL ? getpid() : tcp->parent->pid;
     char args[KEYLEN*10];
     print_arg_prov(args, tcp, tcp->u_arg[1]);
-    if (CDE_provenance_mode) {
+    if (Cde_provenance_mode) {
       fprintf(CDE_provenance_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
         parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
       db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, 
@@ -743,10 +748,10 @@ void print_begin_execve_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
 // log ending proc exec call to provlog if auditing, to stderr if verbose
 // log ending proc exec call, proc environ vars, and [something in add_pid_prov] to leveldb
 void print_end_execve_prov (struct tcb* tcp) {
-  if (CDE_provenance_mode || CDE_nw_mode) {
+  if (Cde_provenance_mode || CDE_nw_mode) {
     int ppid = -1;
     if (tcp->parent) ppid = tcp->parent->pid;
-    if (CDE_provenance_mode) {
+    if (Cde_provenance_mode) {
       int env_len;
       char *env_str = get_env_from_pid(tcp->pid, &env_len);
       db_write_execdone_prov(provdb, ppid, tcp->pid, env_str, env_len);
@@ -766,7 +771,7 @@ void print_end_execve_prov (struct tcb* tcp) {
 // log file open/openat to provlog & leveldb if auditing, to stderr if verbose
 void print_open_prov (struct tcb* tcp, const char* syscall_name) {
   // assume openAT use the same current_dir with PWD (from CDE code)
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     const int path_index =
       strcmp(syscall_name, "sys_open") == 0 ?
       1 :
@@ -799,14 +804,14 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
 
 // log file read to provlog & leveldb if auditing, to stderr if verbose
 void print_read_prov (struct tcb* tcp, const char* syscall_name, const int path_index) {
-  if (CDE_provenance_mode && tcp->u_rval >= 0) {
+  if (Cde_provenance_mode && tcp->u_rval >= 0) {
     print_io_prov(tcp, path_index, PRV_RDONLY);
   }
 }
 
 // log file write to provlog & leveldb if auditing, to stderr if verbose
 void print_write_prov (struct tcb* tcp, const char* syscall_name, const int path_index) {
-  if (CDE_provenance_mode && tcp->u_rval >= 0) {
+  if (Cde_provenance_mode && tcp->u_rval >= 0) {
     print_io_prov(tcp, path_index, PRV_WRONLY);
   }
 }
@@ -814,7 +819,7 @@ void print_write_prov (struct tcb* tcp, const char* syscall_name, const int path
 // log file hardlink/symlink to provlog & leveldb if auditing
 void print_link_prov (struct tcb* tcp, const char* syscall_name,
                       const int realpath_index, const int linkpath_index) {
-  if ( (CDE_provenance_mode) && (tcp->u_rval == 0) ) {
+  if ( (Cde_provenance_mode) && (tcp->u_rval == 0) ) {
       print_io_prov(tcp, realpath_index, PRV_RDONLY);
       print_io_prov(tcp, linkpath_index, PRV_WRONLY);
   }
@@ -822,7 +827,7 @@ void print_link_prov (struct tcb* tcp, const char* syscall_name,
 
 // log file rename/move to provlog & leveldb if auditing
 void print_rename_prov (struct tcb* tcp, const int renameat) {
-  if (CDE_provenance_mode) {
+  if (Cde_provenance_mode) {
     if (tcp->u_rval == 0) {
       // assume renameat uses the same current_dir with PWD (from CDE code)
       int origpath_index = renameat == 0 ? 0 : 1;
