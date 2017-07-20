@@ -13,6 +13,7 @@ the whole application (or a specific subpart of it) on a bare Linux machine.
     * [Fedora](#markdown-header-fedora)
         * [Fedora 25 Workstation](#markdown-header-fedora-25-workstation)
     * [Ubuntu](#markdown-header-ubuntu)
+        * [Ubuntu Desktop 16-04](#markdown-header-ubuntu-desktop-16-04)
         * [Ubuntu Mate 16-10](#markdown-header-ubuntu-mate-16-10)
         * [Ubuntu Desktop 17-04](#markdown-header-ubuntu-desktop-17-04)
     * [CentOS](#markdown-header-centos)
@@ -79,6 +80,36 @@ variable.  For a permanent export, place this line in your user
         $ export PTU_HOME=/path/to/provenance-to-use
 
 ### Ubuntu
+
+#### Ubuntu Desktop 16-04
+
+1. Install an Ubuntu Desktop 16-04 iso to a machine or VM with at least 20GB of
+disk space and 4GB of RAM.
+
+2. Install required PTU dependencies:
+
+        $ apt-get install git gv graphviz gnuplot libz-dev
+
+3. Download the PTU application via Bitbucket:
+
+        $ git clone https://username@bitbucket.org/tanum/provenance-to-use.git
+
+    NOTE: to avoid future naming conflicts, do not rename the cloned directory
+    to "PTU"
+
+4. Change to the newly-cloned PTU directory:
+
+        $ cd provenance-to-use
+
+5. Compile and install PTU:
+
+        $ make
+
+6. Temporarily export the PTU directory location to the expected environment
+variable.  For a permanent export, place this line in your user `~/.profile`
+file.
+
+        $ export PTU_HOME=/path/to/provenance-to-use
 
 #### Ubuntu Mate 16-10
 
@@ -340,22 +371,45 @@ TODO: architecture diagram
 
 ### Source Code Layout
 
+NOTE: files and directories annotated with a `*` are fixed dependencies modified
+by this project.  Files and directories NOT annotated with a `*` have been
+created by this project.
+
 ```
-├── /strace-4-6/                # Capture app, run app, track provenance
-│   ├── /okapi.c                # Copy files/dirs/simlinks with structural fidelity
-├── /readelf-mini/              # Read contents of files by file type
-├── /snappy-1.1.1/              # Compress/store captured files
-├── /leveldb-1.14.0/            # Store capture graph
-├── /scripts/                   # Perform various utility/intermediate functions
-│   ├── /prov2dot.py            # Create the capture graph
-│   ├── /runpid.py              # Run subprocess of captured app
-├── ptu-audit                   # Capture app
-├── ptu-exec                    # Run subprocess of captured app (call runpid.py)
+├── /strace-4-6*/       # Capture app, run app, track provenance
+│   ├── /db.c           # Store or retrieve prov data from a leveldb database
+│   ├── /defs.h*        # Data structures for tracing an app
+│   ├── /cde.c          # Audit app or run captured app
+│   ├── /cdenet.c       # Audit, run, or record network prov (experimental)
+│   ├── /file.c*        # System calls to trace file access
+│   ├── /okapi.c        # Copy files/dirs/simlinks with structural fidelity
+│   ├── /printenv.c     # Retrieve a process's environment variables
+│   ├── /process.c*     # System calls to trace process actions
+│   ├── /provenance.c   # Record app prov info to text log and to database
+│   ├── /strace.c*      # Main entry point: runs and traces app for audit/capture
+├── /readelf-mini*/     # Read contents of files by file type
+├── /snappy-1.1.1*/     # Compress/store captured files
+├── /leveldb-1.14.0*/   # Store capture graph
+├── /scripts/           # Perform various utility/intermediate functions
+│   ├── /prov2dot.py    # Create the capture graph
+│   ├── /runpid.py      # Run subprocess of captured app
+├── ptu-audit           # Capture app
+├── ptu-exec            # Run subprocess of captured app (call runpid.py)
 ```
 
 ### Executable Code Layout
 
-TODO
+```
+├── provenance.c                  # Record app prov info to text log and to database
+│   ├── init_prov()               # Initialize prov text log and prov database
+│   ├── print_begin_execve_prov() # Log process execve (starting info) sys call
+│   ├── print_end_execve_prov()   # Log process execve (ending info) sys call
+│   ├── print_open_prov()         # Log file open/openat sys call
+│   ├── print_read_prov()         # Log file read sys call
+│   ├── print_write_prov()        # Log file write sys call
+│   ├── print_link_prov()         # Log file hardlink/symlink creation sys call
+│   ├── print_rename_prov()       # Log file rename/move sys call
+```
 
 ## Project Team
 
