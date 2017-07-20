@@ -1,8 +1,9 @@
 #ifndef _PROVENANCE_H
 #define _PROVENANCE_H
 
-extern char* Provdb_id;          // leveldb provdb id
-extern char Cde_provenance_mode; // true if auditing (opposite of Cde_exec_mode)
+extern char* Prov_db_id;           // leveldb provdb id
+extern char Prov_prov_mode;        // true if auditing (opposite of Cde_exec_mode)
+extern char Prov_no_app_capture;   // if true, run cde to collect prov but don't capture app
 
 // initialize leveldb prov-db and provlog file
 void init_prov ();

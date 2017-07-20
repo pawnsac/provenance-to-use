@@ -423,7 +423,7 @@ struct tcb {
   // which is what /proc/self/exe should return when readlink() is
   // called on it
   //
-  // (only valid in CDE_exec_mode, does not contain the true path
+  // (only valid in Cde_exec_mode, does not contain the true path
   // within cde-root/ ... contains what the program 'perceives' is its
   // path from the original run, which is the portion of its absolute
   // path AFTER the cde-root/ component)
@@ -432,7 +432,7 @@ struct tcb {
   char* perceived_program_fullpath;
 
   // Fields pertaining to the shared memory segment,
-  // which is only valid when CDE_exec_mode option is 1
+  // which is only valid when Cde_exec_mode option is 1
   int shmid;
   char* localshm; // address in our address space
   void* childshm; // address in child's address space

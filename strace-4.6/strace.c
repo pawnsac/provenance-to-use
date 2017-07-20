@@ -96,6 +96,7 @@
 #include "cde.h"          // pgbovine
 #include "okapi.h"        // pgbovine
 #include "provenance.h"
+#include "cdenet.h"
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
@@ -106,7 +107,6 @@ extern int optind;
 extern char *optarg;
 
 // pgbovine
-extern char CDE_exec_mode;
 extern char CDE_exec_streaming_mode; // -s option
 extern char CDE_block_net_access; // -n option
 extern char CDE_use_linker_from_package; // ON by default, -l option to turn OFF
@@ -122,12 +122,9 @@ extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
 // quanpt
-extern char CDE_bare_run;
-extern char CDE_nw_mode;
 extern char* DB_NAME;
 extern char* PIDKEY;
 extern char CDE_network_content_mode;
-extern char CDE_follow_SSH_mode;
 
 /*******************************************************************************
  * PRIVATE VARIABLES
@@ -224,7 +221,7 @@ usage(ofp, exitval)
 FILE *ofp;
 int exitval;
 {
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     fprintf(ofp,
             "PTU\n"
             "Basic usage: ptu-exec [command within cde-root/ to run]\n");
@@ -598,7 +595,7 @@ startup_child (char **argv)
 			strcpy(pathname + len, filename);
 
       // pgbovine
-      if (CDE_exec_mode) {
+      if (Cde_exec_mode) {
         strcpy_redirected_cderoot(path_to_search, pathname);
       }
       else {
@@ -618,7 +615,7 @@ startup_child (char **argv)
 
   // pgbovine - if we still haven't initialized it yet, do so now
   if (path_to_search[0] == '\0') { // uninit
-    if (CDE_exec_mode) {
+    if (Cde_exec_mode) {
       strcpy_redirected_cderoot(path_to_search, pathname);
     }
     else {
@@ -2656,8 +2653,8 @@ int main (int argc, char *argv[]) {
 
   CDE_clear_options_arrays(); // pgbovine - call this as EARLY as possible so that '-i' and '-p' options work!
 
-  // pgbovine - if program name is 'cde-exec', then activate CDE_exec_mode
-  CDE_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
+  // pgbovine - if program name is 'cde-exec', then activate Cde_exec_mode
+  Cde_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
 
 	/* Allocate the initial tcbtab.  */
 	tcbtabsize = argc;	/* Surely enough for all -p args.  */
@@ -2754,7 +2751,7 @@ int main (int argc, char *argv[]) {
 			break;
 		case 'N':
 			// quanpt - network simulation mode
-			CDE_nw_mode = 1;
+			Cdenet_network_mode = 1;
 			DB_NAME = strdup(optarg);
 			CDE_network_content_mode = 1;
 			break;
@@ -2764,7 +2761,7 @@ int main (int argc, char *argv[]) {
 			break;
 		case 'I':
 			// quanpt - id of the new db in SSH replacement mode
-			Provdb_id = strdup(optarg);
+			Prov_db_id = strdup(optarg);
 			break;
 		case 'T':
 			dtime++;
@@ -2791,7 +2788,7 @@ int main (int argc, char *argv[]) {
 			break;
 		case 'b':
 			// quanpt - bare run to create provenance, not create package
-			CDE_bare_run = 1;
+			Prov_no_app_capture = 1;
 			break;
 		case 'e':
 			qualify(optarg);
@@ -2847,7 +2844,7 @@ int main (int argc, char *argv[]) {
 		case 'S':
 			// quanpt - hijack for NOT follow SSH
 			//~ set_sortby(optarg);
-			CDE_follow_SSH_mode = 0;
+			Cde_follow_ssh_mode = 0;
 			break;
 		case 'u':
 			username = strdup(optarg);
@@ -2888,7 +2885,7 @@ int main (int argc, char *argv[]) {
 			",connect,accept,listen,close" \
 			",exit_group"
 	char* tmp;
-	if (CDE_network_content_mode || CDE_nw_mode)
+	if (CDE_network_content_mode || Cdenet_network_mode)
 		tmp = strdup(SYSCALL_1ST
 			",send,sendto,sendmsg,recv,recvfrom,recvmsg,read,write");
 			//,getsockopt,getsockname,poll");
@@ -3005,12 +3002,12 @@ int main (int argc, char *argv[]) {
 
     init_prov(); // quanpt: initialize leveldb prov-db and provlog file
 	extern void init_nwdb();
-	if (CDE_nw_mode && CDE_exec_mode && !Cde_provenance_mode)
+	if (Cdenet_network_mode && Cde_exec_mode && !Prov_prov_mode)
 		init_nwdb();
 		
 	extern void CDE_load_environment_vars(char* repo_name);
 	extern void CDE_load_environment_vars_for_pid(char* pidkey);
-	if (CDE_exec_mode) {
+	if (Cde_exec_mode) {
 		if (PIDKEY == NULL)
 			CDE_load_environment_vars(CDE_ROOT_NAME);
 		else

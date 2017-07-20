@@ -1,8 +1,10 @@
 #ifndef _CDE_H
 #define _CDE_H
 
-extern char Cde_verbose_mode;  // print cde activity to stdout (-v option)
-extern char CDE_exec_mode;
+extern char Cde_verbose_mode;    // print cde activity to stdout (-v option)
+extern char Cde_exec_mode;       // false if auditing, true if running captured app
+extern char Cde_app_dir[];       // abs path to cde app dir (contains cde-root)
+extern char Cde_follow_ssh_mode;
 
 // to shut up gcc warnings without causing nasty #include conflicts
 // TODO: do we still need this?

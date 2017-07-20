@@ -256,7 +256,6 @@ extern void CDE_end_execve(struct tcb* tcp);
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 
 // quanpt
-extern FILE* CDE_provenance_logfile;
 extern void rm_pid_prov(pid_t pid);
 
 static const char *
