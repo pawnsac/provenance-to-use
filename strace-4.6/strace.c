@@ -93,11 +93,12 @@
  * USER INCLUDES
  ******************************************************************************/
 
+#include "cde.h"          // pgbovine
 #include "okapi.h"        // pgbovine
 #include "provenance.h"
 
 /*******************************************************************************
- * EXTERNAL VARIABLES
+ * EXTERNALLY-DEFINED VARIABLES
  ******************************************************************************/
 
 extern char **environ;
@@ -106,7 +107,6 @@ extern char *optarg;
 
 // pgbovine
 extern char CDE_exec_mode;
-extern char CDE_verbose_mode; // -v option
 extern char CDE_exec_streaming_mode; // -s option
 extern char CDE_block_net_access; // -n option
 extern char CDE_use_linker_from_package; // ON by default, -l option to turn OFF
@@ -122,7 +122,6 @@ extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
 // quanpt
-extern char Cde_provenance_mode;
 extern char CDE_bare_run;
 extern char CDE_nw_mode;
 extern char* DB_NAME;
@@ -2776,7 +2775,7 @@ int main (int argc, char *argv[]) {
 		case 'v':
 			// pgbovine - hijack for the '-v' option
 			//qualify("abbrev=none");
-			CDE_verbose_mode += 1;
+			Cde_verbose_mode += 1;
 			break;
 		case 'V':
 			printf("PALLY v0.1\n");

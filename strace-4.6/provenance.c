@@ -47,7 +47,6 @@ extern void print_trace (void);              // strace's util.c
  * STUFF TO SORT!!
  ******************************************************************************/
 
-extern char CDE_verbose_mode;
 extern char CDE_nw_mode;
 extern char CDE_follow_SSH_mode;
 extern char cde_pseudo_pkg_dir[MAXPATHLEN];
@@ -391,7 +390,7 @@ void print_sock_action(struct tcb *tcp, int sockfd, \
         sockfd, len_param, flags, len_result, action);
   db_write_sock_action(provdb, tcp->pid, sockfd, buf, len_param, flags, \
                        len_result, action, msg);
-  if (CDE_verbose_mode && (action == SOCK_SEND || action == SOCK_RECVMSG)) {
+  if (Cde_verbose_mode && (action == SOCK_SEND || action == SOCK_RECVMSG)) {
     #define NPRINT (100)
     if (buf != NULL && strlen(buf)>NPRINT+3) {
       buf[NPRINT] = '.';buf[NPRINT+1] = '.';buf[NPRINT+2] = '.';buf[NPRINT+3] = '\0';
@@ -732,7 +731,7 @@ void print_begin_execve_prov (struct tcb* tcp, char* db_id, char* ssh_host) {
         parentPid, tcp->pid, filename_abspath, tcp->current_dir, args);
       db_write_exec_prov(provdb, parentPid, tcp->pid, filename_abspath, 
           tcp->current_dir, args, db_id, ssh_host);
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
       }
     }
@@ -757,7 +756,7 @@ void print_end_execve_prov (struct tcb* tcp) {
       db_write_execdone_prov(provdb, ppid, tcp->pid, env_str, env_len);
       fprintf(CDE_provenance_logfile, "%d %u EXECVE2 %d\n", (int)time(0), tcp->pid, ppid);
       add_pid_prov(tcp->pid);
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         vbprintf("[%d-prov] BEGIN execve2\n", tcp->pid);
       }
       freeifnn(env_str);
@@ -791,7 +790,7 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
       }
       print_iofd_prov(tcp, path_index - 1, action, tcp->u_rval);
     }
-  } else if (CDE_verbose_mode >= 1) {
+  } else if (Cde_verbose_mode >= 1) {
     int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
         (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
     char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);

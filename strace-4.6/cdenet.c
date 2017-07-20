@@ -225,9 +225,6 @@ linux_call_type(long codesegment)
 #define SET_ARGUMENT_5(x, v)	(x)->ebp = (v)
 #endif /* !X86_64 */
 
-// variables from cde.c
-extern int CDE_verbose_mode;
-
 // function from cde.c
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
 extern void vbprintf(const char *fmt, ...);
@@ -395,7 +392,7 @@ void printSockInfo(struct tcb* tcp, int op, \
 void denySyscall(long pid) {
   struct user_regs_struct regs;
   EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-  if (CDE_verbose_mode>=2) {
+  if (Cde_verbose_mode>=2) {
     vbprintf("[%ld-net] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
   }
   SYSCALL_NUM(&regs) = 0xbadca11;
@@ -750,7 +747,7 @@ void CDEnet_end_send(struct tcb* tcp) {
   }
   if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
     vb(2);
-    if (CDE_verbose_mode >= 3) {
+    if (Cde_verbose_mode >= 3) {
       char buff[KEYLEN];
       size_t buflength = tcp->u_arg[2];
       if (umoven(tcp, tcp->u_arg[1], buflength, buff) < 0) {
@@ -759,7 +756,7 @@ void CDEnet_end_send(struct tcb* tcp) {
       buff[tcp->u_arg[2]] = '\0';
       vbp(3, "action %d [%ld] checksum %u ", 
 	  SOCK_SEND, tcp->u_arg[2], checksum(buff, buflength));
-      if (CDE_verbose_mode >= 3) printbuf(buff, buflength);
+      if (Cde_verbose_mode >= 3) printbuf(buff, buflength);
     }
     long pid = tcp->pid;
     char *pidkey, *sockid;
@@ -1064,7 +1061,7 @@ char* getMappedPid(char* pidkey) {
     p = db_readc(currdb, key);
   }
   vbp(2, "%s -> [%d] [", pidkey, n);
-  if (CDE_verbose_mode >= 2) {
+  if (Cde_verbose_mode >= 2) {
     for (i=0; i<n; i++) {
       fprintf(stderr, "%llu, ", idlist[i]);
     }

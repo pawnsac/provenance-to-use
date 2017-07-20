@@ -1,6 +1,7 @@
 #ifndef _CDE_H
 #define _CDE_H
 
+extern char Cde_verbose_mode;  // print cde activity to stdout (-v option)
 extern char CDE_exec_mode;
 
 // to shut up gcc warnings without causing nasty #include conflicts
