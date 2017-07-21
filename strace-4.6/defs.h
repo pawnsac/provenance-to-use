@@ -411,7 +411,7 @@ struct tcb {
 #endif
 
   // new fields added by pgbovine
-  // handle memory management in alloc_tcb_CDE_fields() and free_tcb_CDE_fields()
+  // handle memory management in alloc_tcb_cde_fields() and free_tcb_cde_fields()
 
   // inherited from parent during fork()
   // TODO: careful with memory leaks for these strdup'ed strings!

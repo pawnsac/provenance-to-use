@@ -110,8 +110,6 @@ extern char *optarg;
 extern char CDE_exec_streaming_mode; // -s option
 extern char CDE_block_net_access; // -n option
 extern char CDE_use_linker_from_package; // ON by default, -l option to turn OFF
-extern void alloc_tcb_CDE_fields(struct tcb* tcp);
-extern void free_tcb_CDE_fields(struct tcb* tcp);
 extern void strcpy_redirected_cderoot(char* dst, char* src);
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern FILE* CDE_copied_files_logfile;
@@ -886,7 +884,7 @@ alloc_tcb(int pid, int command_options_parsed)
 			tcp->stime.tv_usec = 0;
 			tcp->pfd = -1;
 
-      alloc_tcb_CDE_fields(tcp); // pgbovine
+      alloc_tcb_cde_fields(tcp); // pgbovine
 
 			nprocs++;
 			if (command_options_parsed)
@@ -1301,7 +1299,7 @@ struct tcb *tcp;
 
 	tcp->outf = 0;
 
-  free_tcb_CDE_fields(tcp); // pgbovine
+  free_tcb_cde_fields(tcp); // pgbovine
 }
 
 #ifndef USE_PROCFS

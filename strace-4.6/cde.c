@@ -67,12 +67,73 @@ char Cde_follow_ssh_mode = 1;
  * PRIVATE CONSTANTS / VARIABLES
  ******************************************************************************/
 
+// private constants
+const size_t shared_page_size = MAXPATHLEN * 4; // shared mem page size
+
+// private variables
 static char cde_cderoot_dir[MAXPATHLEN]; // abs path to cde-root dir (root of captured app)
 static pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER; // quanpt: make find_ELF_program_interpreter threadsafe
 
 /*******************************************************************************
  * PRIVATE MACROS / FUNCTIONS
  ******************************************************************************/
+
+/*******************************************************************************
+ * PUBLIC FUNCTIONS
+ ******************************************************************************/
+
+// allocate heap memory for a tcb's cde fields
+void alloc_tcb_cde_fields (struct tcb* tcp) {
+  tcp->localshm = NULL;
+  tcp->childshm = NULL;
+  tcp->setting_up_shm = 0;
+
+  if (Cde_exec_mode || 1) { // TODO: quanpt: make it into cde option
+    key_t key;
+    // randomly probe for a valid shm key
+    do {
+      errno = 0;
+      key = rand();
+      tcp->shmid = shmget(key, shared_page_size, IPC_CREAT|IPC_EXCL|0600);
+    } while (tcp->shmid == -1 && errno == EEXIST);
+
+    tcp->localshm = (char*)shmat(tcp->shmid, NULL, 0);
+
+    if ((long)tcp->localshm == -1) {
+      perror("shmat");
+      exit(1);
+    }
+
+    if (shmctl(tcp->shmid, IPC_RMID, NULL) == -1) {
+      perror("shmctl(IPC_RMID)");
+      exit(1);
+    }
+
+    assert(tcp->localshm);
+  }
+
+  tcp->current_dir = NULL;
+  tcp->p_ignores = NULL;
+  tcp->current_repo_ind = -1;
+}
+
+// free heap-allocated cde fields in a tcb
+void free_tcb_cde_fields (struct tcb* tcp) {
+  if (tcp->localshm) {
+    shmdt(tcp->localshm);
+  }
+  // need to null out elts in case table entries are recycled
+  tcp->localshm = NULL;
+  tcp->childshm = NULL;
+  tcp->setting_up_shm = 0;
+  tcp->p_ignores = NULL;
+
+  if (tcp->current_dir) {
+    free(tcp->current_dir);
+    tcp->current_dir = NULL;
+  }
+  tcp->current_repo_ind = -1;
+}
 
 /*******************************************************************************
  * IMPLEMENTATION
@@ -166,8 +227,6 @@ static void* find_free_addr(int pid, int exec, unsigned long size);
 char* strcpy_from_child(struct tcb* tcp, long addr);
 char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 static int ignore_path(char* filename, struct tcb* tcp);
-
-#define SHARED_PAGE_SIZE (MAXPATHLEN * 4)
 
 static char* redirect_filename_into_cderoot(char* filename, char* child_current_pwd, struct tcb* tcp);
 void memcpy_to_child(int pid, char* dst_child, char* src, int size);
@@ -2558,59 +2617,6 @@ static void* find_free_addr(int pid, int prot, unsigned long size) {
 
   return NULL;
 }
-
-
-void alloc_tcb_CDE_fields(struct tcb* tcp) {
-  tcp->localshm = NULL;
-  tcp->childshm = NULL;
-  tcp->setting_up_shm = 0;
-
-  if (Cde_exec_mode || 1) { // TODO: quanpt: make it into cde option
-    key_t key;
-    // randomly probe for a valid shm key
-    do {
-      errno = 0;
-      key = rand();
-      tcp->shmid = shmget(key, SHARED_PAGE_SIZE, IPC_CREAT|IPC_EXCL|0600);
-    } while (tcp->shmid == -1 && errno == EEXIST);
-
-    tcp->localshm = (char*)shmat(tcp->shmid, NULL, 0);
-
-    if ((long)tcp->localshm == -1) {
-      perror("shmat");
-      exit(1);
-    }
-
-    if (shmctl(tcp->shmid, IPC_RMID, NULL) == -1) {
-      perror("shmctl(IPC_RMID)");
-      exit(1);
-    }
-
-    assert(tcp->localshm);
-  }
-
-  tcp->current_dir = NULL;
-  tcp->p_ignores = NULL;
-  tcp->current_repo_ind = -1;
-}
-
-void free_tcb_CDE_fields(struct tcb* tcp) {
-  if (tcp->localshm) {
-    shmdt(tcp->localshm);
-  }
-  // need to null out elts in case table entries are recycled
-  tcp->localshm = NULL;
-  tcp->childshm = NULL;
-  tcp->setting_up_shm = 0;
-  tcp->p_ignores = NULL;
-
-  if (tcp->current_dir) {
-    free(tcp->current_dir);
-    tcp->current_dir = NULL;
-  }
-  tcp->current_repo_ind = -1;
-}
-
 
 // inject a system call in the child process to tell it to attach our
 // shared memory segment, so that it can read modified paths from there

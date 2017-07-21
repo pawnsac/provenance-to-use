@@ -565,7 +565,7 @@ int isProvCapturedSock(int sockfd) {
 }
 
 /*******************************************************************************
- * PUBLIC INTERFACE
+ * PUBLIC FUNCTIONS
  ******************************************************************************/
 
 // initialize leveldb prov-db and provlog file
