@@ -33,8 +33,8 @@ CDE is currently licensed under GPL v3:
 
 */
 
-#ifndef _PATHS_H
-#define _PATHS_H
+#ifndef _OKAPI_H
+#define _OKAPI_H
 
 #include <limits.h>
 #include <stdlib.h>
@@ -100,4 +100,5 @@ void create_mirror_dirs(char* original_abspath, char* src_prefix, char* dst_pref
 void create_mirror_symlink_and_target(char* filename_abspath, char* src_prefix, char* dst_prefix);
 void copy_file(char* src_filename, char* dst_filename, int perms);
 
-#endif // _PATHS_H
+#endif // _OKAPI_H
+

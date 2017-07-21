@@ -306,60 +306,6 @@ int getPort(union sockaddr_t *addrbuf) {
   return -1;
 }
 
-int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
-	union sockaddr_t *addrbuf = (union sockaddr_t*) addr;
-	//union sockaddr_t *addrbuf;// = (union sockaddr_t*)addr;
-	//~ char string_addr[100];
-
-	if (addr == 0) {
-		return -1;
-	}
-
-	//~ if (addrlen < 2 || addrlen > sizeof(addrbuf))
-		//~ addrlen = sizeof(addrbuf);
-//~ 
-	//~ memset(&addrbuf, 0, sizeof(addrbuf));
-	//~ if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
-		//~ return -1;
-	//~ }
-	addrbuf->pad[sizeof(addrbuf->pad) - 1] = '\0';
-
-	psock->saf = addrbuf->sa.sa_family;
-
-	switch (addrbuf->sa.sa_family) {
-	case AF_UNIX:
-	  // AF_FILE is also a synonym for AF_UNIX
-	  // these are file operations
-		break;
-	case AF_INET:
-		//tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\")",
-			//ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
-		psock->port = ntohs(addrbuf->sin.sin_port);
-		psock->ip.ipv4 = addrbuf->sin.sin_addr.s_addr;
-		return 4;
-		break;
-#ifdef HAVE_INET_NTOP
-	case AF_INET6:
-		//~ inet_ntop(AF_INET6, &addrbuf->sa6.sin6_addr, string_addr, sizeof(string_addr));
-		//tprintf("sin6_port=htons(%u), inet_pton(AF_INET6, \"%s\", &sin6_addr), sin6_flowinfo=%u",
-		//		ntohs(addrbuf.sa6.sin6_port), string_addr,
-		//		addrbuf.sa6.sin6_flowinfo);
-		psock->port = ntohs(addrbuf->sa6.sin6_port);
-		memcpy(&addrbuf->sa6.sin6_addr, &psock->ip.ipv6, 16);
-		return 6;
-		break;
-#endif
-
-  /* Quan - not handle AF_IPX AF_APACKET AF_NETLINK */
-	/* AF_AX25 AF_APPLETALK AF_NETROM AF_BRIDGE AF_AAL5
-	AF_X25 AF_ROSE etc. still need to be done */
-
-	default:
-		break;
-	}
-	return -1;
-}
-
 int isCurrCapturedSock(int sockfd) {
   return db_isCapturedSock(Cdenet_exec_provdb, sockfd);
 }
@@ -438,7 +384,7 @@ void setBindConnectReturnValue(struct tcb* tcp) {
   free(pidkey);
 }
 
-void get_ip_info(long pid, int sockfd, char *buf) {
+void get_ip_info (long pid, int sockfd, char* buf) {
   struct stat fdstat;
   char path[KEYLEN];
   sprintf(path, "/proc/%ld/fd/%d", pid, sockfd);

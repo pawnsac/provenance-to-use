@@ -404,6 +404,7 @@ created by this project.
 │   ├── init_prov()               # Initialize prov text log and prov database
 │   ├── print_begin_execve_prov() # Log process execve (starting info) sys call
 │   ├── print_end_execve_prov()   # Log process execve (ending info) sys call
+│   ├── print_spawn_prov()        # Log process creation of new process
 │   ├── print_open_prov()         # Log file open/openat sys call
 │   ├── print_read_prov()         # Log file read sys call
 │   ├── print_write_prov()        # Log file write sys call

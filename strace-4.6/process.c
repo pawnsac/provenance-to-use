@@ -37,6 +37,10 @@
  *	$Id$
  */
 
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
 #include "defs.h"
 
 #include <fcntl.h>
@@ -121,6 +125,28 @@
 
 #ifdef HAVE_PRCTL
 # include <sys/prctl.h>
+
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
+#include "provenance.h"
+
+/*******************************************************************************
+ * EXTERNALLY-DEFINED FUNCTIONS
+ ******************************************************************************/
+
+// pgbovine
+extern void CDE_begin_execve(struct tcb* tcp);
+extern void CDE_end_execve(struct tcb* tcp);
+extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
+
+/*******************************************************************************
+ * IMPLEMENTATION
+ ******************************************************************************/
+
+// quanpt
+extern void rm_pid_prov(pid_t pid);
 
 static const struct xlat prctl_options[] = {
 #ifdef PR_MAXPROCS
@@ -248,15 +274,6 @@ static const struct xlat prctl_options[] = {
 #endif
 	{ 0,			NULL			},
 };
-
-
-// pgbovine
-extern void CDE_begin_execve(struct tcb* tcp);
-extern void CDE_end_execve(struct tcb* tcp);
-extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
-
-// quanpt
-extern void rm_pid_prov(pid_t pid);
 
 static const char *
 unalignctl_string (unsigned int ctl)
@@ -868,7 +885,6 @@ handle_new_child(struct tcb *tcp, int pid, int bpt)
 	tcpchild->parent = tcp;
 
   CDE_init_tcb_dir_fields(tcpchild); // pgbovine - do it AFTER you init parent
-  void print_spawn_prov(struct tcb *tcp);
   print_spawn_prov(tcpchild); // quanpt
 
 	tcp->nchildren++;

@@ -33,6 +33,7 @@
 #include "defs.h"       // strace module, must go first
 #include "provenance.h"
 #include "cde.h"
+#include "okapi.h"      // canonicalize_path()
 #include "cdenet.h"
 #include "const.h"
 #include "db.h"
@@ -42,26 +43,9 @@
  ******************************************************************************/
 
 extern void vbprintf (const char* fmt, ...); // cde.c
+extern char* strcpy_from_child_or_null (struct tcb* tcp, long addr); // cde.c
 extern void print_trace (void);              // strace's util.c
-
-/*******************************************************************************
- * STUFF TO SORT!!
- ******************************************************************************/
-
-extern int string_quote(const char *instr, char *outstr, int len, int size);
-extern char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
-extern char* canonicalize_path(char *path, char *relpath_base);
-
-extern int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock);
-extern int getPort(union sockaddr_t *addrbuf);
-extern void get_ip_info(long pid, int sockfd, char *buf);
-
-void print_spawn_prov(struct tcb *tcp);
-void print_sock_prov(struct tcb *tcp, int action, unsigned int port, unsigned long ipv4);
-void print_act_prov(struct tcb *tcp, const char* action);
-void print_newsock_prov(struct tcb *tcp, int action, \
-  unsigned int s_port, unsigned long s_ipv4, \
-  unsigned int d_port, unsigned long d_ipv4, int sk);
+extern int string_quote (const char* instr, char* outstr, int len, int size); // strace's util.c
 
 /*******************************************************************************
  * PUBLIC VARIABLES
@@ -104,7 +88,7 @@ static pthread_mutex_t mut_pidlist = PTHREAD_MUTEX_INITIALIZER; // atomically up
 #endif
 
 // return string of current environ vars for input PID
-char* get_env_from_pid (int pid, int* length) {
+static char* get_env_from_pid (int pid, int* length) {
   char fullenviron_fn[KEYLEN];
   char *environment = malloc(ENV_LEN);
   if (environment == NULL) return NULL;
@@ -118,7 +102,7 @@ char* get_env_from_pid (int pid, int* length) {
 }
 
 // print something (? pidlist ?) to provlog & leveldb
-void print_curr_prov (PidList* pidlist_p) {
+static void print_curr_prov (PidList* pidlist_p) {
   int i, curr_time;
   FILE *f;
   char buff[1024];
@@ -160,7 +144,7 @@ void print_curr_prov (PidList* pidlist_p) {
 }
 
 // add input pid to end of pidlist array
-void add_pid_prov (const pid_t pid) {
+static void add_pid_prov (const pid_t pid) {
   pthread_mutex_lock(&mut_pidlist);
   pidlist.pv[pidlist.pc] = pid;
   pidlist.pc++;
@@ -169,7 +153,7 @@ void add_pid_prov (const pid_t pid) {
 }
 
 // remove input pid from pidlist array
-void rm_pid_prov (const pid_t pid) {
+static void rm_pid_prov (const pid_t pid) {
   int i=0;
   if (pidlist.pc<=0) return;
   print_curr_prov(&pidlist);
@@ -183,7 +167,7 @@ void rm_pid_prov (const pid_t pid) {
 }
 
 // log file read/write/rw to provlog & leveldb
-void print_io_prov (struct tcb* tcp, const int path_index, const int action) {
+static void print_io_prov (struct tcb* tcp, const int path_index, const int action) {
   char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
   assert(filename_abspath);
@@ -200,7 +184,7 @@ void print_io_prov (struct tcb* tcp, const int path_index, const int action) {
 }
 
 // log file read/write/rw + file fd to provlog & leveldb
-void print_iofd_prov (struct tcb* tcp, const int path_index, const int action, const int fd) {
+static void print_iofd_prov (struct tcb* tcp, const int path_index, const int action, const int fd) {
   char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
   assert(filename_abspath);
@@ -306,28 +290,6 @@ print_arg_prov(char *argstr, struct tcb *tcp, long addr)
 	len += sprintf(argstr+len, "]");
 }
 
-void print_spawn_prov(struct tcb *tcp) {
-  if (Prov_prov_mode || Cdenet_network_mode) {
-    if (Prov_prov_mode) {
-      fprintf(prov_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
-      db_write_spawn_prov(prov_db, tcp->parent->pid, tcp->pid);
-    }
-    if (Cdenet_network_mode) {
-      db_write_spawn_prov(Cdenet_exec_provdb, tcp->parent->pid, tcp->pid);
-    }
-  }
-}
-
-void print_act_prov(struct tcb *tcp, const char *action) {
-  if (Prov_prov_mode) {
-    fprintf(prov_logfile, "%d %u %s 0\n", (int)time(0), tcp->pid, action);
-    db_write_io_prov(prov_db, tcp->pid, PRV_ACTION, action);
-  }
-}
-
-void print_sock_prov(struct tcb *tcp, int action, unsigned int port, unsigned long ipv4) {
-  print_newsock_prov(tcp, action, 0, 0, port, ipv4, 0);
-}
 void print_newsock_prov(struct tcb *tcp, int action, \
     unsigned int s_port, unsigned long s_ipv4, \
     unsigned int d_port, unsigned long d_ipv4, int sk) {
@@ -749,6 +711,19 @@ void print_end_execve_prov (struct tcb* tcp) {
     }
     if (Cdenet_network_mode) {
       db_write_execdone_prov(Cdenet_exec_provdb, ppid, tcp->pid, NULL, 0);
+    }
+  }
+}
+
+// log proc creation of new proc to provlog & leveldb if auditing
+void print_spawn_prov(struct tcb *tcp) {
+  if (Prov_prov_mode || Cdenet_network_mode) {
+    if (Prov_prov_mode) {
+      fprintf(prov_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
+      db_write_spawn_prov(prov_db, tcp->parent->pid, tcp->pid);
+    }
+    if (Cdenet_network_mode) {
+      db_write_spawn_prov(Cdenet_exec_provdb, tcp->parent->pid, tcp->pid);
     }
   }
 }
