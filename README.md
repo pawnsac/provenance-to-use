@@ -387,6 +387,7 @@ created by this project.
 │   ├── /process.c*     # System calls to trace process actions
 │   ├── /provenance.c   # Record app prov info to text log and to database
 │   ├── /strace.c*      # Main entry point: runs and traces app for audit/capture
+│   ├── /syslimits.c    # Obtain OS maxes for num open files, command-line length, etc.
 ├── /readelf-mini*/     # Read contents of files by file type
 ├── /snappy-1.1.1*/     # Compress/store captured files
 ├── /leveldb-1.14.0*/   # Store capture graph

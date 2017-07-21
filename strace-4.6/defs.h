@@ -444,8 +444,8 @@ struct tcb {
   struct PI* p_ignores; // point to an element within process_ignores if
                         // this traced process has custom ignore options
 
-  // quanpt - multi repo
-  int current_repo_ind;
+  int current_repo_ind;     // quanpt: multi repo
+  char** opened_file_paths; // digimokan: abs paths used to open this proc's currently open files
 };
 
 /* TCB flags */

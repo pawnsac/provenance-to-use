@@ -45,6 +45,7 @@
 #include "provenance.h"
 #include "db.h"
 #include "const.h"
+#include "syslimits.h"   // max_open_files()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
@@ -112,6 +113,13 @@ void alloc_tcb_cde_fields (struct tcb* tcp) {
     assert(tcp->localshm);
   }
 
+  // digimokan: abs paths used to open this proc's currently open files
+  const long maxof = max_open_files();
+  tcp->opened_file_paths = (char**) malloc(maxof * sizeof(char*));
+  for (int i = 0; i < maxof; i++) {
+    tcp->opened_file_paths[i] = NULL;
+  }
+
   tcp->current_dir = NULL;
   tcp->p_ignores = NULL;
   tcp->current_repo_ind = -1;
@@ -127,6 +135,13 @@ void free_tcb_cde_fields (struct tcb* tcp) {
   tcp->childshm = NULL;
   tcp->setting_up_shm = 0;
   tcp->p_ignores = NULL;
+
+  // digimokan: abs paths used to open this proc's currently open files
+  for (int i = 0; i < max_open_files(); i++) {
+    if (tcp->opened_file_paths[i] != NULL) {
+      free(tcp->opened_file_paths[i]);
+    }
+  }
 
   if (tcp->current_dir) {
     free(tcp->current_dir);
