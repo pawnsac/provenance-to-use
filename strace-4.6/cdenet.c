@@ -138,7 +138,8 @@ CDEnet is currently licensed under GPL v3:
 #endif
 
 #if defined(AF_PACKET) /* from e.g. linux/if_packet.h */
-static const struct xlat af_packet_types[] = {
+extern const struct xlat af_packet_types[];
+const struct xlat af_packet_types[] = {
 #if defined(PACKET_HOST)
 	{ PACKET_HOST,			"PACKET_HOST"		},
 #endif
@@ -737,6 +738,7 @@ void CDEnet_begin_getsockname(struct tcb* tcp) {
     denySyscall(tcp->pid);
   }
 }
+
 void CDEnet_end_getsockname(struct tcb* tcp) {
   static int count = 1;
   vbp(0, "%ld\n", tcp->u_rval);

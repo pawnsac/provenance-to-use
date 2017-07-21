@@ -2404,7 +2404,7 @@ Process %d attached (waiting for parent)\n",
 			}
 			if (cflag != CFLAG_ONLY_STATS
 			    && (qual_flags[WSTOPSIG(status)] & QUAL_SIGNAL)) {
-				siginfo_t si;
+				// siginfo_t si; // pgbovine - silence signal printouts
 #if defined(PT_CR_IPSR) && defined(PT_CR_IIP)
 				long pc = 0;
 				long psr = 0;
@@ -2633,7 +2633,8 @@ mp_ioctl(int fd, int cmd, void *arg, int size)
 
 int main (int argc, char *argv[]) {
 	struct tcb *tcp;
-	int c, pid = 0;
+	int c;
+	/*int pid = 0;*/
 	int optF = 0;
 	struct sigaction sa;
 

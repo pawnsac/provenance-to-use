@@ -29,7 +29,7 @@
 #include <sys/socket.h>  // IPv4/IPv6 library
 #include <sys/un.h>      // UNIX domain sockets
 #include <sys/utsname.h> // struct utsname, uname()
-#include <linux/shm.h>   // shared memory blocks
+#include <sys/shm.h>     // shared mem: IPC_CREAT, IPC_EXCL, IPC_RMID, shmctl(), shmget(), shmat(), shmdt()
 #include <dirent.h>      // stuct dirent, DIR, readdir(), opendir(), closedir()
 #include <pthread.h>     // pthread_mutex_t, pthread_mutex_init(), pthread_mutex_lock/unlock()
 

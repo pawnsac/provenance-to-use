@@ -22,6 +22,8 @@ void CDEnet_begin_recv(struct tcb* tcp);
 void CDEnet_end_recv(struct tcb* tcp);
 
 void get_ip_info (long pid, int sockfd, char* buf);
+void CDEnet_begin_getsockname (struct tcb* tcp);
+void CDEnet_end_getsockname (struct tcb* tcp);
 
 // delete these later
 void CDEnet_begin_sendmsg(struct tcb* tcp);
