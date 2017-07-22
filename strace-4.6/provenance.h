@@ -23,6 +23,8 @@ void print_write_prov (struct tcb* tcp, const char* syscall_name, const int path
 void print_link_prov (struct tcb* tcp, const char* syscall_name, const int realpath_index, const int linkpath_index);
 // log file rename/move to provlog & leveldb if auditing
 void print_rename_prov (struct tcb* tcp, const int renameat);
+// log file close to provlog if auditing, to stderr if verbose
+void print_close_prov (struct tcb* tcp);
 
 void print_newsock_prov(struct tcb *tcp, int action, unsigned int s_port, unsigned long s_ipv4, unsigned int d_port, unsigned long d_ipv4, int sk);
 void print_sock_action(struct tcb *tcp, int sockfd, char *buf, long len_param, int flags, long len_result, int action, void *msg);

@@ -730,6 +730,11 @@ void print_spawn_prov(struct tcb *tcp) {
 
 // log file open/openat to provlog & leveldb if auditing, to stderr if verbose
 void print_open_prov (struct tcb* tcp, const char* syscall_name) {
+  // exit early if not auditing and not in verbose mode
+  /*if ((!Prov_prov_mode) && (!Cde_verbose_mode)) {*/
+    /*return;*/
+  /*}*/
+
   // assume openAT use the same current_dir with PWD (from CDE code)
   if (Prov_prov_mode) {
     const int path_index =
@@ -751,10 +756,26 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
       }
       print_iofd_prov(tcp, path_index - 1, action, tcp->u_rval);
     }
+
+    // store exact abs path used to open the file
+    char* filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index-1]);
+    char* filename_abspath = canonicalize_path(filename, tcp->current_dir);
+    // TODO: figure out why tcp->u_rval gets set to -1 for open/openat!!
+    /*printf("CLOSING FD %ld, FILE %s\n", tcp->u_rval, filename_abspath);*/
+    /*freeifnn(tcp->opened_file_paths[tcp->u_rval]);*/
+    /*if (tcp->opened_file_paths[tcp->u_rval] != NULL) {*/
+    /*}*/
+    tcp->opened_file_paths[tcp->u_rval] = strdup(filename_abspath);
+    freeifnn(filename);
+    freeifnn(filename_abspath);
+    /*printf("DONE CLOSING\n");*/
+
   } else if (Cde_verbose_mode >= 1) {
-    int pos = strcmp(syscall_name, "sys_open") == 0 ? 1 :
-        (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
-    char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[pos-1]);
+    const int path_index =
+      strcmp(syscall_name, "sys_open") == 0 ?
+      1 :
+      (strcmp(syscall_name, "sys_openat") == 0 ? 2 : 0);
+    char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index-1]);
     char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
     vbp(1, "%s: fd= %ld\n", filename_abspath, tcp->u_rval);
     freeifnn(filename);
@@ -795,6 +816,32 @@ void print_rename_prov (struct tcb* tcp, const int renameat) {
       print_io_prov(tcp, origpath_index, PRV_RDWR);
       print_io_prov(tcp, newpath_index, PRV_WRONLY);
     }
+  }
+}
+
+// log file close to provlog if auditing, to stderr if verbose
+void print_close_prov (struct tcb* tcp) {
+  // exit early if not in prov mode (i.e. not auditing)
+  if ((!Prov_prov_mode)) {
+    return;
+  }
+
+  // get close sys call's close fd from sys call's pcb
+  const int closefd = tcp->u_arg[0];
+
+  // get the stored exact abs path used to open the file
+  const char* openpath =
+    tcp->opened_file_paths[closefd] == NULL ?
+    "ERROR RETRIEVING CLOSED FILE PATH" :
+    tcp->opened_file_paths[closefd];
+
+  // log to provlog
+  fprintf(prov_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
+      "CLOSE", openpath);
+
+  // log to stderr if verbose
+  if (Cde_verbose_mode) {
+    vbprintf("[%d-prov] CLOSE %s\n", tcp->pid, openpath);
   }
 }
 

@@ -30,6 +30,10 @@
  *	$Id$
  */
 
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
 #include "defs.h"
 
 #include <fcntl.h>
@@ -43,6 +47,17 @@
 #ifdef HAVE_LIBAIO_H
 #include <libaio.h>
 #endif
+
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
+#include "provenance.h"
+#include "cdenet.h"
+
+/*******************************************************************************
+ * IMPLEMENTATION
+ ******************************************************************************/
 
 #if HAVE_LONG_LONG_OFF_T
 /*
@@ -431,17 +446,13 @@ sys_flock(struct tcb *tcp)
 }
 #endif /* LOCK_SH */
 
-extern void CDEnet_close(struct tcb *tcp);
-int
-sys_close(struct tcb *tcp)
-{
-	if (!entering(tcp)) {
-		CDEnet_close(tcp);
-	}
-	//~ if (entering(tcp)) {
-		//~ printfd(tcp, tcp->u_arg[0]);
-	//~ }
-	return 0;
+int sys_close (struct tcb* tcp) {
+  if (entering(tcp)) {
+    print_close_prov(tcp);
+  } else {
+    CDEnet_close(tcp);
+  }
+  return 0;
 }
 
 int

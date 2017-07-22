@@ -376,9 +376,11 @@ by this project.  Files and directories NOT annotated with a `*` have been
 created by this project.
 
 ```
-├── /strace-4-6*/       # Capture app, run app, track provenance
+provenance-to-use/
+├── strace-4-6*/        # Capture app, run app, track provenance
 │   ├── /db.c           # Store or retrieve prov data from a leveldb database
 │   ├── /defs.h*        # Data structures for tracing an app
+│   ├── /desc.c*        # System calls for file close, fd dup, and other misc
 │   ├── /cde.c          # Audit app or run captured app
 │   ├── /cdenet.c       # Audit, run, or record network prov (experimental)
 │   ├── /file.c*        # System calls to trace file access
@@ -388,10 +390,10 @@ created by this project.
 │   ├── /provenance.c   # Record app prov info to text log and to database
 │   ├── /strace.c*      # Main entry point: runs and traces app for audit/capture
 │   ├── /syslimits.c    # Obtain OS maxes for num open files, command-line length, etc.
-├── /readelf-mini*/     # Read contents of files by file type
-├── /snappy-1.1.1*/     # Compress/store captured files
-├── /leveldb-1.14.0*/   # Store capture graph
-├── /scripts/           # Perform various utility/intermediate functions
+├── readelf-mini*/      # Read contents of files by file type
+├── snappy-1.1.1*/      # Compress/store captured files
+├── leveldb-1.14.0*/    # Store capture graph
+├── scripts/            # Perform various utility/intermediate functions
 │   ├── /prov2dot.py    # Create the capture graph
 │   ├── /runpid.py      # Run subprocess of captured app
 ├── ptu-audit           # Capture app
@@ -399,6 +401,10 @@ created by this project.
 ```
 
 ### Executable Code Layout
+
+NOTE: files and directories annotated with a `*` are fixed dependencies modified
+by this project.  Files and directories NOT annotated with a `*` have been
+created by this project.
 
 ```
 ├── provenance.c                  # Record app prov info to text log and to database
@@ -411,6 +417,9 @@ created by this project.
 │   ├── print_write_prov()        # Log file write sys call
 │   ├── print_link_prov()         # Log file hardlink/symlink creation sys call
 │   ├── print_rename_prov()       # Log file rename/move sys call
+│   ├── print_close_prov()        # Log file close sys call
+├── desc.c*                       # System calls for file close, fd dup, and other misc
+│   ├── sys_close()*              # File close sys call
 ```
 
 ## Project Team
