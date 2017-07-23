@@ -32,7 +32,7 @@ the whole application (or a specific subpart of it) on a bare Linux machine.
 * [Architecture](#markdown-header-architecture)
     * [High Level Architecture](#markdown-header-high-level-architecture)
     * [Source Code Layout](#markdown-header-source-code-layout)
-    * [Executable Code Layout](#markdown-header-executable-code-layout)
+    * [Modules And Functions](#markdown-header-modules-and-functions)
 * [Project Team](#markdown-header-project-team)
 * [License](#markdown-header-license)
 
@@ -379,7 +379,7 @@ created by this project.
 provenance-to-use/
 ├── strace-4-6*/        # Capture app, run app, track provenance
 │   ├── /db.c           # Store or retrieve prov data from a leveldb database
-│   ├── /defs.h*        # Data structures for tracing an app
+│   ├── /defs.h*        # Data structures and macros for tracing an app
 │   ├── /desc.c*        # System calls for file close, fd dup, and other misc
 │   ├── /cde.c          # Audit app or run captured app
 │   ├── /cdenet.c       # Audit, run, or record network prov (experimental)
@@ -400,7 +400,7 @@ provenance-to-use/
 ├── ptu-exec            # Run subprocess of captured app (call runpid.py)
 ```
 
-### Executable Code Layout
+### Modules And Functions
 
 NOTE: files and directories annotated with a `*` are fixed dependencies modified
 by this project.  Files and directories NOT annotated with a `*` have been
@@ -419,7 +419,12 @@ created by this project.
 │   ├── print_rename_prov()       # Log file rename/move sys call
 │   ├── print_close_prov()        # Log file close sys call
 ├── desc.c*                       # System calls for file close, fd dup, and other misc
-│   ├── sys_close()*              # File close sys call
+│   ├── sys_close()*              # Sys call: close file
+├── defs.h*                       # Data structures and macros for tracing an app
+│   ├── entering()*               # Return T if app just made syscall, F if kernel just processed syscall
+├── file.c*                       # System calls to trace file access
+│   ├── sys_open()*               # Sys call: open file
+│   ├── sys_openat()*             # Sys call: open file relative to specified dir
 ```
 
 ## Project Team
