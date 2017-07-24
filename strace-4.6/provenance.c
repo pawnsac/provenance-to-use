@@ -822,7 +822,7 @@ void print_rename_prov (struct tcb* tcp, const int renameat) {
 // log file close to provlog if auditing, to stderr if verbose
 void print_close_prov (struct tcb* tcp) {
   // exit early if not in prov mode (i.e. not auditing)
-  if ((!Prov_prov_mode)) {
+  if (!Prov_prov_mode) {
     return;
   }
 
@@ -832,18 +832,10 @@ void print_close_prov (struct tcb* tcp) {
   // will hold stored exact abs path used to open the file
   const char* openpath;
 
-  // close sys call called on an fd that this proc did NOT open
-  // could be auto-opened stdin/stdout/stderr...else unknown
+  // exit early if closing an fd this proc did NOT open
+  //  --> there is not prov value in a close without a matching open
   if (tcp->opened_file_paths[closefd] == NULL) {
-    if (closefd == 0) {
-      openpath = "STDIN_FILENO";
-    } else if (closefd == 1) {
-      openpath = "STDOUT_FILENO";
-    } else if (closefd == 2) {
-      openpath = "STDERR_FILENO";
-    } else {
-      openpath = "UNKNOWN";
-    }
+    return;
 
   // close sys call WAS called on an fd that this proc opened
   } else {
