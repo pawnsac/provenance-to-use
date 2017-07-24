@@ -1,43 +1,24 @@
 #ifndef _CDE_H
 #define _CDE_H
 
-// TODO: we probably don't need most of these #includes
-#include <sys/select.h>
-#include <sys/user.h> // a user told me that user.h should go after select.h to fix a compile error
-#include <sys/time.h>
-#include <string.h>
-#include <utime.h>
-//#include <sys/ptrace.h>
-//#include <linux/ptrace.h>   /* For constants ORIG_EAX etc */
-//#include <sys/syscall.h>   /* For constants SYS_write etc */
-#include <linux/types.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+/*******************************************************************************
+ * EXTERNALLY-DEFINED VARIABLES
+ ******************************************************************************/
 
-//#define _GNU_SOURCE // for vasprintf (now we include _GNU_SOURCE in Makefile)
-#include <stdio.h>
+struct tcb;       // defs.h (strace module): process trace control block
 
-#include <stdlib.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <assert.h>
-#include <sys/mman.h>
-#include <linux/ipc.h>
-#include <linux/shm.h>
-#include <sys/stat.h>
-#include <sys/param.h>
+/*******************************************************************************
+ * PUBLIC VARIABLES
+ ******************************************************************************/
 
-#include "defs.h"
+extern char Cde_verbose_mode;    // print cde activity to stdout (-v option)
+extern char Cde_exec_mode;       // false if auditing, true if running captured app
+extern char Cde_app_dir[];       // abs path to cde app dir (contains cde-root)
+extern char Cde_follow_ssh_mode;
 
-// to shut up gcc warnings without causing nasty #include conflicts
-// TODO: do we still need this?
-int shmget(key_t key, size_t size, int shmflg);
-void *shmat(int shmid, const void *shmaddr, int shmflg);
-int shmdt(const void *shmaddr);
-int shmctl(int shmid, int cmd, struct shmid_ds *buf);
-
+/*******************************************************************************
+ * PUBLIC MACROS / FUNCTIONS
+ ******************************************************************************/
 
 // like an assert except that it always fires
 #define EXITIF(x) do { \
@@ -47,4 +28,10 @@ int shmctl(int shmid, int cmd, struct shmid_ds *buf);
   } \
 } while(0)
 
+// allocate heap memory for a tcb's cde fields
+void alloc_tcb_cde_fields (struct tcb* tcp);
+// free heap-allocated cde fields in a tcb
+void free_tcb_cde_fields (struct tcb* tcp);
+
 #endif // _CDE_H
+

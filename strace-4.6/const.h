@@ -1,16 +1,15 @@
 #ifndef _HEADER_CONST_H
 #define _HEADER_CONST_H
 
+// system includes
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
-
 #if defined(HAVE_LINUX_NETLINK_H)
-#include <linux/netlink.h>
+#  include <linux/netlink.h>
 #endif
-
 #if defined(HAVE_LINUX_IF_PACKET_H)
-#include <linux/if_packet.h>
+#  include <linux/if_packet.h>
 #endif
 
 union sockaddr_t {
@@ -68,14 +67,14 @@ enum sock_action{SOCK_SEND, SOCK_SENDTO, SOCK_SENDMSG,  // 0, 1, 2
 
 #ifndef vb
 #define vb(lvl) do {\
-  if (CDE_verbose_mode>=lvl) { \
+  if (Cde_verbose_mode>=lvl) { \
     fprintf(stderr, "[%s:%d-v%d] %s\n", __FILE__, __LINE__, lvl, __FUNCTION__); \
   } \
 } while (0)
 #endif
 #ifndef vbp
 #define vbp(lvl, ...) do {\
-  if (CDE_verbose_mode>=lvl) { \
+  if (Cde_verbose_mode>=lvl) { \
     fprintf(stderr, "[%s:%d-v%d] %s: ", __FILE__, __LINE__, lvl, __FUNCTION__); \
     fprintf(stderr, ##__VA_ARGS__); \
   } \

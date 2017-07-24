@@ -1585,9 +1585,9 @@ sys_sigreturn(struct tcb *tcp)
 	}
 	return 0;
 #else
-#warning No sys_sigreturn() for this architecture
-#warning         (no problem, just a reminder :-)
-	return 0;
+//#warning No sys_sigreturn() for this architecture
+/*#warning         (no problem, just a reminder :-)*/
+    return 0;
 #endif
 }
 

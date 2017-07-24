@@ -49,6 +49,7 @@ CDE is currently licensed under GPL v3:
 
 // system includes
 #include <stdarg.h>
+#include <stdio.h>
 
 // user includes
 #include "okapi.h"
@@ -59,6 +60,8 @@ extern char* format (const char *format, ...);
 static struct path* new_path (char is_abspath);
 
 char OKAPI_VERBOSE = 1; // print out warning messages?
+
+extern int vasprintf (char **, const char *, va_list); // stdio.h (GNU extension)
 
 // note that realpath_strdup and realpath_nofollow seem to do funny
 // things to arguments that are directories (okay for regular files,

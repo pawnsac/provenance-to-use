@@ -15,7 +15,7 @@
 } while (0);
 
 
-char CDE_exec_mode = 0;
+char Cde_exec_mode = 0;
 
 int main(int argc, char** argv) {
   //test_realpath_nofollow();

@@ -119,7 +119,7 @@ am_strace_OBJECTS = strace.$(OBJEXT) syscall.$(OBJEXT) count.$(OBJEXT) \
 	system.$(OBJEXT) term.$(OBJEXT) time.$(OBJEXT) proc.$(OBJEXT) \
 	scsi.$(OBJEXT) stream.$(OBJEXT) block.$(OBJEXT) cde.$(OBJEXT) \
 	okapi.$(OBJEXT) cdenet.$(OBJEXT) provenance.$(OBJEXT) \
-	db.$(OBJEXT) multi.$(OBJEXT) perftimers.$(OBJEXT)
+	db.$(OBJEXT) multi.$(OBJEXT) perftimers.$(OBJEXT) syslimits.$(OBJEXT)
 strace_OBJECTS = $(am_strace_OBJECTS)
 strace_LDADD = $(LDADD)
 strace_DEPENDENCIES = ../readelf-mini/libreadelf-mini.a \
@@ -391,10 +391,10 @@ strace_SOURCES = strace.c syscall.c count.c util.c desc.c file.c ipc.c \
 		 io.c ioctl.c mem.c net.c process.c bjm.c quota.c \
 		 resource.c signal.c sock.c system.c term.c time.c \
          proc.c scsi.c stream.c block.c cde.c okapi.c \
-		 cdenet.c provenance.c db.c multi.c perftimers.c
+		 cdenet.c provenance.c db.c multi.c perftimers.c syslimits.c
 
 noinst_HEADERS = defs.h cde.h okapi.h cdenet.h provenance.h db.h multi.h \
-		 perftimers.h
+		 perftimers.h syslimits.h
 
 EXTRA_DIST = $(man_MANS) errnoent.sh signalent.sh syscallent.sh ioctlsort.c \
 	     debian/changelog debian/compat debian/control debian/copyright \
@@ -645,6 +645,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strace.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stream.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/syscall.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/syslimits.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/system.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/term.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/time.Po@am__quote@

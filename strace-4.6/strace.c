@@ -37,7 +37,12 @@
  *	$Id$
  */
 
-// system includes
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
+#include "defs.h"         // strace defs must go first
+
 #include <sys/types.h>
 #include <signal.h>
 #include <errno.h>
@@ -51,10 +56,6 @@
 #include <string.h>
 #include <limits.h>
 #include <dirent.h>
-
-// user includes
-#include "defs.h"
-#include "perftimers.h"
 
 #ifdef LINUX
 # include <asm/unistd.h>
@@ -87,19 +88,29 @@
 #endif
 #endif
 #endif
+
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
+#include "cde.h"          // pgbovine
+#include "okapi.h"        // pgbovine
+#include "provenance.h"
+#include "cdenet.h"
+#include "perftimers.h"
+
+/*******************************************************************************
+ * EXTERNALLY-DEFINED VARIABLES
+ ******************************************************************************/
+
 extern char **environ;
 extern int optind;
 extern char *optarg;
 
 // pgbovine
-#include "okapi.h"
-extern char CDE_exec_mode;
-extern char CDE_verbose_mode; // -v option
 extern char CDE_exec_streaming_mode; // -s option
 extern char CDE_block_net_access; // -n option
 extern char CDE_use_linker_from_package; // ON by default, -l option to turn OFF
-extern void alloc_tcb_CDE_fields(struct tcb* tcp);
-extern void free_tcb_CDE_fields(struct tcb* tcp);
 extern void strcpy_redirected_cderoot(char* dst, char* src);
 extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern FILE* CDE_copied_files_logfile;
@@ -110,15 +121,13 @@ extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
 // quanpt
-extern char CDE_provenance_mode;
-extern char CDE_bare_run;
-extern char CDE_nw_mode;
 extern char* DB_NAME;
 extern char* PIDKEY;
-extern char* DB_ID;
 extern char CDE_network_content_mode;
-extern char CDE_follow_SSH_mode;
 
+/*******************************************************************************
+ * PRIVATE VARIABLES
+ ******************************************************************************/
 
 int debug = 0, followfork = 1; // pgbovine - turn on followfork by default, can de-activate using the '-f' option
 unsigned int ptrace_setoptions = 0;
@@ -195,6 +204,10 @@ static int proc_poll_pipe[2] = { -1, -1 };
 
 #endif /* !HAVE_POLLABLE_PROCFS */
 
+/*******************************************************************************
+ * PRIVATE FUNCTIONS
+ ******************************************************************************/
+
 #ifdef HAVE_MP_PROCFS
 #define POLLWANT	POLLWRNORM
 #else
@@ -207,7 +220,7 @@ usage(ofp, exitval)
 FILE *ofp;
 int exitval;
 {
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     fprintf(ofp,
             "PTU\n"
             "Basic usage: ptu-exec [command within cde-root/ to run]\n");
@@ -581,7 +594,7 @@ startup_child (char **argv)
 			strcpy(pathname + len, filename);
 
       // pgbovine
-      if (CDE_exec_mode) {
+      if (Cde_exec_mode) {
         strcpy_redirected_cderoot(path_to_search, pathname);
       }
       else {
@@ -601,7 +614,7 @@ startup_child (char **argv)
 
   // pgbovine - if we still haven't initialized it yet, do so now
   if (path_to_search[0] == '\0') { // uninit
-    if (CDE_exec_mode) {
+    if (Cde_exec_mode) {
       strcpy_redirected_cderoot(path_to_search, pathname);
     }
     else {
@@ -820,466 +833,6 @@ test_ptrace_setoptions(void)
 }
 #endif
 
-int main (int argc, char *argv[]) {
-  struct tcb* tcp;
-  int c, pid = 0;
-  int optF = 0;
-  struct sigaction sa;
-
-  static char buf[BUFSIZ];
-
-  // digimokan: set performance timer for okapi file copying during audit
-  set_perf_timer(AUDIT_FILE_COPYING, DISABLED);
-
-  // pgbovine - make sure this constant is a reasonable number and not something KRAZY
-  if (MAXPATHLEN > (1024 * 4096)) {
-    fprintf(stderr, "cde error, MAXPATHLEN is HUGE!!!\n");
-    exit(1);
-  }
-
-  if (!argv[0]) {
-    fprintf(stderr, "cde error, wha???\n");
-    exit(1);
-  }
-	progname = argv[0];
-
-  CDE_clear_options_arrays(); // pgbovine - call this as EARLY as possible so that '-i' and '-p' options work!
-
-  // pgbovine - if program name is 'cde-exec', then activate CDE_exec_mode
-  CDE_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
-
-	/* Allocate the initial tcbtab.  */
-	tcbtabsize = argc;	/* Surely enough for all -p args.  */
-	if ((tcbtab = calloc(tcbtabsize, sizeof tcbtab[0])) == NULL) {
-		fprintf(stderr, "%s: out of memory\n", progname);
-		exit(1);
-	}
-	if ((tcbtab[0] = calloc(tcbtabsize, sizeof tcbtab[0][0])) == NULL) {
-		fprintf(stderr, "%s: out of memory\n", progname);
-		exit(1);
-	}
-	for (tcp = tcbtab[0]; tcp < &tcbtab[0][tcbtabsize]; ++tcp)
-		tcbtab[tcp - tcbtab[0]] = &tcbtab[0][tcp - tcbtab[0]];
-
-	outf = stderr;
-
-  // pgbovine - set interactive to 0 by default (rather than 1) so that we
-  // pass signals (e.g., SIGINT caused by Ctrl-C ) through to the child process
-	//interactive = 1;
-	interactive = 0;
-
-	set_sortby(DEFAULT_SORTBY);
-	set_personality(DEFAULT_PERSONALITY);
-
-    // MOVE qualify to after getopt
-
-	while ((c = getopt(argc, argv,
-		"+cCdfFhqrtTvVxzlsSnbw"
-#ifndef USE_PROCFS
-		"D"
-#endif
-		"a:e:o:O:u:E:i:p:N:P:I:")) != EOF) {
-		switch (c) {
-		case 'c':
-      // pgbovine - hijack for -c option
-      CDE_copied_files_logfile = fopen("cde-copied-files.log", "w");
-
-      /*
-			if (cflag == CFLAG_BOTH) {
-				fprintf(stderr, "%s: -c and -C are mutually exclusive options\n",
-					progname);
-				exit(1);
-			}
-			cflag = CFLAG_ONLY_STATS;
-      */
-
-			break;
-		case 'C':
-			if (cflag == CFLAG_ONLY_STATS) {
-				fprintf(stderr, "%s: -c and -C are mutually exclusive options\n",
-					progname);
-				exit(1);
-			}
-			cflag = CFLAG_BOTH;
-			break;
-		case 'd':
-			debug++;
-			break;
-#ifndef USE_PROCFS
-		case 'D':
-			daemonized_tracer = 1;
-			break;
-#endif
-		case 'F':
-			optF = 1;
-			break;
-		case 'f':
-                        // pgbovine - hijack for -f option meaning to NOT follow forks
-                        // (might be confusing since strace uses -f to mean DO follow forks)
-			followfork = 0;
-			break;
-		case 'h':
-			usage(stdout, 0);
-			break;
-		case 'i':
-                        // pgbovine - hijack for the '-i' option
-                        // for specifying an ignore_exact path on the command line
-                        CDE_add_ignore_exact_path(strdup(optarg));
-			//iflag++;
-			break;
-		case 'q':
-			qflag++;
-			break;
-		case 'r':
-			rflag++;
-			tflag++;
-			break;
-		case 't':
-			tflag++;
-			break;
-		case 'n':
-			// pgbovine - hijack for '-n' option
-			CDE_block_net_access = 1;
-			break;
-		case 'N':
-			// quanpt - network simulation mode
-			CDE_nw_mode = 1;
-			DB_NAME = strdup(optarg);
-			CDE_network_content_mode = 1;
-			break;
-		case 'P':
-			// quanpt - replay from pidkey
-			PIDKEY = strdup(optarg);
-			break;
-		case 'I':
-			// quanpt - id of the new db in SSH replacement mode
-			DB_ID = strdup(optarg);
-			break;
-		case 'T':
-			dtime++;
-			break;
-		case 'x':
-			xflag++;
-			break;
-		case 'v':
-			// pgbovine - hijack for the '-v' option
-			//qualify("abbrev=none");
-			CDE_verbose_mode += 1;
-			break;
-		case 'V':
-			printf("PALLY v0.1\n");
-			exit(0);
-			break;
-		case 'z':
-			not_failing_only = 1;
-			break;
-		case 'a':
-			// quanpt - hijack for '-a' option
-			CDE_ROOT_NAME = strdup(optarg);
-			//acolumn = atoi(optarg);
-			break;
-		case 'b':
-			// quanpt - bare run to create provenance, not create package
-			CDE_bare_run = 1;
-			break;
-		case 'e':
-			qualify(optarg);
-			break;
-		case 'o':
-			// pgbovine - hijack for the '-o' option
-			CDE_PACKAGE_DIR = strdup(optarg);
-			//outfname = strdup(optarg);
-			break;
-		case 'O':
-			set_overhead(atoi(optarg));
-			break;
-		case 'l':
-      // pgbovine - hijack for the '-l' option
-      CDE_use_linker_from_package = 0;
-      break;
-		case 'p':
-      // pgbovine - hijack for the '-p' option
-      // actually we no longer support the '-p' option (provenance mode)
-
-      // instead, the new '-p' option is to manually specify an ignore_prefix
-      // on the command line
-      CDE_add_ignore_prefix_path(strdup(optarg));
-
-      /*
-			if ((pid = atoi(optarg)) <= 0) {
-				fprintf(stderr, "%s: Invalid process id: %s\n",
-					progname, optarg);
-				break;
-			}
-			if (pid == getpid()) {
-				fprintf(stderr, "%s: I'm sorry, I can't let you do that, Dave.\n", progname);
-				break;
-			}
-			tcp = alloc_tcb(pid, 0);
-			tcp->flags |= TCB_ATTACHED;
-			pflag_seen++;
-      */
-			break;
-		case 's':
-      // pgbovine - hijack for 's' (streaming mode)
-      CDE_exec_streaming_mode = 1;
-      /*
-			max_strlen = atoi(optarg);
-			if (max_strlen < 0) {
-				fprintf(stderr,
-					"%s: invalid -s argument: %s\n",
-					progname, optarg);
-				exit(1);
-			}
-      */
-			break;
-		case 'S':
-			// quanpt - hijack for NOT follow SSH
-			//~ set_sortby(optarg);
-			CDE_follow_SSH_mode = 0;
-			break;
-		case 'u':
-			username = strdup(optarg);
-			break;
-		case 'E':
-			if (putenv(optarg) < 0) {
-				fprintf(stderr, "%s: out of memory\n",
-					progname);
-				exit(1);
-			}
-			break;
-		case 'w':
-			CDE_network_content_mode = 1;
-			break;
-		default:
-			usage(stderr, 1);
-			break;
-		}
-	}
-
-	// pgbovine - only track selected system calls
-	// qualify actually mutates this string, so we can't pass in a constant
-	//
-	// syscalls added after Jan 1, 2011:
-	//   utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat
-	//   linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat
-	//
-	// syscalls added after August 10, 2011 (mostly minor ones):
-	//   setxattr, lsetxattr, getxattr, lgetxattr, listxattr, llistxattr, removexattr, lremovexattr
-
-	//quanpt - add network system calls
-	//  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
-	#define SYSCALL_1ST "trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink" \
-			",rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64" \
-			",chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,utimes,openat" \
-			",faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat" \
-			",mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr" \
-			",connect,accept,listen,close" \
-			",exit_group"
-	char* tmp;
-	if (CDE_network_content_mode || CDE_nw_mode)
-		tmp = strdup(SYSCALL_1ST
-			",send,sendto,sendmsg,recv,recvfrom,recvmsg,read,write");
-			//,getsockopt,getsockname,poll");
-			//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
-	else
-		tmp = strdup(SYSCALL_1ST);
-	qualify(tmp);
-  	free(tmp);
-
-	qualify("abbrev=all");
-	qualify("verbose=all");
-	qualify("signal=all");
-
-	if ((optind == argc) == !pflag_seen)
-		usage(stderr, 1);
-
-	if (pflag_seen && daemonized_tracer) {
-		fprintf(stderr,
-			"%s: -D and -p are mutually exclusive options\n",
-			progname);
-		exit(1);
-	}
-
-	if (!followfork)
-		followfork = optF;
-
-	if (followfork > 1 && cflag) {
-		fprintf(stderr,
-			"%s: (-c or -C) and -ff are mutually exclusive options\n",
-			progname);
-		exit(1);
-	}
-
-	/* See if they want to run as another user. */
-	if (username != NULL) {
-		struct passwd *pent;
-
-		if (getuid() != 0 || geteuid() != 0) {
-			fprintf(stderr,
-				"%s: you must be root to use the -u option\n",
-				progname);
-			exit(1);
-		}
-		if ((pent = getpwnam(username)) == NULL) {
-			fprintf(stderr, "%s: cannot find user `%s'\n",
-				progname, username);
-			exit(1);
-		}
-		run_uid = pent->pw_uid;
-		run_gid = pent->pw_gid;
-	}
-	else {
-		run_uid = getuid();
-		run_gid = getgid();
-	}
-
-#ifdef LINUX
-	if (followfork) {
-		if (test_ptrace_setoptions() < 0) {
-			fprintf(stderr,
-				"Test for options supported by PTRACE_SETOPTIONS "
-				"failed, giving up using this feature.\n");
-			ptrace_setoptions = 0;
-		}
-		if (debug)
-			fprintf(stderr, "ptrace_setoptions = %#x\n",
-				ptrace_setoptions);
-	}
-#endif
-
-	/* Check if they want to redirect the output. */
-	if (outfname) {
-		/* See if they want to pipe the output. */
-		if (outfname[0] == '|' || outfname[0] == '!') {
-			/*
-			 * We can't do the <outfname>.PID funny business
-			 * when using popen, so prohibit it.
-			 */
-			if (followfork > 1) {
-				fprintf(stderr, "\
-%s: piping the output and -ff are mutually exclusive options\n",
-					progname);
-				exit(1);
-			}
-
-			if ((outf = strace_popen(outfname + 1)) == NULL)
-				exit(1);
-		}
-		else if (followfork <= 1 &&
-			 (outf = strace_fopen(outfname, "w")) == NULL)
-			exit(1);
-	}
-
-	if (!outfname || outfname[0] == '|' || outfname[0] == '!')
-		setvbuf(outf, buf, _IOLBF, BUFSIZ);
-	if (outfname && optind < argc) {
-		interactive = 0;
-		qflag = 1;
-	}
-
-	/* Valid states here:
-	   optind < argc	pflag_seen	outfname	interactive
-	   1			0		0		1
-	   0			1		0		1
-	   1			0		1		0
-	   0			1		1		1
-	 */
-
-
-	// pgbovine - do all CDE initialization here after command-line options
-	// have been processed (argv[optind] is the name of the target program)
-	extern void CDE_init(char** argv, int optind);
-	CDE_init(argv, optind);
-
-	// quanpt
-	extern void initprov();
-	init_prov();
-	//if (!CDE_exec_mode) init_prov();
-	extern void init_nwdb();
-	if (CDE_nw_mode && CDE_exec_mode && !CDE_provenance_mode)
-		init_nwdb();
-		
-	extern void CDE_load_environment_vars(char* repo_name);
-	extern void CDE_load_environment_vars_for_pid(char* pidkey);
-	if (CDE_exec_mode) {
-		if (PIDKEY == NULL)
-			CDE_load_environment_vars(CDE_ROOT_NAME);
-		else
-			CDE_load_environment_vars_for_pid(PIDKEY);
-	}
-
-
-	/* STARTUP_CHILD must be called before the signal handlers get
-	   installed below as they are inherited into the spawned process.
-	   Also we do not need to be protected by them as during interruption
-	   in the STARTUP_CHILD mode we kill the spawned process anyway.  */
-	if (!pflag_seen)
-		startup_child(&argv[optind]);
-
-	sigemptyset(&empty_set);
-	sigemptyset(&blocked_set);
-	sa.sa_handler = SIG_IGN;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
-	sigaction(SIGTTOU, &sa, NULL);
-	sigaction(SIGTTIN, &sa, NULL);
-	if (interactive) {
-		sigaddset(&blocked_set, SIGHUP);
-		sigaddset(&blocked_set, SIGINT);
-		sigaddset(&blocked_set, SIGQUIT);
-		sigaddset(&blocked_set, SIGPIPE);
-		sigaddset(&blocked_set, SIGTERM);
-		sa.sa_handler = interrupt;
-#ifdef SUNOS4
-		/* POSIX signals on sunos4.1 are a little broken. */
-		sa.sa_flags = SA_INTERRUPT;
-#endif /* SUNOS4 */
-	}
-	sigaction(SIGHUP, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGQUIT, &sa, NULL);
-	sigaction(SIGPIPE, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
-#ifdef USE_PROCFS
-	sa.sa_handler = reaper;
-	sigaction(SIGCHLD, &sa, NULL);
-#else
-	/* Make sure SIGCHLD has the default action so that waitpid
-	   definitely works without losing track of children.  The user
-	   should not have given us a bogus state to inherit, but he might
-	   have.  Arguably we should detect SIG_IGN here and pass it on
-	   to children, but probably noone really needs that.  */
-	sa.sa_handler = SIG_DFL;
-	sigaction(SIGCHLD, &sa, NULL);
-#endif /* USE_PROCFS */
-
-	if (pflag_seen || daemonized_tracer)
-		startup_attach();
-
-	if (trace() < 0)
-		exit(1);
-	cleanup();
-	fflush(NULL);
-	if (exit_code > 0xff) {
-		/* Child was killed by a signal, mimic that.  */
-		exit_code &= 0xff;
-		signal(exit_code, SIG_DFL);
-		raise(exit_code);
-		/* Paranoia - what if this signal is not fatal?
-		   Exit with 128 + signo then.  */
-		exit_code += 128;
-	}
-
-    // print audit file copying total time
-    double audit_time;
-    if (get_total_perf_time(AUDIT_FILE_COPYING, &audit_time) == SUCCESS_TIMER_TOTAL_RETURNED) {
-      printf("total time doing file copying during audit: %.3f\n", audit_time);
-    }
-
-	exit(exit_code);
-}
-
 void
 expand_tcbtab(void)
 {
@@ -1332,7 +885,7 @@ alloc_tcb(int pid, int command_options_parsed)
 			tcp->stime.tv_usec = 0;
 			tcp->pfd = -1;
 
-      alloc_tcb_CDE_fields(tcp); // pgbovine
+      alloc_tcb_cde_fields(tcp); // pgbovine
 
 			nprocs++;
 			if (command_options_parsed)
@@ -1747,7 +1300,7 @@ struct tcb *tcp;
 
 	tcp->outf = 0;
 
-  free_tcb_CDE_fields(tcp); // pgbovine
+  free_tcb_cde_fields(tcp); // pgbovine
 }
 
 #ifndef USE_PROCFS
@@ -2850,7 +2403,7 @@ Process %d attached (waiting for parent)\n",
 			}
 			if (cflag != CFLAG_ONLY_STATS
 			    && (qual_flags[WSTOPSIG(status)] & QUAL_SIGNAL)) {
-				siginfo_t si;
+				// siginfo_t si; // pgbovine - silence signal printouts
 #if defined(PT_CR_IPSR) && defined(PT_CR_IIP)
 				long pc = 0;
 				long psr = 0;
@@ -3072,3 +2625,459 @@ mp_ioctl(int fd, int cmd, void *arg, int size)
 }
 
 #endif
+
+/*******************************************************************************
+ * PUBLIC INTERFACE
+ ******************************************************************************/
+
+int main (int argc, char *argv[]) {
+  struct tcb *tcp;
+  int c;
+  /*int pid = 0;*/
+  int optF = 0;
+  struct sigaction sa;
+
+  static char buf[BUFSIZ];
+
+  // digimokan: set performance timer for okapi file copying during audit
+  set_perf_timer(AUDIT_FILE_COPYING, DISABLED);
+
+  // pgbovine - make sure this constant is a reasonable number and not something KRAZY
+  if (MAXPATHLEN > (1024 * 4096)) {
+    fprintf(stderr, "cde error, MAXPATHLEN is HUGE!!!\n");
+    exit(1);
+  }
+
+  if (!argv[0]) {
+    fprintf(stderr, "cde error, wha???\n");
+    exit(1);
+  }
+	progname = argv[0];
+
+  CDE_clear_options_arrays(); // pgbovine - call this as EARLY as possible so that '-i' and '-p' options work!
+
+  // pgbovine - if program name is 'cde-exec', then activate Cde_exec_mode
+  Cde_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
+
+	/* Allocate the initial tcbtab.  */
+	tcbtabsize = argc;	/* Surely enough for all -p args.  */
+	if ((tcbtab = calloc(tcbtabsize, sizeof tcbtab[0])) == NULL) {
+		fprintf(stderr, "%s: out of memory\n", progname);
+		exit(1);
+	}
+	if ((tcbtab[0] = calloc(tcbtabsize, sizeof tcbtab[0][0])) == NULL) {
+		fprintf(stderr, "%s: out of memory\n", progname);
+		exit(1);
+	}
+	for (tcp = tcbtab[0]; tcp < &tcbtab[0][tcbtabsize]; ++tcp)
+		tcbtab[tcp - tcbtab[0]] = &tcbtab[0][tcp - tcbtab[0]];
+
+	outf = stderr;
+
+  // pgbovine - set interactive to 0 by default (rather than 1) so that we
+  // pass signals (e.g., SIGINT caused by Ctrl-C ) through to the child process
+	//interactive = 1;
+	interactive = 0;
+
+	set_sortby(DEFAULT_SORTBY);
+	set_personality(DEFAULT_PERSONALITY);
+
+    // MOVE qualify to after getopt
+
+	while ((c = getopt(argc, argv,
+		"+cCdfFhqrtTvVxzlsSnbw"
+#ifndef USE_PROCFS
+		"D"
+#endif
+		"a:e:o:O:u:E:i:p:N:P:I:")) != EOF) {
+		switch (c) {
+		case 'c':
+      // pgbovine - hijack for -c option
+      CDE_copied_files_logfile = fopen("cde-copied-files.log", "w");
+
+      /*
+			if (cflag == CFLAG_BOTH) {
+				fprintf(stderr, "%s: -c and -C are mutually exclusive options\n",
+					progname);
+				exit(1);
+			}
+			cflag = CFLAG_ONLY_STATS;
+      */
+
+			break;
+		case 'C':
+			if (cflag == CFLAG_ONLY_STATS) {
+				fprintf(stderr, "%s: -c and -C are mutually exclusive options\n",
+					progname);
+				exit(1);
+			}
+			cflag = CFLAG_BOTH;
+			break;
+		case 'd':
+			debug++;
+			break;
+#ifndef USE_PROCFS
+		case 'D':
+			daemonized_tracer = 1;
+			break;
+#endif
+		case 'F':
+			optF = 1;
+			break;
+		case 'f':
+                        // pgbovine - hijack for -f option meaning to NOT follow forks
+                        // (might be confusing since strace uses -f to mean DO follow forks)
+			followfork = 0;
+			break;
+		case 'h':
+			usage(stdout, 0);
+			break;
+		case 'i':
+                        // pgbovine - hijack for the '-i' option
+                        // for specifying an ignore_exact path on the command line
+                        CDE_add_ignore_exact_path(strdup(optarg));
+			//iflag++;
+			break;
+		case 'q':
+			qflag++;
+			break;
+		case 'r':
+			rflag++;
+			tflag++;
+			break;
+		case 't':
+			tflag++;
+			break;
+		case 'n':
+			// pgbovine - hijack for '-n' option
+			CDE_block_net_access = 1;
+			break;
+		case 'N':
+			// quanpt - network simulation mode
+			Cdenet_network_mode = 1;
+			DB_NAME = strdup(optarg);
+			CDE_network_content_mode = 1;
+			break;
+		case 'P':
+			// quanpt - replay from pidkey
+			PIDKEY = strdup(optarg);
+			break;
+		case 'I':
+			// quanpt - id of the new db in SSH replacement mode
+			Prov_db_id = strdup(optarg);
+			break;
+		case 'T':
+			dtime++;
+			break;
+		case 'x':
+			xflag++;
+			break;
+		case 'v':
+			// pgbovine - hijack for the '-v' option
+			//qualify("abbrev=none");
+			Cde_verbose_mode += 1;
+			break;
+		case 'V':
+			printf("PALLY v0.1\n");
+			exit(0);
+			break;
+		case 'z':
+			not_failing_only = 1;
+			break;
+		case 'a':
+			// quanpt - hijack for '-a' option
+			CDE_ROOT_NAME = strdup(optarg);
+			//acolumn = atoi(optarg);
+			break;
+		case 'b':
+			// quanpt - bare run to create provenance, not create package
+			Prov_no_app_capture = 1;
+			break;
+		case 'e':
+			qualify(optarg);
+			break;
+		case 'o':
+			// pgbovine - hijack for the '-o' option
+			CDE_PACKAGE_DIR = strdup(optarg);
+			//outfname = strdup(optarg);
+			break;
+		case 'O':
+			set_overhead(atoi(optarg));
+			break;
+		case 'l':
+      // pgbovine - hijack for the '-l' option
+      CDE_use_linker_from_package = 0;
+      break;
+		case 'p':
+      // pgbovine - hijack for the '-p' option
+      // actually we no longer support the '-p' option (provenance mode)
+
+      // instead, the new '-p' option is to manually specify an ignore_prefix
+      // on the command line
+      CDE_add_ignore_prefix_path(strdup(optarg));
+
+      /*
+			if ((pid = atoi(optarg)) <= 0) {
+				fprintf(stderr, "%s: Invalid process id: %s\n",
+					progname, optarg);
+				break;
+			}
+			if (pid == getpid()) {
+				fprintf(stderr, "%s: I'm sorry, I can't let you do that, Dave.\n", progname);
+				break;
+			}
+			tcp = alloc_tcb(pid, 0);
+			tcp->flags |= TCB_ATTACHED;
+			pflag_seen++;
+      */
+			break;
+		case 's':
+      // pgbovine - hijack for 's' (streaming mode)
+      CDE_exec_streaming_mode = 1;
+      /*
+			max_strlen = atoi(optarg);
+			if (max_strlen < 0) {
+				fprintf(stderr,
+					"%s: invalid -s argument: %s\n",
+					progname, optarg);
+				exit(1);
+			}
+      */
+			break;
+		case 'S':
+			// quanpt - hijack for NOT follow SSH
+			//~ set_sortby(optarg);
+			Cde_follow_ssh_mode = 0;
+			break;
+		case 'u':
+			username = strdup(optarg);
+			break;
+		case 'E':
+			if (putenv(optarg) < 0) {
+				fprintf(stderr, "%s: out of memory\n",
+					progname);
+				exit(1);
+			}
+			break;
+		case 'w':
+			CDE_network_content_mode = 1;
+			break;
+		default:
+			usage(stderr, 1);
+			break;
+		}
+	}
+
+	// pgbovine - only track selected system calls
+	// qualify actually mutates this string, so we can't pass in a constant
+	//
+	// syscalls added after Jan 1, 2011:
+	//   utimes,openat,faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat
+	//   linkat,symlinkat,renameat,readlinkat,mkdirat,unlinkat
+	//
+	// syscalls added after August 10, 2011 (mostly minor ones):
+	//   setxattr, lsetxattr, getxattr, lgetxattr, listxattr, llistxattr, removexattr, lremovexattr
+
+	//quanpt - add network system calls
+	//  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
+	#define SYSCALL_1ST "trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink" \
+			",rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64" \
+			",chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,utimes,openat" \
+			",faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat" \
+			",mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr" \
+			",connect,accept,listen,close" \
+			",exit_group"
+	char* tmp;
+	if (CDE_network_content_mode || Cdenet_network_mode)
+		tmp = strdup(SYSCALL_1ST
+			",send,sendto,sendmsg,recv,recvfrom,recvmsg,read,write");
+			//,getsockopt,getsockname,poll");
+			//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
+	else
+		tmp = strdup(SYSCALL_1ST);
+	qualify(tmp);
+  	free(tmp);
+
+	qualify("abbrev=all");
+	qualify("verbose=all");
+	qualify("signal=all");
+
+	if ((optind == argc) == !pflag_seen)
+		usage(stderr, 1);
+
+	if (pflag_seen && daemonized_tracer) {
+		fprintf(stderr,
+			"%s: -D and -p are mutually exclusive options\n",
+			progname);
+		exit(1);
+	}
+
+	if (!followfork)
+		followfork = optF;
+
+	if (followfork > 1 && cflag) {
+		fprintf(stderr,
+			"%s: (-c or -C) and -ff are mutually exclusive options\n",
+			progname);
+		exit(1);
+	}
+
+	/* See if they want to run as another user. */
+	if (username != NULL) {
+		struct passwd *pent;
+
+		if (getuid() != 0 || geteuid() != 0) {
+			fprintf(stderr,
+				"%s: you must be root to use the -u option\n",
+				progname);
+			exit(1);
+		}
+		if ((pent = getpwnam(username)) == NULL) {
+			fprintf(stderr, "%s: cannot find user `%s'\n",
+				progname, username);
+			exit(1);
+		}
+		run_uid = pent->pw_uid;
+		run_gid = pent->pw_gid;
+	}
+	else {
+		run_uid = getuid();
+		run_gid = getgid();
+	}
+
+#ifdef LINUX
+	if (followfork) {
+		if (test_ptrace_setoptions() < 0) {
+			fprintf(stderr,
+				"Test for options supported by PTRACE_SETOPTIONS "
+				"failed, giving up using this feature.\n");
+			ptrace_setoptions = 0;
+		}
+		if (debug)
+			fprintf(stderr, "ptrace_setoptions = %#x\n",
+				ptrace_setoptions);
+	}
+#endif
+
+	/* Check if they want to redirect the output. */
+	if (outfname) {
+		/* See if they want to pipe the output. */
+		if (outfname[0] == '|' || outfname[0] == '!') {
+			/*
+			 * We can't do the <outfname>.PID funny business
+			 * when using popen, so prohibit it.
+			 */
+			if (followfork > 1) {
+				fprintf(stderr, "\
+%s: piping the output and -ff are mutually exclusive options\n",
+					progname);
+				exit(1);
+			}
+
+			if ((outf = strace_popen(outfname + 1)) == NULL)
+				exit(1);
+		}
+		else if (followfork <= 1 &&
+			 (outf = strace_fopen(outfname, "w")) == NULL)
+			exit(1);
+	}
+
+	if (!outfname || outfname[0] == '|' || outfname[0] == '!')
+		setvbuf(outf, buf, _IOLBF, BUFSIZ);
+	if (outfname && optind < argc) {
+		interactive = 0;
+		qflag = 1;
+	}
+
+	/* Valid states here:
+	   optind < argc	pflag_seen	outfname	interactive
+	   1			0		0		1
+	   0			1		0		1
+	   1			0		1		0
+	   0			1		1		1
+	 */
+
+
+	// pgbovine - do all CDE initialization here after command-line options
+	// have been processed (argv[optind] is the name of the target program)
+	extern void CDE_init(char** argv, int optind);
+	CDE_init(argv, optind);
+
+    init_prov(); // quanpt: initialize leveldb prov-db and provlog file
+	extern void init_nwdb();
+	if (Cdenet_network_mode && Cde_exec_mode && !Prov_prov_mode)
+		init_nwdb();
+		
+	extern void CDE_load_environment_vars(char* repo_name);
+	extern void CDE_load_environment_vars_for_pid(char* pidkey);
+	if (Cde_exec_mode) {
+		if (PIDKEY == NULL)
+			CDE_load_environment_vars(CDE_ROOT_NAME);
+		else
+			CDE_load_environment_vars_for_pid(PIDKEY);
+	}
+
+
+	/* STARTUP_CHILD must be called before the signal handlers get
+	   installed below as they are inherited into the spawned process.
+	   Also we do not need to be protected by them as during interruption
+	   in the STARTUP_CHILD mode we kill the spawned process anyway.  */
+	if (!pflag_seen)
+		startup_child(&argv[optind]);
+
+	sigemptyset(&empty_set);
+	sigemptyset(&blocked_set);
+	sa.sa_handler = SIG_IGN;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sigaction(SIGTTOU, &sa, NULL);
+	sigaction(SIGTTIN, &sa, NULL);
+	if (interactive) {
+		sigaddset(&blocked_set, SIGHUP);
+		sigaddset(&blocked_set, SIGINT);
+		sigaddset(&blocked_set, SIGQUIT);
+		sigaddset(&blocked_set, SIGPIPE);
+		sigaddset(&blocked_set, SIGTERM);
+		sa.sa_handler = interrupt;
+#ifdef SUNOS4
+		/* POSIX signals on sunos4.1 are a little broken. */
+		sa.sa_flags = SA_INTERRUPT;
+#endif /* SUNOS4 */
+	}
+	sigaction(SIGHUP, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGQUIT, &sa, NULL);
+	sigaction(SIGPIPE, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+#ifdef USE_PROCFS
+	sa.sa_handler = reaper;
+	sigaction(SIGCHLD, &sa, NULL);
+#else
+	/* Make sure SIGCHLD has the default action so that waitpid
+	   definitely works without losing track of children.  The user
+	   should not have given us a bogus state to inherit, but he might
+	   have.  Arguably we should detect SIG_IGN here and pass it on
+	   to children, but probably noone really needs that.  */
+	sa.sa_handler = SIG_DFL;
+	sigaction(SIGCHLD, &sa, NULL);
+#endif /* USE_PROCFS */
+
+	if (pflag_seen || daemonized_tracer)
+		startup_attach();
+
+	if (trace() < 0)
+		exit(1);
+	cleanup();
+	fflush(NULL);
+	if (exit_code > 0xff) {
+		/* Child was killed by a signal, mimic that.  */
+		exit_code &= 0xff;
+		signal(exit_code, SIG_DFL);
+		raise(exit_code);
+		/* Paranoia - what if this signal is not fatal?
+		   Exit with 128 + signo then.  */
+		exit_code += 128;
+	}
+	exit(exit_code);
+}
+
