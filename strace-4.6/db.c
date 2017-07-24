@@ -5,13 +5,12 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include "db.h"
+#include "cde.h"
 #include "const.h"
 
 // extern stuff
-extern char CDE_verbose_mode;
 extern void vbprintf(const char *fmt, ...);
 extern void print_trace (void);
-
 
 // local function signatures
 
@@ -496,7 +495,7 @@ void db_removeCapturedSock(lvldb_t *mydb, int sockfd) {
   char *err = NULL;
   sprintf(key, "sock.caputured.%d", sockfd);
   leveldb_delete(mydb->db, mydb->woptions, key, strlen(key), &err);
-  if (CDE_verbose_mode>=3) {
+  if (Cde_verbose_mode>=3) {
     vbprintf("[xxxx-db] db_removeCapturedSock sock %d err '%s'\n", sockfd, err == NULL ? "null" : err);
   }
   leveldb_free(err); err = NULL;
@@ -603,7 +602,7 @@ void db_write_sock_action(lvldb_t *mydb, long pid, int sockfd, \
   db_nwrite(mydb, key, (char*) &result, sizeof(ull_t));
   //~ vbp(3, "%s -> %zd, checksum %u ", key, len_result, checksum(buf, len_result));
   vbp(3, "checksum %u ", checksum(buf, len_result));
-  if (CDE_verbose_mode >= 3) printbuf(buf, len_result);
+  if (Cde_verbose_mode >= 3) printbuf(buf, len_result);
   
   // prv.pid.$(pid.usec).skid.$sockid.act.$action.n.$pkgid.buff -> $buff
   sprintf(key, "prv.pid.%s.skid.%s.act.%d.n.%llu.buff", \
@@ -813,7 +812,7 @@ char* db_getSendRecvResult(lvldb_t *mydb, int action,
           pidkey, sockid, action, pkgid);
     char *res = db_nread(mydb, key, &len); // len might be != *presult in the case "-1"
     vbp(3, "%s -> %lld checksum: %u ", key, *presult, checksum(res, len));
-    if (CDE_verbose_mode >= 3) printbuf(res, len);
+    if (Cde_verbose_mode >= 3) printbuf(res, len);
     return res;
   } else
     vbp(3, "%s -> %lld\n", key, *presult);

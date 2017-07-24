@@ -23,6 +23,7 @@ CDEnet is currently licensed under GPL v3:
 
 #include "config.h"
 #include "defs.h"
+#include "cde.h"
 #include "provenance.h"
 #include "cdenet.h"
 #include "../leveldb-1.14.0/include/leveldb/c.h"
@@ -137,7 +138,8 @@ CDEnet is currently licensed under GPL v3:
 #endif
 
 #if defined(AF_PACKET) /* from e.g. linux/if_packet.h */
-static const struct xlat af_packet_types[] = {
+extern const struct xlat af_packet_types[];
+const struct xlat af_packet_types[] = {
 #if defined(PACKET_HOST)
 	{ PACKET_HOST,			"PACKET_HOST"		},
 #endif
@@ -224,11 +226,6 @@ linux_call_type(long codesegment)
 #define SET_ARGUMENT_5(x, v)	(x)->ebp = (v)
 #endif /* !X86_64 */
 
-// variables from cde.c
-extern int CDE_exec_mode;
-extern int CDE_provenance_mode;
-extern int CDE_verbose_mode;
-
 // function from cde.c
 extern void memcpy_to_child(int pid, char* dst_child, char* src, int size);
 extern void vbprintf(const char *fmt, ...);
@@ -236,13 +233,14 @@ extern void vbprintf(const char *fmt, ...);
 extern char* getMappedPid(char* pidkey);
 
 // global parameters
-char CDE_nw_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
+char Cdenet_network_mode = 0; // 1 if we simulate all network sockets, 0 otherwise (-N)
+lvldb_t* Cdenet_exec_provdb;  // prov db for app running in exec mode
+
 char *DB_NAME = NULL;
 char *PIDKEY = NULL; // pidkey of the starting pid for replay (not neccessary the db root)
-extern char cde_pseudo_pkg_dir[MAXPATHLEN];
 extern char* CDE_ROOT_NAME;
 
-lvldb_t *netdb, *currdb;
+lvldb_t* netdb;
 char* netdb_root;
 char CDE_network_content_mode = 0;
 
@@ -297,15 +295,6 @@ int CDEnet_convert_sin(struct sockaddr_in *sin) {
   return 0;
 }
 
-typedef struct socketdata {
-  unsigned short saf;
-  unsigned int port;
-  union ipdata {
-    unsigned long ipv4;
-    unsigned char ipv6[16];   /* IPv6 address */
-  } ip;
-} socketdata_t;
-
 int getPort(union sockaddr_t *addrbuf) {
   if (addrbuf->sa.sa_family == AF_INET) {
     return ntohs(addrbuf->sin.sin_port);
@@ -318,62 +307,8 @@ int getPort(union sockaddr_t *addrbuf) {
   return -1;
 }
 
-int getsockinfo(struct tcb *tcp, char* addr, socketdata_t *psock) {
-	union sockaddr_t *addrbuf = (union sockaddr_t*) addr;
-	//union sockaddr_t *addrbuf;// = (union sockaddr_t*)addr;
-	//~ char string_addr[100];
-
-	if (addr == 0) {
-		return -1;
-	}
-
-	//~ if (addrlen < 2 || addrlen > sizeof(addrbuf))
-		//~ addrlen = sizeof(addrbuf);
-//~ 
-	//~ memset(&addrbuf, 0, sizeof(addrbuf));
-	//~ if (umoven(tcp, addr, addrlen, addrbuf.pad) < 0) {
-		//~ return -1;
-	//~ }
-	addrbuf->pad[sizeof(addrbuf->pad) - 1] = '\0';
-
-	psock->saf = addrbuf->sa.sa_family;
-
-	switch (addrbuf->sa.sa_family) {
-	case AF_UNIX:
-	  // AF_FILE is also a synonym for AF_UNIX
-	  // these are file operations
-		break;
-	case AF_INET:
-		//tprintf("sin_port=htons(%u), sin_addr=inet_addr(\"%s\")",
-			//ntohs(addrbuf.sin.sin_port), inet_ntoa(addrbuf.sin.sin_addr));
-		psock->port = ntohs(addrbuf->sin.sin_port);
-		psock->ip.ipv4 = addrbuf->sin.sin_addr.s_addr;
-		return 4;
-		break;
-#ifdef HAVE_INET_NTOP
-	case AF_INET6:
-		//~ inet_ntop(AF_INET6, &addrbuf->sa6.sin6_addr, string_addr, sizeof(string_addr));
-		//tprintf("sin6_port=htons(%u), inet_pton(AF_INET6, \"%s\", &sin6_addr), sin6_flowinfo=%u",
-		//		ntohs(addrbuf.sa6.sin6_port), string_addr,
-		//		addrbuf.sa6.sin6_flowinfo);
-		psock->port = ntohs(addrbuf->sa6.sin6_port);
-		memcpy(&addrbuf->sa6.sin6_addr, &psock->ip.ipv6, 16);
-		return 6;
-		break;
-#endif
-
-  /* Quan - not handle AF_IPX AF_APACKET AF_NETLINK */
-	/* AF_AX25 AF_APPLETALK AF_NETROM AF_BRIDGE AF_AAL5
-	AF_X25 AF_ROSE etc. still need to be done */
-
-	default:
-		break;
-	}
-	return -1;
-}
-
 int isCurrCapturedSock(int sockfd) {
-  return db_isCapturedSock(currdb, sockfd);
+  return db_isCapturedSock(Cdenet_exec_provdb, sockfd);
 }
 
 void printSockInfo(struct tcb* tcp, int op, \
@@ -396,7 +331,7 @@ void printSockInfo(struct tcb* tcp, int op, \
 void denySyscall(long pid) {
   struct user_regs_struct regs;
   EXITIF(ptrace(PTRACE_GETREGS, pid, NULL, &regs)<0);
-  if (CDE_verbose_mode>=2) {
+  if (Cde_verbose_mode>=2) {
     vbprintf("[%ld-net] denySyscall %d\n", pid, SYSCALL_NUM(&regs));
   }
   SYSCALL_NUM(&regs) = 0xbadca11;
@@ -407,7 +342,7 @@ void denySyscall(long pid) {
 //     on connection or binding succeeds, zero is returned; on error, -1 is returned.
 void CDEnet_begin_bindconnect(struct tcb* tcp, int isConnect) {
   vb(1);
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     char addrbuf[KEYLEN];
     if (umoven(tcp, tcp->u_arg[1], tcp->u_arg[2], addrbuf) < 0) return;
     if (isConnect) {
@@ -416,16 +351,16 @@ void CDEnet_begin_bindconnect(struct tcb* tcp, int isConnect) {
       if (port == 53 || port == 22) return;
     }
     
-    db_setCapturedSock(currdb, tcp->u_arg[0]);
+    db_setCapturedSock(Cdenet_exec_provdb, tcp->u_arg[0]);
     denySyscall(tcp->pid);
   }
 }
 
 void setBindConnectReturnValue(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  char *pidkey = db_read_pid_key(currdb, tcp->pid);
+  char *pidkey = db_read_pid_key(Cdenet_exec_provdb, tcp->pid);
   char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
-  ull_t sockid = db_getConnectCounterInc(currdb, pidkey);
+  ull_t sockid = db_getConnectCounterInc(Cdenet_exec_provdb, pidkey);
   int u_rval = db_getSockResult(netdb, prov_pid, sockid); // get the result of a connect call
   //~ vbp(3, "here\n");
   
@@ -438,19 +373,19 @@ void setBindConnectReturnValue(struct tcb* tcp) {
   if (u_rval < 0) {
     // set errno? TODO
   } else {
-    db_setSockConnectId(currdb, pidkey, sockfd, sockid);	// map this sock number to given sock in tcp
+    db_setSockConnectId(Cdenet_exec_provdb, pidkey, sockfd, sockid);	// map this sock number to given sock in tcp
     // TODO: keep the addrbuf.pad memory as well
   }
   EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
   
   // init variables for this socket
-  db_setupSockConnectCounter(currdb, pidkey, sockfd, sockid);
+  db_setupSockConnectCounter(Cdenet_exec_provdb, pidkey, sockfd, sockid);
   
   free(prov_pid);
   free(pidkey);
 }
 
-void get_ip_info(long pid, int sockfd, char *buf) {
+void get_ip_info (long pid, int sockfd, char* buf) {
   struct stat fdstat;
   char path[KEYLEN];
   sprintf(path, "/proc/%ld/fd/%d", pid, sockfd);
@@ -487,8 +422,8 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
   addrbuf.pad[sizeof(addrbuf.pad) - 1] = '\0';
   
   //~ printf("sock %d, family %d inet %d\n", sockfd, addrbuf.sa.sa_family, AF_INET);
-  //~ if (CDE_provenance_mode && addrbuf.sa.sa_family == AF_INET) {
-  if (CDE_provenance_mode) {
+  //~ if (Prov_prov_mode && addrbuf.sa.sa_family == AF_INET) {
+  if (Prov_prov_mode) {
     int port = getPort((void*)addrbuf.pad);
     char buf[KEYLEN];
     bzero(buf, sizeof(buf));
@@ -503,7 +438,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
     }
     print_connect_prov(tcp, sockfd, addrbuf.pad, tcp->u_arg[2], tcp->u_rval, buf);
   }
-  if (CDE_nw_mode) { // return my own network socket connect result from netdb
+  if (Cdenet_network_mode) { // return my own network socket connect result from netdb
     if (isConnect) if (!isCurrCapturedSock(sockfd)) return;
     setBindConnectReturnValue(tcp);
   }
@@ -511,7 +446,7 @@ void CDEnet_end_bindconnect(struct tcb* tcp, int isConnect) {
 
 int socket_data_handle(struct tcb* tcp, int action) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode) {
+  if (Prov_prov_mode) {
     long len = tcp->u_rval;
     char *buf = NULL;
     if (len >0) {
@@ -535,27 +470,27 @@ int socket_data_handle(struct tcb* tcp, int action) {
  */
 
 void CDEnet_begin_recv(struct tcb* tcp) {
-  if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
+  if (Cdenet_network_mode && db_isCapturedSock(Cdenet_exec_provdb, tcp->u_arg[0])) {
     vb(2);
     denySyscall(tcp->pid);
   }
 }
 void CDEnet_end_recv(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
+  if (Prov_prov_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     socket_data_handle(tcp, SOCK_RECV);
   }
-  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
+  if (Cdenet_network_mode && db_isCapturedSock(Cdenet_exec_provdb, sockfd)) {
     vb(2);
     long pid = tcp->pid;
     char *pidkey, *sockid;
-    db_get_pid_sock(currdb, pid, sockfd, &pidkey, &sockid);
+    db_get_pid_sock(Cdenet_exec_provdb, pid, sockfd, &pidkey, &sockid);
     if (pidkey == NULL || sockid == NULL) {
       vbp(0, "error");
       return;
     }
-    ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
+    ull_t sendid = db_getPkgCounterInc(Cdenet_exec_provdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
     char *buff = db_getSendRecvResult(netdb, SOCK_RECV, prov_pid, sockid, sendid, &u_rval, NULL); // get recorded result
@@ -596,7 +531,7 @@ void CDEnet_end_recv(struct tcb* tcp) {
    //~ int           msg_flags;      /* flags on received message */
 //~ };
 void CDEnet_begin_recvmsg(struct tcb* tcp) { //TODO
-  if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
+  if (Cdenet_network_mode && db_isCapturedSock(Cdenet_exec_provdb, tcp->u_arg[0])) {
     vb(2);
     denySyscall(tcp->pid);
   }
@@ -606,7 +541,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
   struct msghdr mh;
   struct iovec *msg_iov = NULL;
   char memop_ok = 1;
-  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
+  if (Prov_prov_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     int len = tcp->u_rval;
     //~ char *msg_name = NULL, *msg_control = NULL;
     char *storage = NULL;
@@ -657,16 +592,16 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
     freeifnn(msg_iov); 
     //~ freeifnn(msg_name);
   }
-  if (CDE_nw_mode && isCurrCapturedSock(sockfd)) {
+  if (Cdenet_network_mode && isCurrCapturedSock(sockfd)) {
     vb(2);
     long pid = tcp->pid;
     char *pidkey, *sockid;
-    db_get_pid_sock(currdb, pid, sockfd, &pidkey, &sockid);
+    db_get_pid_sock(Cdenet_exec_provdb, pid, sockfd, &pidkey, &sockid);
     if (pidkey == NULL || sockid == NULL) {
       vbp(0, "error");
       return;
     }
-    ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_RECV);
+    ull_t sendid = db_getPkgCounterInc(Cdenet_exec_provdb, pidkey, sockid, SOCK_RECV);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
     struct msghdr ret_mh;
@@ -735,7 +670,7 @@ void CDEnet_end_recvmsg(struct tcb* tcp) {
  */
 
 void CDEnet_begin_send(struct tcb* tcp) {
-  if (CDE_nw_mode && db_isCapturedSock(currdb, tcp->u_arg[0])) {
+  if (Cdenet_network_mode && db_isCapturedSock(Cdenet_exec_provdb, tcp->u_arg[0])) {
     vb(2);
     denySyscall(tcp->pid);
   }
@@ -743,15 +678,15 @@ void CDEnet_begin_send(struct tcb* tcp) {
 
 void CDEnet_end_send(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
-  if (CDE_provenance_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
+  if (Prov_prov_mode && CDE_network_content_mode && isProvCapturedSock(sockfd)) {
     vb(2);
     if (socket_data_handle(tcp, SOCK_SEND) < 0) {
       // TODO
     }
   }
-  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
+  if (Cdenet_network_mode && db_isCapturedSock(Cdenet_exec_provdb, sockfd)) {
     vb(2);
-    if (CDE_verbose_mode >= 3) {
+    if (Cde_verbose_mode >= 3) {
       char buff[KEYLEN];
       size_t buflength = tcp->u_arg[2];
       if (umoven(tcp, tcp->u_arg[1], buflength, buff) < 0) {
@@ -760,16 +695,16 @@ void CDEnet_end_send(struct tcb* tcp) {
       buff[tcp->u_arg[2]] = '\0';
       vbp(3, "action %d [%ld] checksum %u ", 
 	  SOCK_SEND, tcp->u_arg[2], checksum(buff, buflength));
-      if (CDE_verbose_mode >= 3) printbuf(buff, buflength);
+      if (Cde_verbose_mode >= 3) printbuf(buff, buflength);
     }
     long pid = tcp->pid;
     char *pidkey, *sockid;
-    db_get_pid_sock(currdb, pid, sockfd, &pidkey, &sockid);
+    db_get_pid_sock(Cdenet_exec_provdb, pid, sockfd, &pidkey, &sockid);
     if (pidkey == NULL || sockid == NULL) {
       vbp(0, "error");
       return;
     }
-    ull_t sendid = db_getPkgCounterInc(currdb, pidkey, sockid, SOCK_SEND);
+    ull_t sendid = db_getPkgCounterInc(Cdenet_exec_provdb, pidkey, sockid, SOCK_SEND);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     ull_t u_rval;
     db_getSendRecvResult(netdb, SOCK_SEND, prov_pid, sockid, sendid, &u_rval, NULL); // get recorded result
@@ -789,7 +724,7 @@ void CDEnet_end_send(struct tcb* tcp) {
 
 void CDEnet_begin_sendmsg(struct tcb* tcp) { //TODO
   vb(2);
-  if (CDE_nw_mode && isCurrCapturedSock(tcp->u_arg[0])) {
+  if (Cdenet_network_mode && isCurrCapturedSock(tcp->u_arg[0])) {
     denySyscall(tcp->pid);
   }
 }
@@ -799,21 +734,22 @@ void CDEnet_end_sendmsg(struct tcb* tcp) { //TODO
 
 void CDEnet_begin_getsockname(struct tcb* tcp) {
   vb(2);
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     denySyscall(tcp->pid);
   }
 }
+
 void CDEnet_end_getsockname(struct tcb* tcp) {
   static int count = 1;
   vbp(0, "%ld\n", tcp->u_rval);
-  if (CDE_provenance_mode) {
+  if (Prov_prov_mode) {
     print_getsockname_prov(tcp);
   }
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     long pid = tcp->pid;
-    //~ char *pidkey = db_read_real_pid_key(currdb, pid);
-    //~ ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
-    //~ ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
+    //~ char *pidkey = db_read_real_pid_key(Cdenet_exec_provdb, pid);
+    //~ ull_t listenid = db_getListenId(Cdenet_exec_provdb, pidkey, tcp->u_arg[0]);
+    //~ ull_t acceptid = db_getAcceptCounterInc(Cdenet_exec_provdb, pidkey, listenid);
     //~ char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     //~ int u_rval; // get the result of a accept call
     //~ char *addr = NULL;
@@ -846,7 +782,7 @@ void CDEnet_begin_accept(struct tcb* tcp) { // TODO
   // we only care of the return of accept
   // which is handled in accept_exit
   vb(2);
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     denySyscall(tcp->pid);
   }
 }
@@ -869,14 +805,14 @@ char* db_getAcceptResult(lvldb_t *mydb, char* pidkey, ull_t listenid, ull_t acce
 }
 void CDEnet_end_accept(struct tcb* tcp) {
   vb(2);
-  if (CDE_provenance_mode) {
+  if (Prov_prov_mode) {
     print_accept_prov(tcp);
   }
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     long pid = tcp->pid;
-    char *pidkey = db_read_real_pid_key(currdb, pid);
-    ull_t listenid = db_getListenId(currdb, pidkey, tcp->u_arg[0]);
-    ull_t acceptid = db_getAcceptCounterInc(currdb, pidkey, listenid);
+    char *pidkey = db_read_real_pid_key(Cdenet_exec_provdb, pid);
+    ull_t listenid = db_getListenId(Cdenet_exec_provdb, pidkey, tcp->u_arg[0]);
+    ull_t acceptid = db_getAcceptCounterInc(Cdenet_exec_provdb, pidkey, listenid);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     int u_rval; // get the result of a accept call
     socklen_t addrlen;
@@ -885,7 +821,7 @@ void CDEnet_end_accept(struct tcb* tcp) {
       //u_rval = socket(AF_INET , SOCK_STREAM , 0);
       u_rval = open("/dev/null", O_RDWR);
     }
-    db_setCapturedSock(currdb, u_rval);
+    db_setCapturedSock(Cdenet_exec_provdb, u_rval);
     
     // return recorded result
     struct user_regs_struct regs;
@@ -896,8 +832,8 @@ void CDEnet_end_accept(struct tcb* tcp) {
     } else {
       memcpy_to_child(pid, (char*) tcp->u_arg[1], addr, u_rval);
       memcpy_to_child(pid, (char*) tcp->u_arg[2], (char*) &addrlen, sizeof(addrlen)); // TODO: big/little endian
-      db_setSockAcceptId(currdb, pidkey, u_rval, listenid, acceptid);
-      db_setupSockAcceptCounter(currdb, pidkey, u_rval, listenid, acceptid);
+      db_setSockAcceptId(Cdenet_exec_provdb, pidkey, u_rval, listenid, acceptid);
+      db_setupSockAcceptCounter(Cdenet_exec_provdb, pidkey, u_rval, listenid, acceptid);
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
@@ -912,18 +848,18 @@ void CDEnet_end_accept(struct tcb* tcp) {
 //   and errno is set appropriately.
 void CDEnet_begin_listen(struct tcb* tcp) { //TODO: or ignore? not captured?!?!?
   vb(2);
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     denySyscall(tcp->pid);
   }
 }
 void CDEnet_end_listen(struct tcb* tcp) { // TODO
   vb(2);
-  if (CDE_provenance_mode) {
+  if (Prov_prov_mode) {
     print_listen_prov(tcp);
   }
-  if (CDE_nw_mode) {
-    char *pidkey = db_read_real_pid_key(currdb, tcp->pid);
-    ull_t id = db_getListenCounterInc(currdb, pidkey);
+  if (Cdenet_network_mode) {
+    char *pidkey = db_read_real_pid_key(Cdenet_exec_provdb, tcp->pid);
+    ull_t id = db_getListenCounterInc(Cdenet_exec_provdb, pidkey);
     char* prov_pid = getMappedPid(pidkey);	// convert this pid to corresponding prov_pid
     int u_rval = db_getListenResult(netdb, prov_pid, id); // get recorded result
     
@@ -935,8 +871,8 @@ void CDEnet_end_listen(struct tcb* tcp) { // TODO
     if (u_rval < 0) {
       // set errno? TODO
     } else {
-      db_setListenId(currdb, pidkey, tcp->u_arg[0], id);
-      db_setupAcceptCounter(currdb, pidkey, id);
+      db_setListenId(Cdenet_exec_provdb, pidkey, tcp->u_arg[0], id);
+      db_setupAcceptCounter(Cdenet_exec_provdb, pidkey, id);
     }
     EXITIF(ptrace(PTRACE_SETREGS, pid, NULL, &regs)<0);
     
@@ -975,11 +911,11 @@ void CDEnet_end_write(struct tcb* tcp) { // TODO
 void CDEnet_close(struct tcb* tcp) {
   int sockfd = tcp->u_arg[0];
   vb(2);
-  if (CDE_provenance_mode) {
+  if (Prov_prov_mode) {
     print_fd_close(tcp);
   }
-  if (CDE_nw_mode && db_isCapturedSock(currdb, sockfd)) {
-    db_remove_sock(currdb, tcp->pid, sockfd);
+  if (Cdenet_network_mode && db_isCapturedSock(Cdenet_exec_provdb, sockfd)) {
+    db_remove_sock(Cdenet_exec_provdb, tcp->pid, sockfd);
   }
 }
 
@@ -991,7 +927,7 @@ void init_nwdb() {
   char path[PATH_MAX];
   char *err = NULL;
   
-  sprintf(path, "%s/%s", cde_pseudo_pkg_dir, DB_NAME);
+  sprintf(path, "%s/%s", Cde_app_dir, DB_NAME);
   if (access(path, R_OK)==-1) {
     fprintf(stderr, "Network provenance database does not exist!\n");
     exit(-1);
@@ -1018,23 +954,23 @@ void init_nwdb() {
   netdb_root = db_readc(netdb, "meta.root");
   assert(netdb_root != NULL);
   
-  if (CDE_nw_mode) {
+  if (Cdenet_network_mode) {
     /* create temp db for current execution graph */
-    sprintf(path, "%s/%s.tempXXXXXX", cde_pseudo_pkg_dir, DB_NAME);
+    sprintf(path, "%s/%s.tempXXXXXX", Cde_app_dir, DB_NAME);
     if (mkdtemp(path) == NULL) {
       fprintf(stderr, "Cannot create temp db!\n");
       exit(-1);
     }
-    currdb = malloc(sizeof(lvldb_t));
-    currdb->options = leveldb_options_create();
-    leveldb_options_set_create_if_missing(currdb->options, 1);
-    currdb->db = leveldb_open(currdb->options, path, &err);
-    assert(currdb->db!=NULL);
+    Cdenet_exec_provdb = malloc(sizeof(lvldb_t));
+    Cdenet_exec_provdb->options = leveldb_options_create();
+    leveldb_options_set_create_if_missing(Cdenet_exec_provdb->options, 1);
+    Cdenet_exec_provdb->db = leveldb_open(Cdenet_exec_provdb->options, path, &err);
+    assert(Cdenet_exec_provdb->db!=NULL);
     leveldb_free(err); err = NULL;
-    currdb->woptions = leveldb_writeoptions_create();
-    currdb->roptions = leveldb_readoptions_create();
+    Cdenet_exec_provdb->woptions = leveldb_writeoptions_create();
+    Cdenet_exec_provdb->roptions = leveldb_readoptions_create();
     
-    db_write_root(currdb, getpid());
+    db_write_root(Cdenet_exec_provdb, getpid());
   }
 }
 
@@ -1057,15 +993,15 @@ char* getMappedPid(char* pidkey) {
   while (p != NULL) {
     sprintf(key, "prv.pid.%s.childid", p);
     vbp(3, "%s\n", key);
-    db_read_ull(currdb, key, &childid);
+    db_read_ull(Cdenet_exec_provdb, key, &childid);
     idlist[n++] = childid;
     
     sprintf(key, "prv.pid.%s.parent", p);
     if (p != pidkey && p != NULL) free(p);
-    p = db_readc(currdb, key);
+    p = db_readc(Cdenet_exec_provdb, key);
   }
   vbp(2, "%s -> [%d] [", pidkey, n);
-  if (CDE_verbose_mode >= 2) {
+  if (Cde_verbose_mode >= 2) {
     for (i=0; i<n; i++) {
       fprintf(stderr, "%llu, ", idlist[i]);
     }

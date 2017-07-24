@@ -70,6 +70,7 @@ extern void CDE_end_unlinkat_rmdir(struct tcb* tcp);
 
 extern void CDE_end_getcwd(struct tcb* tcp);
 
+extern int isprint (int ch);
 
 #define CDE_standard_fileop_macro(tcp) \
   if (entering(tcp)) { \
@@ -83,12 +84,12 @@ extern void CDE_end_getcwd(struct tcb* tcp);
 
 #define print_syscall_read_prov_macro(tcp, pos) \
   if (!entering(tcp)) { \
-    print_syscall_read_prov(tcp, __FUNCTION__, pos); \
+    print_read_prov(tcp, __FUNCTION__, pos); \
   }
 
 #define print_syscall_write_prov_macro(tcp, pos) \
   if (!entering(tcp)) { \
-    print_syscall_write_prov(tcp, __FUNCTION__, pos); \
+    print_write_prov(tcp, __FUNCTION__, pos); \
   }
 
 #include <dirent.h>
@@ -460,54 +461,25 @@ tprint_open_modes(mode_t flags)
 	tprintf("%s", sprint_open_modes(flags) + sizeof("flags"));
 }
 
-static int
-decode_open(struct tcb *tcp, int offset)
-{
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[offset]);
-		tprintf(", ");
-		/* flags */
-		tprint_open_modes(tcp->u_arg[offset + 1]);
-		if (tcp->u_arg[offset + 1] & O_CREAT) {
-			/* mode */
-			tprintf(", %#lo", tcp->u_arg[offset + 2]);
-		}
-	}
-	return 0;
-}
-
-int
-sys_open(struct tcb *tcp)
-{
+int sys_open (struct tcb* tcp) {
+  // modified by pgbovine
   if (entering(tcp)) {
     CDE_begin_standard_fileop(tcp, "sys_open");
   } else {
     print_open_prov(tcp, "sys_open");
   }
   return 0;
-  // modified by pgbovine
-  // CDE_standard_fileop_macro(tcp)
-	//return decode_open(tcp, 0);
 }
 
 #ifdef LINUX
-int
-sys_openat(struct tcb *tcp)
-{
+int sys_openat (struct tcb* tcp) {
+  // modified by pgbovine
   if (entering(tcp)) {
     CDE_begin_at_fileop(tcp, "sys_openat");
   } else {
     print_open_prov(tcp, "sys_openat");
   }
-  // modified by pgbovine
-  // CDE_at_fileop_macro(tcp);
   return 0;
-
-  /*
-	if (entering(tcp))
-		print_dirfd(tcp, tcp->u_arg[0]);
-	return decode_open(tcp, 1);
-  */
 }
 #endif
 
@@ -548,27 +520,16 @@ solaris_open(struct tcb *tcp)
 
 #endif
 
-int
-sys_creat(struct tcb *tcp)
-{
+int sys_creat (struct tcb* tcp) {
   // modified by pgbovine
   CDE_standard_fileop_macro(tcp);
-
   // int creat(const char *pathname, mode_t mode);
   print_syscall_write_prov_macro(tcp, 0);
-
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", %#lo", tcp->u_arg[1]);
-	}
-	return 0;
-  */
 }
 
-static const struct xlat access_flags[] = {
+extern const struct xlat access_flags[];
+const struct xlat access_flags[] = {
 	{ F_OK,		"F_OK",		},
 	{ R_OK,		"R_OK"		},
 	{ W_OK,		"W_OK"		},
@@ -582,52 +543,19 @@ static const struct xlat access_flags[] = {
 	{ 0,		NULL		},
 };
 
-static int
-decode_access(struct tcb *tcp, int offset)
-{
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[offset]);
-		tprintf(", ");
-		printflags(access_flags, tcp->u_arg[offset + 1], "?_OK");
-	}
-	return 0;
-}
-
-int
-sys_access(struct tcb *tcp)
-{
+int sys_access (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
-
-  // int access(const char *pathname, int mode);
-  // print_syscall_readmeta_prov_macro(tcp, 0);
-
   return 0;
-
-	//return decode_access(tcp, 0);
 }
 
 #ifdef LINUX
-int
-sys_faccessat(struct tcb *tcp)
-{
+int sys_faccessat (struct tcb* tcp) {
   CDE_at_fileop_macro(tcp); // pgbovine
-
-  // int faccessat(int dirfd, const char *pathname, int mode, int flags);
-  // print_syscall_readmeta_prov_macro(tcp, 1);
-
   return 0;
-
-  /*
-	if (entering(tcp))
-		print_dirfd(tcp, tcp->u_arg[0]);
-	return decode_access(tcp, 1);
-  */
 }
 #endif
 
-int
-sys_umask(struct tcb *tcp)
-{
+int sys_umask (struct tcb* tcp) {
 	if (entering(tcp)) {
 		tprintf("%#lo", tcp->u_arg[0]);
 	}
@@ -1056,7 +984,8 @@ printstat_powerpc32(struct tcb *tcp, long addr)
 }
 #endif /* LINUX && POWERPC64 */
 
-static const struct xlat fileflags[] = {
+extern const struct xlat fileflags[];
+const struct xlat fileflags[] = {
 #ifdef FREEBSD
 	{ UF_NODUMP,	"UF_NODUMP"	},
 	{ UF_IMMUTABLE,	"UF_IMMUTABLE"	},
@@ -1075,7 +1004,7 @@ static const struct xlat fileflags[] = {
 	{ _S_ISMOUNTED, "_S_ISMOUNTED"	},
 #endif
 #endif
-	{ 0,		NULL		},
+	{ 0,		NULL		}
 };
 
 #ifdef FREEBSD
@@ -1904,26 +1833,12 @@ printstatfs(struct tcb *tcp, long addr)
 	tprintf("}");
 }
 
-int
-sys_statfs(struct tcb *tcp)
-{
+int sys_statfs (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-	} else {
-		printstatfs(tcp, tcp->u_arg[1]);
-	}
-	return 0;
-  */
 }
 
-int
-sys_fstatfs(struct tcb *tcp)
-{
+int sys_fstatfs (struct tcb* tcp) {
 	if (entering(tcp)) {
 		printfd(tcp, tcp->u_arg[0]);
 		tprintf(", ");
@@ -1964,29 +1879,12 @@ printstatfs64(struct tcb *tcp, long addr)
 	tprintf("}");
 }
 
-int
-sys_statfs64(struct tcb *tcp)
-{
+int sys_statfs64 (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", %lu, ", tcp->u_arg[1]);
-	} else {
-		if (tcp->u_arg[1] == sizeof (struct statfs64))
-			printstatfs64(tcp, tcp->u_arg[2]);
-		else
-			tprintf("{???}");
-	}
-	return 0;
-  */
 }
 
-int
-sys_fstatfs64(struct tcb *tcp)
-{
+int sys_fstatfs64 (struct tcb* tcp) {
 	if (entering(tcp)) {
 		printfd(tcp, tcp->u_arg[0]);
 		tprintf(", %lu, ", tcp->u_arg[1]);
@@ -2002,9 +1900,7 @@ sys_fstatfs64(struct tcb *tcp)
 
 #if defined(LINUX) && defined(__alpha)
 
-int
-osf_statfs(struct tcb *tcp)
-{
+int osf_statfs (struct tcb* tcp) {
 	if (entering(tcp)) {
 		printpath(tcp, tcp->u_arg[0]);
 		tprintf(", ");
@@ -2015,9 +1911,7 @@ osf_statfs(struct tcb *tcp)
 	return 0;
 }
 
-int
-osf_fstatfs(struct tcb *tcp)
-{
+int osf_fstatfs (struct tcb* tcp) {
 	if (entering(tcp)) {
 		tprintf("%lu, ", tcp->u_arg[0]);
 	} else {
@@ -2031,9 +1925,7 @@ osf_fstatfs(struct tcb *tcp)
 #endif /* !SVR4 */
 
 #ifdef SUNOS4
-int
-sys_ustat(struct tcb *tcp)
-{
+int sys_ustat (struct tcb* tcp) {
 	struct ustat statbuf;
 
 	if (entering(tcp)) {
@@ -2061,9 +1953,7 @@ sys_ustat(struct tcb *tcp)
 }
 #endif /* SUNOS4 */
 
-int
-sys_pivotroot(struct tcb *tcp)
-{
+int sys_pivotroot (struct tcb* tcp) {
 	if (entering(tcp)) {
 		printpath(tcp, tcp->u_arg[0]);
 		tprintf(", ");
@@ -2073,10 +1963,7 @@ sys_pivotroot(struct tcb *tcp)
 }
 
 
-/* directory */
-int
-sys_chdir(struct tcb *tcp)
-{
+int sys_chdir (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_chdir(tcp);
@@ -2085,28 +1972,9 @@ sys_chdir(struct tcb *tcp)
     CDE_end_chdir(tcp);
   }
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-	}
-	return 0;
-  */
 }
 
-static int
-decode_mkdir(struct tcb *tcp, int offset)
-{
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[offset]);
-		tprintf(", %#lo", tcp->u_arg[offset + 1]);
-	}
-	return 0;
-}
-
-int
-sys_mkdir(struct tcb *tcp)
-{
+int sys_mkdir (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_mkdir(tcp);
@@ -2115,14 +1983,10 @@ sys_mkdir(struct tcb *tcp)
     CDE_end_mkdir(tcp, 0);
   }
   return 0;
-
-	//return decode_mkdir(tcp, 0);
 }
 
 #ifdef LINUX
-int
-sys_mkdirat(struct tcb *tcp)
-{
+int sys_mkdirat (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_mkdirat(tcp);
@@ -2131,18 +1995,10 @@ sys_mkdirat(struct tcb *tcp)
     CDE_end_mkdirat(tcp);
   }
   return 0;
-
-  /*
-	if (entering(tcp))
-		print_dirfd(tcp, tcp->u_arg[0]);
-	return decode_mkdir(tcp, 1);
-  */
 }
 #endif
 
-int
-sys_rmdir(struct tcb *tcp)
-{
+int sys_rmdir (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_rmdir(tcp);
@@ -2151,18 +2007,9 @@ sys_rmdir(struct tcb *tcp)
     CDE_end_rmdir(tcp, 0);
   }
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-	}
-	return 0;
-  */
 }
 
-int
-sys_fchdir(struct tcb *tcp)
-{
+int sys_fchdir (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     // NOP
@@ -2171,18 +2018,9 @@ sys_fchdir(struct tcb *tcp)
     CDE_end_fchdir(tcp);
   }
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printfd(tcp, tcp->u_arg[0]);
-	}
-	return 0;
-  */
 }
 
-int
-sys_chroot(struct tcb *tcp)
-{
+int sys_chroot (struct tcb* tcp) {
 	if (entering(tcp)) {
 		printpath(tcp, tcp->u_arg[0]);
 	}
@@ -2200,105 +2038,50 @@ sys_fchroot(struct tcb *tcp)
 }
 #endif /* SUNOS4 || SVR4 */
 
-int
-sys_link(struct tcb *tcp)
-{
+int sys_link (struct tcb* tcp) {
   if (entering(tcp)) {
     CDE_begin_file_link(tcp);
   } else {
-    // int link(const char *oldpath, const char *newpath);
-    print_syscall_two_prov(tcp, "sys_link", 0, 1);
+    print_link_prov(tcp, "sys_link", 0, 1);
   }
   return 0;
-  // pgbovine
-  //~ if (entering(tcp)) {
-    //~ CDE_begin_file_link(tcp);
-  //~ }
-  //~ return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-		printpath(tcp, tcp->u_arg[1]);
-	}
-	return 0;
-  */
 }
 
 #ifdef LINUX
-int
-sys_linkat(struct tcb *tcp)
-{
+int sys_linkat (struct tcb* tcp) {
   if (entering(tcp)) {
     CDE_begin_file_linkat(tcp);
   } else {
-    // int linkat(int olddirfd, const char *oldpath,
-    //              int newdirfd, const char *newpath, int flags);
-    print_syscall_two_prov(tcp, "sys_linkat", 1, 3);
+    print_link_prov(tcp, "sys_linkat", 1, 3);
   }
   return 0;
-  // pgbovine
-  //~ if (entering(tcp)) {
-    //~ CDE_begin_file_linkat(tcp);
-  //~ }
-  //~ return 0;
-
-  /*
-	if (entering(tcp)) {
-		print_dirfd(tcp, tcp->u_arg[0]);
-		printpath(tcp, tcp->u_arg[1]);
-		tprintf(", ");
-		print_dirfd(tcp, tcp->u_arg[2]);
-		printpath(tcp, tcp->u_arg[3]);
-		tprintf(", ");
-		printfd(tcp, tcp->u_arg[4]);
-	}
-	return 0;
-  */
 }
 #endif
 
-int
-sys_unlink(struct tcb *tcp)
-{
+int sys_unlink (struct tcb* tcp) {
   // modified by pgbovine
   if (entering(tcp)) {
     CDE_begin_file_unlink(tcp);
   }
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-	}
-	return 0;
-  */
 }
 
 #ifdef LINUX
-static const struct xlat unlinkatflags[] = {
-#ifndef AT_REMOVEDIR
-# define AT_REMOVEDIR            0x200
-#endif
-	{ AT_REMOVEDIR,	"AT_REMOVEDIR"	},
-	{ 0,		NULL		},
-};
 
-int
-sys_unlinkat(struct tcb *tcp)
-{
+#  ifndef AT_REMOVEDIR
+#    define AT_REMOVEDIR            0x200
+#  endif
+
+int sys_unlinkat (struct tcb* tcp) {
   // modified by pgbovine
   if (tcp->u_arg[2] == AT_REMOVEDIR) {
     // act like rmdir()
     if (entering(tcp)) {
       CDE_begin_unlinkat_rmdir(tcp);
-    }
-    else {
+    } else {
       CDE_end_unlinkat_rmdir(tcp);
     }
-  }
-  else {
+  } else {
     // act like unlink()
     if (entering(tcp)) {
       CDE_begin_file_unlinkat(tcp);
@@ -2306,95 +2089,32 @@ sys_unlinkat(struct tcb *tcp)
   }
 
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		print_dirfd(tcp, tcp->u_arg[0]);
-		printpath(tcp, tcp->u_arg[1]);
-		tprintf(", ");
-		printflags(unlinkatflags, tcp->u_arg[2], "AT_???");
-	}
-	return 0;
-  */
 }
 #endif
 
-int
-sys_symlink(struct tcb *tcp)
-{
+int sys_symlink (struct tcb* tcp) {
   if (entering(tcp)) {
     CDE_begin_file_symlink(tcp);
   }
   else {
-    // int symlink(const char *oldpath, const char *newpath);
-    print_syscall_two_prov(tcp, "sys_symlink", 0, 1);
+    print_link_prov(tcp, "sys_symlink", 0, 1);
   }
   return 0;
-  //~ // pgbovine
-  //~ if (entering(tcp)) {
-    //~ CDE_begin_file_symlink(tcp);
-  //~ }
-  //~ return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-		printpath(tcp, tcp->u_arg[1]);
-	}
-	return 0;
-  */
 }
 
 #ifdef LINUX
-int
-sys_symlinkat(struct tcb *tcp)
-{
+int sys_symlinkat (struct tcb* tcp) {
   if (entering(tcp)) {
     CDE_begin_file_symlinkat(tcp);
   }
   else {
-    // int symlinkat(const char *oldpath, int newdirfd, const char *newpath);
-    print_syscall_two_prov(tcp, "sys_symlinkat", 0, 2); // <-- strange huh? quanpt
+    print_link_prov(tcp, "sys_symlinkat", 0, 2); // <-- strange huh? quanpt
   }
   return 0;
-  //~ // pgbovine
-  //~ if (entering(tcp)) {
-    //~ CDE_begin_file_symlinkat(tcp);
-  //~ }
-  //~ return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-		print_dirfd(tcp, tcp->u_arg[1]);
-		printpath(tcp, tcp->u_arg[2]);
-	}
-	return 0;
-  */
 }
 #endif
 
-static int
-decode_readlink(struct tcb *tcp, int offset)
-{
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[offset]);
-		tprintf(", ");
-	} else {
-		if (syserror(tcp))
-			tprintf("%#lx", tcp->u_arg[offset + 1]);
-		else
-			printpathn(tcp, tcp->u_arg[offset + 1], tcp->u_rval);
-		tprintf(", %lu", tcp->u_arg[offset + 2]);
-	}
-	return 0;
-}
-
-int
-sys_readlink(struct tcb *tcp)
-{
+int sys_readlink (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_standard_fileop(tcp, __FUNCTION__);
@@ -2404,14 +2124,10 @@ sys_readlink(struct tcb *tcp)
   }
 
   return 0;
-
-	//return decode_readlink(tcp, 0);
 }
 
 #ifdef LINUX
-int
-sys_readlinkat(struct tcb *tcp)
-{
+int sys_readlinkat (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_at_fileop(tcp, __FUNCTION__);
@@ -2421,18 +2137,10 @@ sys_readlinkat(struct tcb *tcp)
   }
 
   return 0;
-
-  /*
-	if (entering(tcp))
-		print_dirfd(tcp, tcp->u_arg[0]);
-	return decode_readlink(tcp, 1);
-  */
 }
 #endif
 
-int
-sys_rename(struct tcb *tcp)
-{
+int sys_rename (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_file_rename(tcp);
@@ -2442,21 +2150,10 @@ sys_rename(struct tcb *tcp)
     print_rename_prov(tcp, 0);
   }
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-		printpath(tcp, tcp->u_arg[1]);
-	}
-	return 0;
-  */
 }
 
 #ifdef LINUX
-int
-sys_renameat(struct tcb *tcp)
-{
+int sys_renameat (struct tcb* tcp) {
   // pgbovine
   if (entering(tcp)) {
     CDE_begin_file_renameat(tcp);
@@ -2466,63 +2163,18 @@ sys_renameat(struct tcb *tcp)
     print_rename_prov(tcp, 1);
   }
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		print_dirfd(tcp, tcp->u_arg[0]);
-		printpath(tcp, tcp->u_arg[1]);
-		tprintf(", ");
-		print_dirfd(tcp, tcp->u_arg[2]);
-		printpath(tcp, tcp->u_arg[3]);
-	}
-	return 0;
-  */
 }
 #endif
 
-int
-sys_chown(struct tcb *tcp)
-{
+int sys_chown (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
-
-  // int chown(const char *path, uid_t owner, gid_t group);
-  // print_syscall_write_prov_macro(tcp, 0);
-
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		printuid(", ", tcp->u_arg[1]);
-		printuid(", ", tcp->u_arg[2]);
-	}
-	return 0;
-  */
 }
 
 #ifdef LINUX
-int
-sys_fchownat(struct tcb *tcp)
-{
+int sys_fchownat (struct tcb* tcp) {
   CDE_at_fileop_macro(tcp); // pgbovine
-
-  // int fchownat(int dirfd, const char *pathname,
-  //                  uid_t owner, gid_t group, int flags);
-  // print_syscall_write_prov_macro(tcp, 1);
-
   return 0;
-
-  /*
-	if (entering(tcp)) {
-		print_dirfd(tcp, tcp->u_arg[0]);
-		printpath(tcp, tcp->u_arg[1]);
-		printuid(", ", tcp->u_arg[2]);
-		printuid(", ", tcp->u_arg[3]);
-		tprintf(", ");
-		printflags(fstatatflags, tcp->u_arg[4], "AT_???");
-	}
-	return 0;
-  */
 }
 #endif
 
@@ -2537,50 +2189,19 @@ sys_fchown(struct tcb *tcp)
 	return 0;
 }
 
-static int
-decode_chmod(struct tcb *tcp, int offset)
-{
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[offset]);
-		tprintf(", %#lo", tcp->u_arg[offset + 1]);
-	}
-	return 0;
-}
-
-int
-sys_chmod(struct tcb *tcp)
-{
+int sys_chmod (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
-
-  // int chmod(const char *path, mode_t mode);
-  // print_syscall_write_prov_macro(tcp, 0);
-
   return 0;
-
-	//return decode_chmod(tcp, 0);
 }
 
 #ifdef LINUX
-int
-sys_fchmodat(struct tcb *tcp)
-{
+int sys_fchmodat (struct tcb* tcp) {
   CDE_at_fileop_macro(tcp); // pgbovine
-
-  // int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
-  // print_syscall_write_prov_macro(tcp, 1);
-
   return 0;
-
-  /*
-	if (entering(tcp))
-		print_dirfd(tcp, tcp->u_arg[0]);
-	return decode_chmod(tcp, 1);
-  */
 }
 #endif
 
-int
-sys_fchmod(struct tcb *tcp)
+int sys_fchmod (struct tcb* tcp)
 {
 	if (entering(tcp)) {
 		printfd(tcp, tcp->u_arg[0]);
@@ -2660,103 +2281,22 @@ sys_utimensat(struct tcb *tcp)
 }
 #endif
 
-int
-sys_utime(struct tcb *tcp)
-{
+int sys_utime (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
   return 0;
-
-  /*
-	union {
-		long utl[2];
-		int uti[2];
-	} u;
-
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[0]);
-		tprintf(", ");
-		if (!tcp->u_arg[1])
-			tprintf("NULL");
-		else if (!verbose(tcp))
-			tprintf("%#lx", tcp->u_arg[1]);
-		else if (umoven(tcp, tcp->u_arg[1],
-				2 * personality_wordsize[current_personality],
-				(char *) &u) < 0)
-			tprintf("[?, ?]");
-		else if (personality_wordsize[current_personality]
-			 == sizeof u.utl[0]) {
-			tprintf("[%s,", sprinttime(u.utl[0]));
-			tprintf(" %s]", sprinttime(u.utl[1]));
-		}
-		else if (personality_wordsize[current_personality]
-			 == sizeof u.uti[0]) {
-			tprintf("[%s,", sprinttime(u.uti[0]));
-			tprintf(" %s]", sprinttime(u.uti[1]));
-		}
-		else
-			abort();
-	}
-	return 0;
-  */
 }
 
-static int
-decode_mknod(struct tcb *tcp, int offset)
-{
-	int mode = tcp->u_arg[offset + 1];
-
-	if (entering(tcp)) {
-		printpath(tcp, tcp->u_arg[offset]);
-		tprintf(", %s", sprintmode(mode));
-		switch (mode & S_IFMT) {
-		case S_IFCHR: case S_IFBLK:
-#ifdef LINUXSPARC
-			if (current_personality == 1)
-			tprintf(", makedev(%lu, %lu)",
-				(unsigned long) ((tcp->u_arg[offset + 2] >> 18) & 0x3fff),
-				(unsigned long) (tcp->u_arg[offset + 2] & 0x3ffff));
-			else
-#endif
-			tprintf(", makedev(%lu, %lu)",
-				(unsigned long) major(tcp->u_arg[offset + 2]),
-				(unsigned long) minor(tcp->u_arg[offset + 2]));
-			break;
-		default:
-			break;
-		}
-	}
-	return 0;
-}
-
-int
-sys_mknod(struct tcb *tcp)
-{
+int sys_mknod (struct tcb* tcp) {
   CDE_standard_fileop_macro(tcp); // pgbovine
-
-  // int mknod(const char *pathname, mode_t mode, dev_t dev);
   print_syscall_write_prov_macro(tcp, 0);
-
   return 0;
-
-	//return decode_mknod(tcp, 0);
 }
 
 #ifdef LINUX
-int
-sys_mknodat(struct tcb *tcp)
-{
+int sys_mknodat (struct tcb* tcp) {
   CDE_at_fileop_macro(tcp); // pgbovine
-
-  // int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);
   print_syscall_write_prov_macro(tcp, 1);
-
   return 0;
-
-  /*
-	if (entering(tcp))
-		print_dirfd(tcp, tcp->u_arg[0]);
-	return decode_mknod(tcp, 1);
-  */
 }
 #endif
 

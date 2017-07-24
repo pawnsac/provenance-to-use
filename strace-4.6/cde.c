@@ -1,25 +1,4 @@
-/*
-
-CDE: Code, Data, and Environment packaging for Linux
-http://www.stanford.edu/~pgbovine/cde.html
-Philip Guo
-
-CDE is currently licensed under GPL v3:
-
-  Copyright (c) 2010-2011 Philip Guo <pg@cs.stanford.edu>
-
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-*/
-
+// CDE is GPL v3: Copyright (c) 2010-2011 Philip Guo <pg@cs.stanford.edu>. (see LICENSE file in project root dir)
 
 /* Linux system call calling conventions:
 
@@ -40,52 +19,152 @@ CDE is currently licensed under GPL v3:
 
 */
 
+//#define _GNU_SOURCE // for vasprintf (now we include _GNU_SOURCE in Makefile)
+
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
+#include <sys/mman.h>    // PROT_READ, PROT_WRITE, PROT_EXEC, MAP_PRIVATE, mmap(), munmap()
+#include <sys/socket.h>  // IPv4/IPv6 library
+#include <sys/un.h>      // UNIX domain sockets
+#include <sys/utsname.h> // struct utsname, uname()
+#include <sys/shm.h>     // shared mem: IPC_CREAT, IPC_EXCL, IPC_RMID, shmctl(), shmget(), shmat(), shmdt()
+#include <dirent.h>      // stuct dirent, DIR, readdir(), opendir(), closedir()
+#include <pthread.h>     // pthread_mutex_t, pthread_mutex_init(), pthread_mutex_lock/unlock()
+
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
 #include "cde.h"
+#include "config.h"      // automake output to get I386 / X86_64 definitions
+#include "defs.h"        // strace module
 #include "okapi.h"
 #include "cdenet.h"
 #include "provenance.h"
 #include "db.h"
 #include "const.h"
-#include <dirent.h>
+#include "syslimits.h"   // max_open_files()
 
-// quanpt - making find_ELF_program_interpreter thread safe
-#include <pthread.h>
-pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER;
+/*******************************************************************************
+ * EXTERNALLY-DEFINED VARIABLES
+ ******************************************************************************/
 
-// for CDE_begin_socket_bind_or_connect
-#include <sys/socket.h>
-#include <sys/un.h>
+/*******************************************************************************
+ * EXTERNALLY-DEFINED FUNCTIONS
+ ******************************************************************************/
 
-#include <time.h>
+/*******************************************************************************
+ * PUBLIC VARIABLES
+ ******************************************************************************/
 
-#include <sys/utsname.h> // for uname
+char Cde_verbose_mode = 0;    // print cde activity to stdout (-v option)
+char Cde_exec_mode = 0;       // false if auditing, true if running captured app
+char Cde_app_dir[MAXPATHLEN]; // abs path to cde app dir (contains cde-root)
+char Cde_follow_ssh_mode = 1;
 
-// TODO: eliminate this hack if it results in a compile-time error
-#include "config.h" // to get I386 / X86_64 definitions
-#if defined (I386)
-__asm__(".symver shmctl,shmctl@GLIBC_2.0"); // hack to eliminate glibc 2.2 dependency
-#endif
+/*******************************************************************************
+ * PRIVATE CONSTANTS / VARIABLES
+ ******************************************************************************/
+
+// private constants
+const size_t shared_page_size = MAXPATHLEN * 4; // shared mem page size
+
+// private variables
+static char cde_cderoot_dir[MAXPATHLEN]; // abs path to cde-root dir (root of captured app)
+static pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER; // quanpt: make find_ELF_program_interpreter threadsafe
+
+/*******************************************************************************
+ * PRIVATE MACROS / FUNCTIONS
+ ******************************************************************************/
+
+/*******************************************************************************
+ * PUBLIC FUNCTIONS
+ ******************************************************************************/
+
+// allocate heap memory for a tcb's cde fields
+void alloc_tcb_cde_fields (struct tcb* tcp) {
+  tcp->localshm = NULL;
+  tcp->childshm = NULL;
+  tcp->setting_up_shm = 0;
+
+  if (Cde_exec_mode || 1) { // TODO: quanpt: make it into cde option
+    key_t key;
+    // randomly probe for a valid shm key
+    do {
+      errno = 0;
+      key = rand();
+      tcp->shmid = shmget(key, shared_page_size, IPC_CREAT|IPC_EXCL|0600);
+    } while (tcp->shmid == -1 && errno == EEXIST);
+
+    tcp->localshm = (char*)shmat(tcp->shmid, NULL, 0);
+
+    if ((long)tcp->localshm == -1) {
+      perror("shmat");
+      exit(1);
+    }
+
+    if (shmctl(tcp->shmid, IPC_RMID, NULL) == -1) {
+      perror("shmctl(IPC_RMID)");
+      exit(1);
+    }
+
+    assert(tcp->localshm);
+  }
+
+  // digimokan: abs paths used to open this proc's currently open files
+  const long maxof = max_open_files();
+  tcp->opened_file_paths = (char**) malloc(maxof * sizeof(char*));
+  for (int i = 0; i < maxof; i++) {
+    tcp->opened_file_paths[i] = NULL;
+  }
+
+  tcp->current_dir = NULL;
+  tcp->p_ignores = NULL;
+  tcp->current_repo_ind = -1;
+}
+
+// free heap-allocated cde fields in a tcb
+void free_tcb_cde_fields (struct tcb* tcp) {
+  if (tcp->localshm) {
+    shmdt(tcp->localshm);
+  }
+  // need to null out elts in case table entries are recycled
+  tcp->localshm = NULL;
+  tcp->childshm = NULL;
+  tcp->setting_up_shm = 0;
+  tcp->p_ignores = NULL;
+
+  // digimokan: abs paths used to open this proc's currently open files
+  for (int i = 0; i < max_open_files(); i++) {
+    if (tcp->opened_file_paths[i] != NULL) {
+      free(tcp->opened_file_paths[i]);
+    }
+  }
+
+  if (tcp->current_dir) {
+    free(tcp->current_dir);
+    tcp->current_dir = NULL;
+  }
+  tcp->current_repo_ind = -1;
+}
+
+/*******************************************************************************
+ * IMPLEMENTATION
+ ******************************************************************************/
 
 
-// 1 if we are executing code in a CDE package,
-// 0 for tracing regular execution
-char CDE_exec_mode;
-extern char CDE_provenance_mode; // quanpt
-extern char CDE_bare_run; // quanpt
-extern char CDE_nw_mode; // quanpt
 extern int CDE_network_content_mode;
-char CDE_follow_SSH_mode = 1;
-char CDE_verbose_mode = 0; // -v option
 char* CDE_ROOT_NAME = NULL;
-// only valid if !CDE_exec_mode
+// only valid if !Cde_exec_mode
 char* CDE_PACKAGE_DIR = NULL;
 char* CDE_ROOT_DIR = NULL;
 char CDE_proc_self_exe[MAXPATHLEN];
 
 char CDE_block_net_access = 0; // -n option
 
-
-// only relevant if CDE_exec_mode = 1
+// only relevant if Cde_exec_mode = 1
 char CDE_exec_streaming_mode = 0; // -s option
 
 char* add_echo_to_ssh(struct tcb *tcp);
@@ -94,7 +173,6 @@ void add_wrapper_to_ssh(struct tcb *tcp, const char **argv, int n);
 char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host);
 char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, 
   int isBash, int doScp);
-void prepare_ptu_on_remotehost(char* remotehost);
 
 #if defined(X86_64)
 // current_personality == 1 means that a 64-bit cde-exec is actually tracking a
@@ -115,19 +193,6 @@ static Trie* TrieNew(void) {
   // VERY important to blank out the contents with a calloc()
   return (Trie*)calloc(1, sizeof(Trie));
 }
-
-/* currently unused ... but could be useful in the future
-static void TrieDelete(Trie* t) {
-  // free all your children before freeing yourself
-  unsigned char i;
-  for (i = 0; i < 128; i++) {
-    if (t->children[i]) {
-      TrieDelete(t->children[i]);
-    }
-  }
-  free(t);
-}
-*/
 
 static void TrieInsert(Trie* t, char* ascii_string) {
   while (*ascii_string != '\0') {
@@ -156,7 +221,6 @@ static int TrieContains(Trie* t, char* ascii_string) {
   return t->elt_is_present;
 }
 
-
 // 1 if we should use the dynamic linker from within the package
 //   (much more portable, but might be less robust since the dynamic linker
 //   must be invoked explicitly, which leads to some weird-ass bugs)
@@ -168,7 +232,6 @@ char CDE_use_linker_from_package = 1; // ON by default, -l option to turn OFF
 
 // only 1 if we are running cde-exec from OUTSIDE of a cde-root/ directory
 char cde_exec_from_outside_cderoot = 0;
-extern FILE* CDE_provenance_logfile; // quanpt
 FILE* CDE_copied_files_logfile = NULL;
 
 static char cde_options_initialized = 0; // set to 1 after CDE_init_options() done
@@ -179,8 +242,6 @@ static void* find_free_addr(int pid, int exec, unsigned long size);
 char* strcpy_from_child(struct tcb* tcp, long addr);
 char* strcpy_from_child_or_null(struct tcb* tcp, long addr);
 static int ignore_path(char* filename, struct tcb* tcp);
-
-#define SHARED_PAGE_SIZE (MAXPATHLEN * 4)
 
 static char* redirect_filename_into_cderoot(char* filename, char* child_current_pwd, struct tcb* tcp);
 void memcpy_to_child(int pid, char* dst_child, char* src, int size);
@@ -218,18 +279,6 @@ int ignore_envvars_ind = 0;
 
 struct PI process_ignores[50];
 int process_ignores_ind = 0;
-
-
-// the absolute path to the cde-root/ directory, since that will be
-// where our fake filesystem starts. e.g., if cde_starting_pwd is
-//   /home/bob/cde-package/cde-root/home/alice/cool-experiment
-// then cde_pseudo_root_dir is:
-//   /home/bob/cde-package/cde-root
-//
-// only relevant when we're executing in CDE_exec_mode
-char cde_pseudo_root_dir[MAXPATHLEN];
-char cde_pseudo_pkg_dir[MAXPATHLEN];
-
 
 // the path to where the root directory is mounted on the remote machine
 // (only relevant for "cde-exec -s")
@@ -276,12 +325,12 @@ void vbprintf(const char *fmt, ...)
 }
 
 // returns a component within real_pwd that represents the part within
-// cde_pseudo_root_dir
+// cde_cderoot_dir
 // the return value should NOT be mutated; otherwise we might be screwed!
 //
 // (tcp argument is optional and used to pass into ignore_path)
 static char* extract_sandboxed_pwd(char* real_pwd, struct tcb* tcp) {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
 
   // spoof getcwd by only taking the part BELOW cde-root/
   // e.g., if real_pwd is:
@@ -289,27 +338,27 @@ static char* extract_sandboxed_pwd(char* real_pwd, struct tcb* tcp) {
   // then return:
   //   /home/alice/cool-experiment
   // as cwd
-  int cde_pseudo_root_dir_len = strlen(cde_pseudo_root_dir);
+  int cde_cderoot_dir_len = strlen(cde_cderoot_dir);
 
-  char real_pwd_is_within_cde_pseudo_root_dir =
-    ((strlen(real_pwd) >= cde_pseudo_root_dir_len) &&
-     (strncmp(real_pwd, cde_pseudo_root_dir, cde_pseudo_root_dir_len) == 0));
+  char real_pwd_is_within_cde_cderoot_dir =
+    ((strlen(real_pwd) >= cde_cderoot_dir_len) &&
+     (strncmp(real_pwd, cde_cderoot_dir, cde_cderoot_dir_len) == 0));
 
   // if real_pwd is within a strange directory like '/tmp' that should
-  // be ignored, AND if it resides OUTSIDE of cde_pseudo_root_dir, then
+  // be ignored, AND if it resides OUTSIDE of cde_cderoot_dir, then
   // simply return itself
   //
   // e.g., if real_pwd is '/tmp', then return itself,
   // but if real_pwd is '/tmp/cde-package/cde-root/home/pgbovine' and
-  // cde_pseudo_root_dir is '/tmp/cde-package/cde-root/', then
+  // cde_cderoot_dir is '/tmp/cde-package/cde-root/', then
   // treat it like any normal path (extract '/home/pgbovine')
-  if (ignore_path(real_pwd, tcp) && !real_pwd_is_within_cde_pseudo_root_dir) {
+  if (ignore_path(real_pwd, tcp) && !real_pwd_is_within_cde_cderoot_dir) {
     return real_pwd;
   }
 
-  // sanity check, make sure real_pwd is within/ cde_pseudo_root_dir,
+  // sanity check, make sure real_pwd is within/ cde_cderoot_dir,
   // if we're not ignoring it
-  if (!real_pwd_is_within_cde_pseudo_root_dir) {
+  if (!real_pwd_is_within_cde_cderoot_dir) {
     // if we're in this mode, then we're okay!!!  don't return an error!
     if (cde_exec_from_outside_cderoot || get_repo_path_id(real_pwd) >= 0) {
       return real_pwd;
@@ -324,7 +373,7 @@ static char* extract_sandboxed_pwd(char* real_pwd, struct tcb* tcp) {
 
   // regular action: truncate path up to and including 'cde-root/'
 
-  char* sandboxed_pwd = (real_pwd + cde_pseudo_root_dir_len);
+  char* sandboxed_pwd = (real_pwd + cde_cderoot_dir_len);
 
   // special case for '/' directory:
   if (strlen(sandboxed_pwd) == 0) {
@@ -344,16 +393,16 @@ char* prepend_cderoot(char* path) {
   return format("%s%s", CDE_ROOT_DIR, path);
 }
 
-// WARNING: this function behaves differently depending on value of CDE_exec_mode
+// WARNING: this function behaves differently depending on value of Cde_exec_mode
 char* create_abspath_within_cderoot(char* path) {
   assert(IS_ABSPATH(path)); // Pre-req: path must be an absolute path!
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // if we're making a cde-exec run, then simply re-route it
-    // inside of cde_pseudo_root_dir
+    // inside of cde_cderoot_dir
 
     /* SUPER WEIRD special case: Sometimes 'path' will ALREADY BE within
-       cde_pseudo_root_dir, so in those cases, do NOT redirect it again.
+       cde_cderoot_dir, so in those cases, do NOT redirect it again.
        Instead, simply strdup the original path (and maybe issue a warning).
 
        This can happen if, say, the target program reads /proc/self/maps
@@ -374,7 +423,7 @@ char* create_abspath_within_cderoot(char* path) {
        path is already within cde-root/, and if so, then don't redirect it.
 
     */
-    if(strncmp(path, cde_pseudo_root_dir, strlen(cde_pseudo_root_dir)) == 0) {
+    if(strncmp(path, cde_cderoot_dir, strlen(cde_cderoot_dir)) == 0) {
       // TODO: maybe print a warning to stderr or a log file?
       //fprintf(stderr, "CDE WARNING: refusing to redirect path that's within cde-root/: '%s'", path);
       return strdup(path);
@@ -391,7 +440,7 @@ char* create_abspath_within_cderoot(char* path) {
         else {
           printf("Accessing remote file: '%s'\n", path);
           // copy from remote -> local
-          create_mirror_file_in_cde_package(path, cde_remote_root_dir, cde_pseudo_root_dir);
+          create_mirror_file_in_cde_package(path, cde_remote_root_dir, cde_cderoot_dir);
 
           // VERY IMPORTANT: add ALL paths to cached_files_trie, even
           // for nonexistent files, so that we can avoid trying to access
@@ -407,7 +456,7 @@ char* create_abspath_within_cderoot(char* path) {
       }
 
       // normal behavior - redirect into cde-root/
-      return format("%s%s", cde_pseudo_root_dir, path);
+      return format("%s%s", cde_cderoot_dir, path);
     }
   }
   else {
@@ -447,7 +496,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
   // remember, tcp is optional
   if (tcp && tcp->p_ignores) {
     if (strcmp(filename, tcp->p_ignores->process_name) == 0) {
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         vbprintf("IGNORED '%s' (process=%s)\n", filename, tcp->p_ignores->process_name);
       }
       return 1;
@@ -455,7 +504,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
     for (i = 0; i < tcp->p_ignores->process_ignore_prefix_paths_ind; i++) {
       char* p = tcp->p_ignores->process_ignore_prefix_paths[i];
       if (strncmp(filename, p, strlen(p)) == 0) {
-        if (CDE_verbose_mode) {
+        if (Cde_verbose_mode) {
           vbprintf("IGNORED '%s' [%s] (process=%s)\n", filename, p, tcp->p_ignores->process_name);
         }
         return 1;
@@ -533,7 +582,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
 // if filename is a symlink, then copy both it AND its target into cde-root
 static void copy_file_into_cde_root(char* filename, char* child_current_pwd) {
   assert(filename);
-  assert(!CDE_exec_mode);
+  assert(!Cde_exec_mode);
 
   // resolve absolute path relative to child_current_pwd and
   // get rid of '..', '.', and other weird symbols
@@ -574,7 +623,7 @@ extern int isspace(int c);
 // arg_num == 1 mean modify first register arg
 // arg_num == 2 mean modify second register arg
 static void modify_syscall_single_arg(struct tcb* tcp, int arg_num, char* filename) {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
   assert(filename);
 
   //printf("from '%s' ", filename);
@@ -645,7 +694,7 @@ static void modify_syscall_single_arg(struct tcb* tcp, int arg_num, char* filena
 
 // copy and paste from modify_syscall_first_arg ;)
 static void modify_syscall_two_args(struct tcb* tcp) {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
 
   if (!tcp->childshm) {
     begin_setup_shmat(tcp);
@@ -747,7 +796,7 @@ static void modify_syscall_two_args(struct tcb* tcp) {
 // modify the second and fourth args to redirect into cde-root/
 // really nasty copy-and-paste from modify_syscall_two_args above
 static void modify_syscall_second_and_fourth_args(struct tcb* tcp) {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
 
   if (!tcp->childshm) {
     begin_setup_shmat(tcp);
@@ -843,7 +892,7 @@ static void modify_syscall_second_and_fourth_args(struct tcb* tcp) {
 // modify the first and third args to redirect into cde-root/
 // really nasty copy-and-paste from modify_syscall_two_args above
 static void modify_syscall_first_and_third_args(struct tcb* tcp) {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
 
   if (!tcp->childshm) {
     begin_setup_shmat(tcp);
@@ -939,7 +988,7 @@ static void modify_syscall_first_and_third_args(struct tcb* tcp) {
 
 // create a malloc'ed filename that contains a version within cde-root/
 // return NULL if the filename should NOT be redirected
-// WARNING: behavior differs based on CDE_exec_mode!
+// WARNING: behavior differs based on Cde_exec_mode!
 //
 // (tcp argument is optional and used to pass into ignore_path)
 static char* redirect_filename_into_cderoot(char* filename, char* child_current_pwd, struct tcb* tcp) {
@@ -953,7 +1002,7 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
   assert(child_current_pwd);
 
   char* filename_abspath = NULL;
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // canonicalize_path has the desirable side effect of preventing
     // 'malicious' paths from going below the pseudo-root '/' ... e.g.,
     // if filename is '/home/pgbovine/../../../../'
@@ -994,10 +1043,10 @@ static char* redirect_filename_into_cderoot(char* filename, char* child_current_
 
 
   // WARNING: behavior of create_abspath_within_cderoot
-  // differs based on CDE_exec_mode!
+  // differs based on Cde_exec_mode!
   char* ret = create_abspath_within_cderoot(filename_abspath);
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("redirect '%s' => '%s'\n", filename, ret);
   }
 
@@ -1045,11 +1094,11 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
   if (filename == NULL || *filename == '\0')
     return;
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN %s '%s'\n", tcp->pid, syscall_name, filename);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     if (filename) {
       modify_syscall_single_arg(tcp, 1, filename);
     }
@@ -1064,8 +1113,6 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
 
     }
   }
-
-  // print_IO_prov(tcp, filename, syscall_name);
 
   free(filename);
 }
@@ -1092,11 +1139,9 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
 void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[1]);
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN %s '%s' (dirfd=%u)\n", tcp->pid, syscall_name, filename, (unsigned int)tcp->u_arg[0]);
   }
-  
-  // print_IO_prov(tcp, filename, syscall_name);
 
   if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
     fprintf(stderr,
@@ -1105,7 +1150,7 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
     goto done; // punt early!
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_single_arg(tcp, 2, filename);
   }
   else {
@@ -1129,7 +1174,7 @@ done:
 static void CDE_end_readlink_internal(struct tcb* tcp, int input_buffer_arg_index, int output_buffer_arg_index) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[input_buffer_arg_index]);
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     if (tcp->u_rval >= 0) {
       // super hack!  if the program is trying to access the special
       // /proc/self/exe file, return perceived_program_fullpath if
@@ -1251,8 +1296,8 @@ static void CDE_end_readlink_internal(struct tcb* tcp, int input_buffer_arg_inde
               assert(IS_ABSPATH(suffix));
 
               // as a final sanity check, see if this file actually exists
-              // within cde_pseudo_root_dir, to prevent false positives
-              char* actual_path = format("%s%s", cde_pseudo_root_dir, suffix);
+              // within cde_cderoot_dir, to prevent false positives
+              char* actual_path = format("%s%s", cde_cderoot_dir, suffix);
               struct stat st;
               if (lstat(actual_path, &st) == 0) {
                 // clobber the syscall's return value with 'suffix'
@@ -1318,16 +1363,13 @@ void CDE_begin_execve(struct tcb* tcp) {
   // forking, but when you exec, you're probably now executing a different program
   tcp->p_ignores = NULL;
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] CDE_begin_execve '%s'\n", tcp->pid, exe_filename);
   }
 
-//  if (CDE_provenance_mode) {
-//    print_exec_prov(tcp);
-//  }
   char is_runable_count = 0;
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
 
     // if we're purposely ignoring a path to an executable (e.g.,
     // ignoring "/bin/bash" to prevent crashes on certain Ubuntu
@@ -1350,7 +1392,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 //      tcp->isCDEprocess = 1;
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
+        print_begin_execve_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
         is_runable_count += 8;
         detach(tcp, 0);
       }
@@ -1387,7 +1429,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (is_cde_binary(exe_filename_abspath)) {
       //printf("audit - cde_begin_execve: IGNORED '%s'\n", exe_filename_abspath);
       if (tcp->flags & TCB_ATTACHED) {
-        print_exec_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
+        print_begin_execve_prov(tcp, ssh_dbid, ssh_host); // print provenance before ptrace disconnected
         is_runable_count += 16;
         detach(tcp, 0);
       }
@@ -1458,7 +1500,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (!ld_linux_filename) {
       // if the program interpreter isn't found, then it's a static
       // binary, so let the execve call proceed normally
-      if (CDE_exec_mode) {
+      if (Cde_exec_mode) {
         // redirect the executable's path to within $CDE_ROOT_DIR:
         modify_syscall_single_arg(tcp, 1, exe_filename);
       }
@@ -1491,7 +1533,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     if (n>=3 && path_to_executable[n-3]=='.' &&  path_to_executable[n-2]=='s' &&
         path_to_executable[n-1]=='h') {
       is_textual_script = 1;
-      script_command = strdup("/bin/dash");
+      script_command = strdup("/bin/sh");
     }
     //printf("%d %d %s %d\n", tmp[0], tmp[1], script_command, read);
     free(tmp);
@@ -1528,7 +1570,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     // to have find_ELF_program_interpreter succeed, we might need to
     // redirect the path inside CDE_ROOT_DIR:
     char* script_command_filename = NULL;
-    if (CDE_exec_mode) {
+    if (Cde_exec_mode) {
       // this path should look like the name in the #! line, just
       // canonicalized to be an absolute path
       char* script_command_abspath =
@@ -1575,7 +1617,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
       // TODO: is this the right thing to do here?  I think we might
       // need to do something better here (think harder about this case!)
-      if (CDE_exec_mode) {
+      if (Cde_exec_mode) {
         // redirect the executable's path to within cde-root/:
         modify_syscall_single_arg(tcp, 1, exe_filename);
       }
@@ -1592,11 +1634,11 @@ void CDE_begin_execve(struct tcb* tcp) {
   //   to modify the execv of ssh
   if (!tcp->childshm) {
     begin_setup_shmat(tcp);
-    is_runable_count += 32; // DON'T RECORD print_exec_prov HERE
+    is_runable_count += 32; // DON'T RECORD print_begin_execve_prov HERE
     goto done; // MUST punt early here!!!
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
 
     ld_linux_fullpath = create_abspath_within_cderoot(ld_linux_filename);
 
@@ -1644,7 +1686,7 @@ void CDE_begin_execve(struct tcb* tcp) {
 
     }
 
-        Note that we only need to do this if we're in CDE_exec_mode */
+        Note that we only need to do this if we're in Cde_exec_mode */
 
       //printf("script_command='%s', path_to_executable='%s'\n", script_command, path_to_executable);
 
@@ -1714,7 +1756,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       char** new_argv_0 = (char**)new_argv_raw;
       *new_argv_0 = (char*)tcp->childshm;
 
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
         vbprintf("   new_argv[0]='%s'\n", tmp);
         if (tmp) free(tmp);
@@ -1728,7 +1770,7 @@ void CDE_begin_execve(struct tcb* tcp) {
           char** new_argv_i_plus_1 = (char**)(new_argv_raw + ((i+1) * personality_wordsize[current_personality]));
           *new_argv_i_plus_1 = (char*)tcp->childshm + (script_command_token_starts[i] - base);
 
-          if (CDE_verbose_mode) {
+          if (Cde_verbose_mode) {
             char* tmp = strcpy_from_child(tcp, (long)*new_argv_i_plus_1);
             vbprintf("   new_argv[%d]='%s'\n", i+1, tmp);
             if (tmp) free(tmp);
@@ -1738,7 +1780,7 @@ void CDE_begin_execve(struct tcb* tcp) {
           char** new_argv_i = (char**)(new_argv_raw + (i * personality_wordsize[current_personality]));
           *new_argv_i = (char*)tcp->childshm + (script_command_token_starts[i] - base);
 
-          if (CDE_verbose_mode) {
+          if (Cde_verbose_mode) {
             char* tmp = strcpy_from_child(tcp, (long)*new_argv_i);
             vbprintf("   new_argv[%d]='%s'\n", i, tmp);
             if (tmp) free(tmp);
@@ -1759,7 +1801,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       char** new_argv_f = (char**)(new_argv_raw + (first_nontoken_index * personality_wordsize[current_personality]));
       *new_argv_f = (char*)tcp->u_arg[0];
 
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_f);
         vbprintf("   new_argv[%d]='%s'\n", first_nontoken_index, tmp);
         if (tmp) free(tmp);
@@ -1791,7 +1833,7 @@ void CDE_begin_execve(struct tcb* tcp) {
           break;
         }
 
-        if (CDE_verbose_mode) {
+        if (Cde_verbose_mode) {
           char* tmp = strcpy_from_child(tcp, (long)cur_arg);
           vbprintf("   new_argv[%d]='%s'\n", i+first_nontoken_index, tmp);
           if (tmp) free(tmp);
@@ -1839,7 +1881,7 @@ void CDE_begin_execve(struct tcb* tcp) {
                    argv pointers : [...]
                    argv pointers : NULL
 
-        Note that we only need to do this if we're in CDE_exec_mode
+        Note that we only need to do this if we're in Cde_exec_mode
         and CDE_use_linker_from_package is on */
 
       char* base = (char*)tcp->localshm;
@@ -1931,7 +1973,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       char** new_argv_0 = (char**)new_argv_raw;
       *new_argv_0 = (char*)tcp->childshm;
 
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
         vbprintf("   new_argv[0]='%s'\n", tmp);
         if (tmp) free(tmp);
@@ -1941,7 +1983,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       // points to the full path to the target program (real_program_path_base)
       *new_argv_1 = (char*)tcp->childshm + offset1;
 
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         char* tmp = strcpy_from_child(tcp, (long)*new_argv_1);
         vbprintf("   new_argv[1]='%s'\n", tmp);
         if (tmp) free(tmp);
@@ -1971,7 +2013,7 @@ void CDE_begin_execve(struct tcb* tcp) {
           break;
         }
 
-        if (CDE_verbose_mode) {
+        if (Cde_verbose_mode) {
           char* tmp = strcpy_from_child(tcp, (long)cur_arg);
           vbprintf("   new_argv[%d]='%s'\n", i+1, tmp);
           if (tmp) free(tmp);
@@ -2043,7 +2085,7 @@ void CDE_begin_execve(struct tcb* tcp) {
       //~ ssh_dbid = strdup(add_echo_to_ssh(tcp));
       //~ ssh_dbid = strdup(add_cdewrapper_to_ssh(tcp));
       //~ ssh_dbid = add_cdewrapper_to_ssh(tcp); // new implementation don't need strdup
-      if (CDE_follow_SSH_mode) {
+      if (Cde_follow_ssh_mode) {
         //~ ssh_dbid = add_strace_to_ssh(tcp);
         ssh_dbid = add_cdebashwrapper_to_ssh(tcp, &ssh_host); // new implementation don't need strdup
       } else {
@@ -2078,11 +2120,11 @@ void CDE_begin_execve(struct tcb* tcp) {
   }
 
 done:
-  if (CDE_provenance_mode || CDE_nw_mode) {
-    if (CDE_verbose_mode)
+  if (Prov_prov_mode || Cdenet_network_mode) {
+    if (Cde_verbose_mode)
       vbprintf("  will %sbe captured in provenance (%d).\n", is_runable_count > 0 ? "NOT " : "", is_runable_count);
     if (is_runable_count==0) {
-      print_exec_prov(tcp, ssh_dbid, ssh_host);
+      print_begin_execve_prov(tcp, ssh_dbid, ssh_host);
       freeifnn(ssh_dbid);
       freeifnn(ssh_host);
     }
@@ -2118,18 +2160,18 @@ done:
 
 
 void CDE_end_execve(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] CDE_end_execve\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // WOW, what a gross hack!  execve detaches all shared memory
     // segments, so childshm is no longer valid.  we must clear it so
     // that begin_setup_shmat() will be called again
     tcp->childshm = NULL;
   }
   if (tcp->u_rval == 0) {
-    print_execdone_prov(tcp);
+    print_end_execve_prov(tcp);
   }
 
 }
@@ -2138,11 +2180,11 @@ void CDE_end_execve(struct tcb* tcp) {
 void CDE_begin_file_unlink(struct tcb* tcp) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[0]);
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN unlink '%s'\n", tcp->pid, filename);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_single_arg(tcp, 1, filename);
   }
   else {
@@ -2160,7 +2202,7 @@ void CDE_begin_file_unlink(struct tcb* tcp) {
 void CDE_begin_file_unlinkat(struct tcb* tcp) {
   char* filename = strcpy_from_child(tcp, tcp->u_arg[1]);
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN unlinkat '%s'\n", tcp->pid, filename);
   }
 
@@ -2169,7 +2211,7 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
     return; // punt early!
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_single_arg(tcp, 2, filename);
   }
   else {
@@ -2183,11 +2225,11 @@ void CDE_begin_file_unlinkat(struct tcb* tcp) {
 
 
 void CDE_begin_file_link(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN link\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_two_args(tcp);
   }
   else {
@@ -2222,7 +2264,7 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
   char* oldpath = strcpy_from_child(tcp, tcp->u_arg[1]);
   char* newpath = strcpy_from_child(tcp, tcp->u_arg[3]);
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN linkat(%s, %s)\n", tcp->pid, oldpath, newpath);
   }
 
@@ -2240,7 +2282,7 @@ void CDE_begin_file_linkat(struct tcb* tcp) {
   }
 
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_second_and_fourth_args(tcp);
   }
   else {
@@ -2267,11 +2309,11 @@ done:
 
 
 void CDE_begin_file_symlink(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN symlink\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_two_args(tcp);
   }
   else {
@@ -2295,7 +2337,7 @@ void CDE_begin_file_symlink(struct tcb* tcp) {
 // except adjusting for symlinkat signature:
 //   symlinkat(char* oldpath, int newdirfd, char* newpath);
 void CDE_begin_file_symlinkat(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN symlinkat\n", tcp->pid);
   }
 
@@ -2307,7 +2349,7 @@ void CDE_begin_file_symlinkat(struct tcb* tcp) {
     return; // punt early!
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_first_and_third_args(tcp);
   }
   else {
@@ -2324,21 +2366,21 @@ void CDE_begin_file_symlinkat(struct tcb* tcp) {
 
 
 void CDE_begin_file_rename(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN rename\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_two_args(tcp);
   }
 }
 
 void CDE_end_file_rename(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] END rename\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // empty
   }
   else {
@@ -2366,7 +2408,7 @@ void CDE_end_file_rename(struct tcb* tcp) {
 // except adjusting for linkat signature:
 //   renameat(int olddirfd, char* oldpath, int newdirfd, char* newpath);
 void CDE_begin_file_renameat(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN renameat\n", tcp->pid);
   }
 
@@ -2386,7 +2428,7 @@ void CDE_begin_file_renameat(struct tcb* tcp) {
     goto done; // punt early!
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     modify_syscall_second_and_fourth_args(tcp);
   }
 
@@ -2396,11 +2438,11 @@ done:
 }
 
 void CDE_end_file_renameat(struct tcb* tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] END renameat\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // empty
   }
   else {
@@ -2452,7 +2494,7 @@ void CDE_end_fchdir(struct tcb* tcp) {
 
 
     // now copy into cde-root/ if necessary
-    if (!CDE_exec_mode) {
+    if (!Cde_exec_mode) {
       char* redirected_path =
         redirect_filename_into_cderoot(tcp->current_dir, tcp->current_dir, tcp);
       if (redirected_path && get_repo_path_id(tcp->current_dir)<0) {
@@ -2471,11 +2513,11 @@ void CDE_begin_mkdir(struct tcb* tcp) {
 }
 
 void CDE_end_mkdir(struct tcb* tcp, int input_buffer_arg_index) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] END mkdir*\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // empty
   }
   else {
@@ -2509,11 +2551,11 @@ void CDE_begin_rmdir(struct tcb* tcp) {
 }
 
 void CDE_end_rmdir(struct tcb* tcp, int input_buffer_arg_index) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] END rmdir*\n", tcp->pid);
   }
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // empty
   }
   else {
@@ -2590,59 +2632,6 @@ static void* find_free_addr(int pid, int prot, unsigned long size) {
 
   return NULL;
 }
-
-
-void alloc_tcb_CDE_fields(struct tcb* tcp) {
-  tcp->localshm = NULL;
-  tcp->childshm = NULL;
-  tcp->setting_up_shm = 0;
-
-  if (CDE_exec_mode || 1) { // TODO: quanpt: make it into cde option
-    key_t key;
-    // randomly probe for a valid shm key
-    do {
-      errno = 0;
-      key = rand();
-      tcp->shmid = shmget(key, SHARED_PAGE_SIZE, IPC_CREAT|IPC_EXCL|0600);
-    } while (tcp->shmid == -1 && errno == EEXIST);
-
-    tcp->localshm = (char*)shmat(tcp->shmid, NULL, 0);
-
-    if ((long)tcp->localshm == -1) {
-      perror("shmat");
-      exit(1);
-    }
-
-    if (shmctl(tcp->shmid, IPC_RMID, NULL) == -1) {
-      perror("shmctl(IPC_RMID)");
-      exit(1);
-    }
-
-    assert(tcp->localshm);
-  }
-
-  tcp->current_dir = NULL;
-  tcp->p_ignores = NULL;
-  tcp->current_repo_ind = -1;
-}
-
-void free_tcb_CDE_fields(struct tcb* tcp) {
-  if (tcp->localshm) {
-    shmdt(tcp->localshm);
-  }
-  // need to null out elts in case table entries are recycled
-  tcp->localshm = NULL;
-  tcp->childshm = NULL;
-  tcp->setting_up_shm = 0;
-  tcp->p_ignores = NULL;
-
-  if (tcp->current_dir) {
-    free(tcp->current_dir);
-    tcp->current_dir = NULL;
-  }
-  tcp->current_repo_ind = -1;
-}
-
 
 // inject a system call in the child process to tell it to attach our
 // shared memory segment, so that it can read modified paths from there
@@ -2803,7 +2792,7 @@ void finish_setup_shmat(struct tcb* tcp) {
 //
 // dst should be big enough to hold a full path
 void strcpy_redirected_cderoot(char* dst, char* src) {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
   // use cde_starting_pwd (TODO: is that correct?)
   char* redirected_src = redirect_filename_into_cderoot(src, cde_starting_pwd, NULL);
   if (redirected_src) {
@@ -2872,7 +2861,7 @@ void memcpy_to_child(int pid, char* dst_child, char* src, int size) {
 // if we can just directly access it using /proc/<pid>/cwd ???
 void CDE_end_getcwd(struct tcb* tcp) {
   if (!syserror(tcp)) {
-    if (CDE_exec_mode) {
+    if (Cde_exec_mode) {
       char* sandboxed_pwd = extract_sandboxed_pwd(tcp->current_dir, tcp);
       memcpy_to_child(tcp->pid, (char*)tcp->u_arg[0],
                       sandboxed_pwd, strlen(sandboxed_pwd) + 1);
@@ -3014,11 +3003,6 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
     // inherit from parent since you're executing the same program after
     // forking (at least until you do an exec)
     tcp->p_ignores = tcp->parent->p_ignores;
-
-//     to think: this is called on startup_attach, startup_child (trace.c), internal_fork, handle_new_child (process)
-//     if (CDE_provenance_mode) {
-//       fprintf(CDE_provenance_logfile, "%d %u SPAWN %u\n", (int)time(0), tcp->parent->pid, tcp->pid);
-//     }
   }
   else {
     // otherwise create fresh fields derived from master (cde) process
@@ -3050,7 +3034,7 @@ void CDE_init_tcb_dir_fields(struct tcb* tcp) {
 // then try to find the cde-root/ corresponding to the location of the
 // cde-exec executable
 void CDE_init_pseudo_root_dir() {
-  assert(CDE_exec_mode);
+  assert(Cde_exec_mode);
 
   struct path* p = new_path_from_abspath(cde_starting_pwd);
   assert(p->depth > 0);
@@ -3078,16 +3062,16 @@ void CDE_init_pseudo_root_dir() {
   if (found_index < 0) {
     // if we can't find 'cde-root' in cde_starting_pwd, then we must
     // be executing cde-exec from OUTSIDE of a repository, so set
-    // cde_pseudo_root_dir to:
+    // cde_cderoot_dir to:
     //   dirname(readlink("/proc/self/exe")) + "/cde-root"
 
     char* toplevel_cde_root_path =
       format("%s/" CDE_ROOT_NAME_DEFAULT, dirname(CDE_proc_self_exe));
 
-    strcpy(cde_pseudo_root_dir, toplevel_cde_root_path);
+    strcpy(cde_cderoot_dir, toplevel_cde_root_path);
 
     char* tmp = format("%s", dirname(CDE_proc_self_exe));
-    strcpy(cde_pseudo_pkg_dir, tmp);
+    strcpy(Cde_app_dir, tmp);
     free(tmp);
 
     free(toplevel_cde_root_path);
@@ -3096,15 +3080,15 @@ void CDE_init_pseudo_root_dir() {
   }
   else {
     // normal case --- we're currently within a cde-root/ directory, so
-    // set that as cde_pseudo_root_dir
+    // set that as cde_cderoot_dir
     char* tmp = path2str(p, found_index);
-    strcpy(cde_pseudo_root_dir, tmp);
+    strcpy(cde_cderoot_dir, tmp);
     free(tmp);
 
     // quanpt
     assert(found_index>0);
     tmp = path2str(p, found_index-1);
-    strcpy(cde_pseudo_pkg_dir, tmp);
+    strcpy(Cde_app_dir, tmp);
     free(tmp);
   }
 
@@ -3142,12 +3126,12 @@ void CDE_init(char** argv, int optind) {
   CDE_proc_self_exe[len] = '\0'; // wow, readlink doesn't put cap on the end!
   vbp(1, "self_exe: %s\n", CDE_proc_self_exe);
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // must do this before running CDE_init_options()
     CDE_init_pseudo_root_dir();
 
     if (CDE_exec_streaming_mode) {
-      char* tmp = strdup(cde_pseudo_root_dir);
+      char* tmp = strdup(cde_cderoot_dir);
       tmp[strlen(tmp) - strlen(CDE_ROOT_NAME)] = '\0';
       cde_remote_root_dir = format("%scde-remote-root", tmp);
       free(tmp);
@@ -3163,7 +3147,7 @@ void CDE_init(char** argv, int optind) {
       // initialize trie
       cached_files_trie = TrieNew();
 
-      char* p = format("%s/../locally-cached-files.txt", cde_pseudo_root_dir);
+      char* p = format("%s/../locally-cached-files.txt", cde_cderoot_dir);
       cached_files_fp = fopen(p, "r");
 
       if (cached_files_fp) {
@@ -3196,7 +3180,7 @@ void CDE_init(char** argv, int optind) {
 
     // make this an absolute path!
     CDE_PACKAGE_DIR = canonicalize_path(CDE_PACKAGE_DIR, cde_starting_pwd);
-    strcpy(cde_pseudo_pkg_dir, CDE_PACKAGE_DIR);
+    strcpy(Cde_app_dir, CDE_PACKAGE_DIR);
     CDE_ROOT_DIR = format("%s/%s", CDE_PACKAGE_DIR, CDE_ROOT_NAME);
     assert(IS_ABSPATH(CDE_ROOT_DIR));
 
@@ -3331,7 +3315,7 @@ void CDE_init(char** argv, int optind) {
 
   CDEnet_sin_dict_load();
 
-  if (!CDE_exec_mode) {
+  if (!Cde_exec_mode) {
     // pgbovine - copy 'cde' executable to CDE_PACKAGE_DIR and rename
     // it 'cde-exec', so that it can be included in the executable
     //
@@ -3392,8 +3376,8 @@ void CDE_init(char** argv, int optind) {
 //
 // argv[optind] is the target program's name
 static void CDE_create_convenience_scripts(char** argv, int optind) {
-  assert(!CDE_exec_mode);
-  if (CDE_bare_run) return;
+  assert(!Cde_exec_mode);
+  if (Prov_no_app_capture) return;
   char* target_program_fullpath = argv[optind];
 
   // only take the basename to construct cde_script_name,
@@ -3467,7 +3451,7 @@ static void _add_to_array_internal(char** my_array, int* p_len, char* p, char* a
   my_array[*p_len] = strdup(p);
 
 
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("%s[%d] = '%s'\n", array_name, *p_len, my_array[*p_len]);
   }
 
@@ -3524,7 +3508,7 @@ void CDE_add_ignore_process(char* p){
 }
 
 void CDE_add_multi_repo_path(char* p) {
-  char* tmp = format("%s/%s", cde_pseudo_pkg_dir, p);
+  char* tmp = format("%s/%s", Cde_app_dir, p);
   _add_to_array_internal(multi_repo_paths, &multi_repo_paths_ind, tmp, (char*)"multi_repo_paths");
   free(tmp);
 }
@@ -3578,12 +3562,12 @@ static void CDE_init_options() {
 
   FILE* f = NULL;
 
-  if (CDE_exec_mode) {
+  if (Cde_exec_mode) {
     // look for a cde.options file in the package
 
     // you must run this AFTER running CDE_init_pseudo_root_dir()
-    assert(*cde_pseudo_root_dir);
-    char* options_file = format("%s/../cde.options", cde_pseudo_root_dir);
+    assert(*cde_cderoot_dir);
+    char* options_file = format("%s/../cde.options", cde_cderoot_dir);
     f = fopen(options_file, "r");
     if (!f) {
       fprintf(stderr, "Fatal error: missing cde.options file\n");
@@ -3843,7 +3827,7 @@ void load_environment_vars_from_mem(char* environ_start) {
       }
     }
     else {
-      if (CDE_verbose_mode) {
+      if (Cde_verbose_mode) {
         vbprintf("ignored envvar '%s' => '%s'\n", name, val);
       }
     }
@@ -3860,8 +3844,8 @@ void load_environment_vars_from_mem(char* environ_start) {
 
 void CDE_load_environment_vars(char* repo_name) {
   static char cde_full_environment_abspath[MAXPATHLEN];
-  sprintf(cde_full_environment_abspath, "%s/../cde.full-environment.%s", cde_pseudo_root_dir, repo_name);
-//  strcpy(cde_full_environment_abspath, cde_pseudo_root_dir);
+  sprintf(cde_full_environment_abspath, "%s/../cde.full-environment.%s", cde_cderoot_dir, repo_name);
+//  strcpy(cde_full_environment_abspath, cde_cderoot_dir);
 //  strcat(cde_full_environment_abspath, "/../cde.full-environment.");
 //  strcat(cde_full_environment_abspath, multi_repo_paths[i]);
   struct stat env_file_stat;
@@ -3882,15 +3866,15 @@ void CDE_load_environment_vars(char* repo_name) {
 }
 
 
-// if we're running in CDE_exec_mode, redirect path argument for bind()
+// if we're running in Cde_exec_mode, redirect path argument for bind()
 // and connect() into cde-root sandbox
 void CDE_begin_socket_bind_or_connect(struct tcb *tcp) {
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("[%d] BEGIN socket bind/connect\n", tcp->pid);
   }
 
-  // only do this redirection in CDE_exec_mode
-  if (!CDE_exec_mode) {
+  // only do this redirection in Cde_exec_mode
+  if (!Cde_exec_mode) {
     return;
   }
 
@@ -4023,9 +4007,9 @@ int is_cde_binary(const char *str) {
 }
 
 void create_mirror_file_in_cde_package(char* filename_abspath, char* src_prefix, char* dst_prefix) {
-  if (!CDE_bare_run)
+  if (!Prov_no_app_capture)
     create_mirror_file(filename_abspath, src_prefix, dst_prefix);
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("  mirror_f: %s, %s, %s\n", filename_abspath, src_prefix, dst_prefix);
   }
 }
@@ -4039,9 +4023,9 @@ void make_mirror_dirs_in_cde_package(char* original_abspath, int pop_one) {
   //TODO: check original_abspath with CDE_PACKAGE_DIR
   // so we won't make unnecessary path like: ~/assi/cde/mytest/bash/cde-package/pkg02/home/quanpt/assi/cde/mytest/
   //   bash/cde-package/cde-root/home/quanpt/assi/cde/mytest/bash
-  if (!CDE_bare_run)
+  if (!Prov_no_app_capture)
     create_mirror_dirs(original_abspath, (char*)"", CDE_ROOT_DIR, pop_one);
-  if (CDE_verbose_mode) {
+  if (Cde_verbose_mode) {
     vbprintf("  mirror_d: %s, %s\n", original_abspath, CDE_ROOT_DIR);
   }
 }
@@ -4100,11 +4084,11 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   int offset1 = strlen(CDE_proc_self_exe) + 1;
   
   char* ptu_1 = (char*)(base + offset1);
-  strcpy(ptu_1, "-I"); // parameter for ptu: DB_ID
+  strcpy(ptu_1, "-I"); // parameter for ptu: Provdb_id
   int offset2 = strlen(ptu_1) + 1;
   
   char* ptu_2 = (char*)(base + offset1 + offset2);
-  sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for DB_ID
+  sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for Provdb_id
   int offset3 = strlen(ptu_2) + 1;
 
   // We need to use raw numeric arithmetic to get the proper offsets, since
@@ -4120,7 +4104,7 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   char** new_argv_0 = (char**)new_argv_raw;
   *new_argv_0 = (char*)tcp->u_arg[0];
 
-  //~ if (CDE_verbose_mode) {
+  //~ if (Cde_verbose_mode) {
     //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
     //~ vbp(1, "   new_argv='%s'\n", tmp);
     //~ if (tmp) free(tmp);
@@ -4130,7 +4114,7 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   //~ // points to the full path to the target program (real_program_path_base)
   //~ *new_argv_1 = (char*)tcp->childshm + offset1;
 //~ 
-  //~ if (CDE_verbose_mode) {
+  //~ if (Cde_verbose_mode) {
     //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_1);
     //~ vbp(1, "   new_argv='%s'\n", tmp);
     //~ if (tmp) free(tmp);
@@ -4140,7 +4124,7 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   //~ // points to the full path to the target program (real_program_path_base)
   //~ *new_argv_2 = (char*)tcp->childshm + offset1 + offset2;
 //~ 
-  //~ if (CDE_verbose_mode) {
+  //~ if (Cde_verbose_mode) {
     //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_2);
     //~ vbp(1, "   new_argv='%s'\n", tmp);
     //~ if (tmp) free(tmp);
@@ -4244,28 +4228,16 @@ char* add_cdewrapper_to_ssh_manual(struct tcb *tcp) {
   return ptu_2;
 }
 
-// return DB_ID passed to ssh
-//~ char* add_cdewrapper_to_ssh(struct tcb *tcp) {
-  //~ char const *argv[3];
-  //~ char dbid[KEYLEN];
-  //~ sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
-  //~ argv[0]=CDE_proc_self_exe;
-  //~ argv[1]=(char*) "-I";
-  //~ argv[2]=strdup(dbid);
-  //~ add_wrapper_to_ssh(tcp, argv, 3);
-  //~ return (char*) argv[2];
-//~ }
-
-// return DB_ID passed to ssh
+// return Provdb_id passed to ssh
 // TODO: more modification
 //   current: CDE_proc_self_exe [-b] [-w] -o /var/tmp/cde-root.$dbid -I $dbid /bin/sh -c \'true; $remote_stuff\'
 //   should be: /bin/sh -c \'$loop_till_ptu_size eq $size; CDE_proc_self_exe [-b] [-w] -o /var/tmp/cde-root.$dbid -I $dbid /bin/sh -c \'true; $remote_stuff\'\'
 char* add_cdebashwrapper_to_ssh(struct tcb *tcp, char **ssh_host) {
   char const *argv[7];
   char dbid[KEYLEN], arg[KEYLEN];
-  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for DB_ID
+  sprintf(dbid, "%d.%d", rand(), rand()); // rand() for Provdb_id
   sprintf(arg, "%s%s -o /var/tmp/cde-root.%s -I %s",
-      (CDE_bare_run ? "-b " : ""), 
+      (Prov_no_app_capture ? "-b " : ""), 
       (CDE_network_content_mode ? "-w " : ""),
       dbid,
       dbid); // arg passed for remote PTU
@@ -4324,11 +4296,11 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
   //~ int offset1 = strlen(CDE_proc_self_exe) + 1;
   //~ 
   //~ char* ptu_1 = (char*)(base + offset1);
-  //~ strcpy(ptu_1, "-I"); // parameter for ptu: DB_ID
+  //~ strcpy(ptu_1, "-I"); // parameter for ptu: Provdb_id
   //~ int offset2 = strlen(ptu_1) + 1;
   //~ 
   //~ char* ptu_2 = (char*)(base + offset1 + offset2);
-  //~ sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for DB_ID
+  //~ sprintf(ptu_2, "%d.%d", rand(), rand()); // rand() for Provdb_id
   //~ int offset3 = strlen(ptu_2) + 1;
 
   // We need to use raw numeric arithmetic to get the proper offsets, since
@@ -4344,7 +4316,7 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
   char** new_argv_0 = (char**)new_argv_raw;
   *new_argv_0 = (char*)tcp->u_arg[0];
 
-  //~ if (CDE_verbose_mode) {
+  //~ if (Cde_verbose_mode) {
     //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_0);
     //~ vbp(1, "   new_argv='%s'\n", tmp);
     //~ if (tmp) free(tmp);
@@ -4354,7 +4326,7 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
   //~ // points to the full path to the target program (real_program_path_base)
   //~ *new_argv_1 = (char*)tcp->childshm + offset1;
 //~ 
-  //~ if (CDE_verbose_mode) {
+  //~ if (Cde_verbose_mode) {
     //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_1);
     //~ vbp(1, "   new_argv='%s'\n", tmp);
     //~ if (tmp) free(tmp);
@@ -4364,7 +4336,7 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
   //~ // points to the full path to the target program (real_program_path_base)
   //~ *new_argv_2 = (char*)tcp->childshm + offset1 + offset2;
 //~ 
-  //~ if (CDE_verbose_mode) {
+  //~ if (Cde_verbose_mode) {
     //~ char* tmp = strcpy_from_child(tcp, (long)*new_argv_2);
     //~ vbp(1, "   new_argv='%s'\n", tmp);
     //~ if (tmp) free(tmp);
@@ -4426,8 +4398,6 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
         } else { // not an opt or an optarg
           is_lastone_param_host_cmd ++; // == 2 ->this is "[user@]hostname"
           ssh_host = strdup(tmp);
-          if (doScp)
-            prepare_ptu_on_remotehost(tmp);
         }
         if (tmp) free(tmp);
       } else if (is_lastone_param_host_cmd == 2) {
@@ -4480,105 +4450,5 @@ char* add_bashwrapper_to_ssh(struct tcb *tcp, const char **argv, int n, int isBa
 
   ptrace(PTRACE_SETREGS, tcp->pid, NULL, (long)&cur_regs);
   return ssh_host;
-}
-
-// copy CDE_proc_self_exe to remotehost
-void prepare_ptu_on_remotehost(char* remotehost) {
-  char rpath[KEYLEN], rdir[KEYLEN];
-  
-  extern void *provdb;
-  if (db_hasPTUonRemoteHost(provdb, remotehost)) return;
-  
-  // do the fork
-  pid_t pid = fork();
-  if (pid == -1) {
-    // error, no child created
-    vbp(0, "Error fork\n");
-    return;
-  }
-
-  if (pid != 0) {
-	// parent
-	db_setPTUonRemoteHost(provdb, remotehost);
-	return; // no need to wait
-  }
-
-  // child, now need to check, then waitpid,
-  // if check failed then scp
-
-  int len = strlen(CDE_proc_self_exe) - 1;
-  while (len > 0 && CDE_proc_self_exe[len] != '/') len--;
-  strncpy(rdir, CDE_proc_self_exe, len);
-  rdir[len] = '\0';
-  vbp(2, "PTU remote dir: %s\n", rdir);
-  
-  pid = fork();
-  // child
-  if (pid == 0) {
-    execlp("ssh", "ssh", remotehost, 
-        "mkdir -p ", rdir, " && "
-        "test", "-f", CDE_proc_self_exe, (char *) NULL);
-    /* if exec() was successful, this won't be reached */
-    _exit(127);
-  }
-  
-  // parent
-  int status;
-  if (waitpid(pid, &status, 0) == -1) {
-    // handle error
-    vbp(0, "Error waitpid %d\n", pid);
-  } else {
-    // child exit code in status
-    // use WIFEXITED, WEXITSTATUS, etc. on status
-    if (WEXITSTATUS(status) == 127) {
-      vbp(0, "Error: ssh not found\n");
-    } else {
-      if (WEXITSTATUS(status) == 0) {
-        // file exists, do nothing
-        vbp(1, "Ok: PTU binary exists\n");
-        //~ db_setPTUonRemoteHost(provdb, remotehost);
-      } else {
-        // file not exists yet, do a copy
-
-        // do the fork
-        pid_t pid = fork();
-        if (pid == -1) {
-          // error, no child created
-          vbp(0, "Error fork\n");
-          return;
-        }
-        // child
-        if (pid == 0) {
-          sprintf(rpath, "%s:%s", remotehost, rdir);
-          vbp(3, "Remote host:dir: %s\n", rpath);
-          execlp("scp", "scp", "-B", "-p", "-q", CDE_proc_self_exe, rpath, (char *) NULL);
-          /* if exec() was successful, this won't be reached */
-          _exit(127);
-        }
-        
-        // parent
-        int status;
-        if (waitpid(pid, &status, 0) == -1) {
-          // handle error
-          vbp(0, "Error waitpid %d\n", pid);
-        } else {
-          // child exit code in status
-          // use WIFEXITED, WEXITSTATUS, etc. on status
-          if (WEXITSTATUS(status) == 127) {
-            vbp(0, "Error: scp not found\n");
-          } else {
-            if (WEXITSTATUS(status) == 0) {
-              // scp done
-              vbp(1, "Ok: scp done for PTU binary\n");
-              //~ db_setPTUonRemoteHost(provdb, remotehost);
-            } else {
-              // scp error
-              vbp(0, "Error: scp error\n");
-            }
-          }
-        }
-      }
-    }
-  }
 }
 

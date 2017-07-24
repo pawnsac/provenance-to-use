@@ -549,7 +549,8 @@ static const struct xlat protocols[] = {
 #endif
 	{ 0,		NULL		},
 };
-static const struct xlat msg_flags[] = {
+extern const struct xlat msg_flags[];
+const struct xlat msg_flags[] = {
 	{ MSG_OOB,		"MSG_OOB"		},
 #ifdef MSG_DONTROUTE
 	{ MSG_DONTROUTE,	"MSG_DONTROUTE"		},
@@ -1347,7 +1348,8 @@ printsock(struct tcb *tcp, long addr, int addrlen)
 }
 
 #if HAVE_SENDMSG
-static const struct xlat scmvals[] = {
+extern const struct xlat scmvals[];
+const struct xlat scmvals[] = {
 #ifdef SCM_RIGHTS
 	{ SCM_RIGHTS,		"SCM_RIGHTS"		},
 #endif
@@ -1583,34 +1585,6 @@ struct tcb *tcp;
 	} else {
 		CDEnet_end_listen(tcp);
 	}
-	return 0;
-}
-
-static int
-do_accept(struct tcb *tcp, int flags_arg)
-{
-	//~ if (entering(tcp)) {
-		//~ tprintf("accept %ld, \n", tcp->u_arg[0]);
-		//~ return 0;
-	//~ }
-// 	if (!tcp->u_arg[2])
-// 		tprintf("%#lx, NULL", tcp->u_arg[1]);
-// 	else {
-// 		int len;
-// 		if (tcp->u_arg[1] == 0 || syserror(tcp)
-// 		    || umove (tcp, tcp->u_arg[2], &len) < 0) {
-// 			tprintf("%#lx", tcp->u_arg[1]);
-// 		} else {
-// 			printsock(tcp, tcp->u_arg[1], len);
-// 		}
-// 		tprintf(", ");
-// 		printnum_int(tcp, tcp->u_arg[2], "%u");
-// 	}
-// 	if (flags_arg >= 0) {
-// 		tprintf(", ");
-// 		printflags(sock_type_flags, tcp->u_arg[flags_arg],
-// 			   "SOCK_???");
-// 	}
 	return 0;
 }
 

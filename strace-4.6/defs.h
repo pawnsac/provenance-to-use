@@ -411,7 +411,7 @@ struct tcb {
 #endif
 
   // new fields added by pgbovine
-  // handle memory management in alloc_tcb_CDE_fields() and free_tcb_CDE_fields()
+  // handle memory management in alloc_tcb_cde_fields() and free_tcb_cde_fields()
 
   // inherited from parent during fork()
   // TODO: careful with memory leaks for these strdup'ed strings!
@@ -423,7 +423,7 @@ struct tcb {
   // which is what /proc/self/exe should return when readlink() is
   // called on it
   //
-  // (only valid in CDE_exec_mode, does not contain the true path
+  // (only valid in Cde_exec_mode, does not contain the true path
   // within cde-root/ ... contains what the program 'perceives' is its
   // path from the original run, which is the portion of its absolute
   // path AFTER the cde-root/ component)
@@ -432,7 +432,7 @@ struct tcb {
   char* perceived_program_fullpath;
 
   // Fields pertaining to the shared memory segment,
-  // which is only valid when CDE_exec_mode option is 1
+  // which is only valid when Cde_exec_mode option is 1
   int shmid;
   char* localshm; // address in our address space
   void* childshm; // address in child's address space
@@ -444,8 +444,8 @@ struct tcb {
   struct PI* p_ignores; // point to an element within process_ignores if
                         // this traced process has custom ignore options
 
-  // quanpt - multi repo
-  int current_repo_ind;
+  int current_repo_ind;     // quanpt: multi repo
+  char** opened_file_paths; // digimokan: abs paths used to open this proc's currently open files
 };
 
 /* TCB flags */
