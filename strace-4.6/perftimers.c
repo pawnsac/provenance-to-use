@@ -17,8 +17,7 @@ timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
  * PRIVATE IMPLEMENTATION
  ******************************************************************************/
 
-#define INT_NSEC_PER_SEC 1000000000 // nanosec per sec: for timespec arithmetic
-#define DOUBLE_NSEC_PER_SEC 1E9     // nanosec per sec: for timespec arithmetic
+#define NSEC_PER_SEC 1000000000     // nanosec per sec: for timespec arithmetic
 #define NO_TIMERS 0                 // if no perf timers are enabled/started
 
 static int timers_status = NO_TIMERS;   // bit flags track which timers enabled/disabled
@@ -76,7 +75,7 @@ static inline void sub_ts (struct timespec* const tstotal, const struct timespec
   tstotal->tv_nsec = tsa->tv_nsec - tsb->tv_nsec;
   if (tstotal->tv_nsec < 0) {
     tstotal->tv_sec--;
-    tstotal->tv_nsec += INT_NSEC_PER_SEC;
+    tstotal->tv_nsec += NSEC_PER_SEC;
   }
 }
 
@@ -84,9 +83,9 @@ static inline void sub_ts (struct timespec* const tstotal, const struct timespec
 static inline void add_ts (struct timespec* const tstotal, const struct timespec* const tsa, const struct timespec* const tsb) {
   tstotal->tv_sec = tsa->tv_sec + tsb->tv_sec;
   tstotal->tv_nsec = tsa->tv_nsec + tsb->tv_nsec;
-  if (tstotal->tv_nsec > INT_NSEC_PER_SEC) {
+  if (tstotal->tv_nsec > NSEC_PER_SEC) {
     tstotal->tv_sec++;
-    tstotal->tv_nsec -= INT_NSEC_PER_SEC;
+    tstotal->tv_nsec -= NSEC_PER_SEC;
   }
 }
 
@@ -177,7 +176,7 @@ static inline TimerAction get_total_time (const PerfTimer pt, double* total_time
   } else {
     const int ptindex = get_index(pt);
     *total_time = (double)total_times[ptindex].tv_sec +
-                  ( (double)total_times[ptindex].tv_nsec / DOUBLE_NSEC_PER_SEC );
+                  ( (double)total_times[ptindex].tv_nsec / NSEC_PER_SEC );
     act = SUCCESS_TIMER_TOTAL_RETURNED;
   }
 
@@ -190,22 +189,22 @@ static inline TimerAction get_total_time (const PerfTimer pt, double* total_time
 
 // enable or disable specific enabled perf timer and return success/error of the action
 // NOTE successful enable will zero out a timer's accumulated time
-inline TimerAction set_perf_timer (const PerfTimer pt, const TimerStatus stat_req) {
+inline TimerAction set_perf_timer (PerfTimer pt, TimerStatus stat_req) {
   return set_timer(pt, stat_req);
 }
 
 // start specific enabled perf timer and return success/error of the action
-inline TimerAction start_perf_timer (const PerfTimer pt) {
+inline TimerAction start_perf_timer (PerfTimer pt) {
   return start_timer(pt);
 }
 
 // stop specific enabled perf timer and return success/error of the action
-inline TimerAction stop_perf_timer (const PerfTimer pt) {
+inline TimerAction stop_perf_timer (PerfTimer pt) {
   return stop_timer(pt);
 }
 
 // get total accum time of specific enabled perf timer and return success/error of the action
-inline TimerAction get_total_perf_time (const PerfTimer pt, double* total_time) {
+inline TimerAction get_total_perf_time (PerfTimer pt, double* total_time) {
   return get_total_time(pt, total_time);
 }
 

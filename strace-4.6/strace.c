@@ -2633,7 +2633,6 @@ mp_ioctl(int fd, int cmd, void *arg, int size)
 int main (int argc, char *argv[]) {
   struct tcb *tcp;
   int c;
-  /*int pid = 0;*/
   int optF = 0;
   struct sigaction sa;
 
@@ -3078,6 +3077,13 @@ int main (int argc, char *argv[]) {
 		   Exit with 128 + signo then.  */
 		exit_code += 128;
 	}
+
+	// print audit file copying total time (only if timer was ENABLED)
+    double audit_time;
+    if (get_total_perf_time(AUDIT_FILE_COPYING, &audit_time) == SUCCESS_TIMER_TOTAL_RETURNED) {
+      printf("total time doing file copying during audit: %.3f\n", audit_time);
+    }
+
 	exit(exit_code);
 }
 
