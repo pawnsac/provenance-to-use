@@ -47,27 +47,19 @@ CDE is currently licensed under GPL v3:
 
 */
 
+// system includes
+#include <stdarg.h>
 #include <stdio.h>
 
+// user includes
 #include "okapi.h"
+#include "perftimers.h"   // performance timing of certain code segments
+
+// forward declares
+extern char* format (const char *format, ...);
+static struct path* new_path (char is_abspath);
 
 char OKAPI_VERBOSE = 1; // print out warning messages?
-
-
-// TODO: eliminate this hack if it results in a compile-time error
-#include "config.h" // to get I386 definition
-#if defined (I386)
-// This forces gcc to use an older version of realpath from glibc 2.0,
-// to maximize backwards compatibility
-// See: http://www.trevorpounds.com/blog/?p=103
-__asm__(".symver realpath,realpath@GLIBC_2.0");
-#endif
-
-
-#include <stdarg.h>
-extern char* format(const char *format, ...);
-
-static struct path* new_path(char is_abspath);
 
 extern int vasprintf (char **, const char *, va_list); // stdio.h (GNU extension)
 
@@ -560,7 +552,11 @@ void create_mirror_dirs(char* original_abspath, char* src_prefix, char* dst_pref
         }
         else {
           assert(S_ISDIR(src_dn_stat.st_mode));
+
+          // create required dir, and optionally track time of creating
+          start_perf_timer(AUDIT_FILE_COPYING);
           mkdir(dst_dirname, 0777);
+          stop_perf_timer(AUDIT_FILE_COPYING);
         }
       }
 
@@ -660,20 +656,26 @@ void create_mirror_symlink_and_target(char* filename_abspath, char* src_prefix, 
     assert(strstr(relative_symlink_target, "//"));
 
     // EEXIST means the file already exists, which isn't really a symlink failure ...
+    // create required symlink, and optionally track time of creating
+    start_perf_timer(AUDIT_FILE_COPYING);
     if (symlink(relative_symlink_target, dst_symlink_path) != 0 && (errno != EEXIST)) {
       if (OKAPI_VERBOSE) {
         fprintf(stderr, "WARNING: symlink('%s', '%s') failed\n", relative_symlink_target, dst_symlink_path);
       }
     }
+    stop_perf_timer(AUDIT_FILE_COPYING);
   }
   else {
     symlink_target_abspath = format("%s/%s", dir_realpath, orig_symlink_target);
     // EEXIST means the file already exists, which isn't really a symlink failure ...
+    // create required symlink, and optionally track time of creating
+    start_perf_timer(AUDIT_FILE_COPYING);
     if (symlink(orig_symlink_target, dst_symlink_path) != 0 && (errno != EEXIST)) {
       if (OKAPI_VERBOSE) {
         fprintf(stderr, "WARNING: symlink('%s', '%s') failed\n", orig_symlink_target, dst_symlink_path);
       }
     }
+    stop_perf_timer(AUDIT_FILE_COPYING);
   }
 
   assert(symlink_target_abspath);
@@ -801,6 +803,8 @@ void copy_file(char* src_filename, char* dst_filename, int perms) {
     perms = 0777;
   }
 
+  // optionally track time of creating file
+  start_perf_timer(AUDIT_FILE_COPYING);
 
   inF = open(src_filename, O_RDONLY); // note that we might not have permission to open src_filename
   if ((outF = open(dst_filename, O_WRONLY | O_CREAT, perms)) < 0) {
@@ -821,6 +825,9 @@ void copy_file(char* src_filename, char* dst_filename, int perms) {
   }
 
   close(outF);
+
+  // optionally track time of creating file
+  stop_perf_timer(AUDIT_FILE_COPYING);
 }
 
 
