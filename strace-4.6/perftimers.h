@@ -9,6 +9,10 @@ timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 #ifndef PERFTIMERS_H
 #define PERFTIMERS_H
 
+/*******************************************************************************
+ * PUBLIC TYPES / CONSTANTS / VARIABLES
+ ******************************************************************************/
+
 // the current set of pre-defined perf timers
 typedef enum {
   AUDIT_FILE_COPYING =  0x01,
@@ -37,6 +41,10 @@ typedef enum {
   ERR_TIMER_ALREADY_DISABLED,
   ERR_UNKNOWN_ERROR
 } TimerAction;
+
+/*******************************************************************************
+ * PUBLIC MACROS / FUNCTIONS
+ ******************************************************************************/
 
 // enable or disable specific perf timer and return success/error of the action
 // NOTE successful enable will zero out a timer's accumulated time

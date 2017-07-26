@@ -6,15 +6,21 @@ purpose:  start, stop, and output specific pre-configured performance timers
 timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 *******************************************************************************/
 
-// system includes
-#include <stdbool.h>        // for bool data type
-#include <time.h>           // for struct timespec, clock_gettime
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
 
-// user includes
+#include <stdbool.h>        // ISOC: for bool data type
+#include <time.h>           // P2001: for struct timespec, clock_gettime
+
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
 #include "perftimers.h"
 
 /*******************************************************************************
- * PRIVATE IMPLEMENTATION
+ * PRIVATE TYPES / CONSTANTS / VARIABLES
  ******************************************************************************/
 
 #define NSEC_PER_SEC 1000000000     // nanosec per sec: for timespec arithmetic
@@ -24,6 +30,10 @@ static int timers_status = NO_TIMERS;   // bit flags track which timers enabled/
 static int timers_running = NO_TIMERS;  // bit flags track which timers started/stopped
 static struct timespec start_times[NUM_TIMERS]; // save timer start times
 static struct timespec total_times[NUM_TIMERS]; // save timer cumulative start-to-stop times
+
+/*******************************************************************************
+ * PRIVATE MACROS / FUNCTIONS
+ ******************************************************************************/
 
 // convert a PerfTimer enum into an array index based on its bit pos
 static inline int get_index (const PerfTimer pt) {
@@ -184,7 +194,7 @@ static inline TimerAction get_total_time (const PerfTimer pt, double* total_time
 }
 
 /*******************************************************************************
- * PUBLIC INTERFACE
+ * PUBLIC FUNCTIONS
  ******************************************************************************/
 
 // enable or disable specific enabled perf timer and return success/error of the action

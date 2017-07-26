@@ -48,7 +48,7 @@ char* CDE_ROOT_DIR;
 #include <sgidefs.h>
 #endif
 
-#ifdef linux
+#ifdef LINUX
 #include <features.h>
 #endif
 
@@ -772,3 +772,4 @@ extern int not_failing_only;
   fprintf(stderr, "'%s' in %s [%s:%d]\n", x, __FUNCTION__, __FILE__, __LINE__); \
 } while(0)
 #endif
+

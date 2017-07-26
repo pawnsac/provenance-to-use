@@ -40,6 +40,11 @@
 #include <sys/user.h>
 #include <sys/param.h>
 #include <fcntl.h>
+#include <ctype.h>        // ISOC: isdigit()
+#include <execinfo.h>     // GNU: backtrace(), backtrace_symbols()
+
+extern int sys_clone (struct tcb* tcp); // strace's process.c
+
 #if HAVE_SYS_UIO_H
 #include <sys/uio.h>
 #endif

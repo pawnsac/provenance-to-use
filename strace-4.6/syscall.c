@@ -41,6 +41,7 @@
 #include <sys/user.h>
 #include <sys/syscall.h>
 #include <sys/param.h>
+#include <ctype.h>        // ISOC: isdigit()
 
 #ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
@@ -116,6 +117,10 @@ static const struct sysent sysent0[] = {
 };
 static const int nsyscalls0 = sizeof sysent0 / sizeof sysent0[0];
 int qual_flags0[MAX_QUALS];
+const struct ioctlent ioctlent0[] = {
+#include "linux/i386/ioctlent.h.in"
+};
+const int nioctlents0 = sizeof ioctlent0 / sizeof ioctlent0[0];
 
 #if SUPPORTED_PERSONALITIES >= 2
 static const struct sysent sysent1[] = {
@@ -123,6 +128,10 @@ static const struct sysent sysent1[] = {
 };
 static const int nsyscalls1 = sizeof sysent1 / sizeof sysent1[0];
 int qual_flags1[MAX_QUALS];
+const struct ioctlent ioctlent1[] = {
+#include "linux/x86_64/ioctlent.h.in"
+};
+const int nioctlents1 = sizeof ioctlent1 / sizeof ioctlent1[0];
 #endif /* SUPPORTED_PERSONALITIES >= 2 */
 
 #if SUPPORTED_PERSONALITIES >= 3
@@ -471,7 +480,7 @@ qualify(const char *s)
 	return;
 }
 
-static void
+void
 dumpio(struct tcb *tcp)
 {
 	if (syserror(tcp))

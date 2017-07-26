@@ -53,7 +53,6 @@
  ******************************************************************************/
 
 #include "provenance.h"
-#include "cdenet.h"
 
 /*******************************************************************************
  * IMPLEMENTATION
@@ -449,8 +448,6 @@ sys_flock(struct tcb *tcp)
 int sys_close (struct tcb* tcp) {
   if (entering(tcp)) {
     print_close_prov(tcp);
-  } else {
-    CDEnet_close(tcp);
   }
   return 0;
 }
@@ -650,7 +647,8 @@ static const struct xlat epollctls[] = {
 	{ 0,			NULL		}
 };
 
-static const struct xlat epollevents[] = {
+extern const struct xlat epollevents[];
+const struct xlat epollevents[] = {
 #ifdef EPOLLIN
 	{ EPOLLIN,	"EPOLLIN"	},
 #endif

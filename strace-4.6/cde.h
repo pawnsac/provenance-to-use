@@ -14,7 +14,6 @@ struct tcb;       // defs.h (strace module): process trace control block
 extern char Cde_verbose_mode;    // print cde activity to stdout (-v option)
 extern char Cde_exec_mode;       // false if auditing, true if running captured app
 extern char Cde_app_dir[];       // abs path to cde app dir (contains cde-root)
-extern char Cde_follow_ssh_mode;
 
 /*******************************************************************************
  * PUBLIC MACROS / FUNCTIONS

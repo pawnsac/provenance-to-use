@@ -10,14 +10,14 @@ ref:      Advanced Programming In The UNIX Environment, 3rd Ed, Section 2.6
  * SYSTEM INCLUDES
  ******************************************************************************/
 
-#include <limits.h>   // OPEN_MAX (possibly)
-#include <unistd.h>   // sysconf(), _SC_OPEN_MAX
-#include <errno.h>    // errno()
-#include <stdio.h>    // perror()
+#include <limits.h>   // ISOC: OPEN_MAX (possibly)
+#include <unistd.h>   // P2001: _SC_OPEN_MAX, sysconf()
+#include <errno.h>    // ISOC: errno()
+#include <stdio.h>    // ISOC: perror()
 
 /*******************************************************************************
  * max_open_files()
- * return the max num of open files - at any given time - on this system
+ * return max num open files, at any given time, on this system (APUE 2.6)
  *******************************************************************************/
 
 // if OPEN_MAX is defined, we're done.  else obtain the max programatically.

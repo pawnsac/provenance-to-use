@@ -298,8 +298,10 @@
 	{ 2,	0,	sys_clock_gettime,	"clock_gettime"	}, /* 265 */
 	{ 2,	0,	sys_clock_getres,	"clock_getres"	}, /* 266 */
 	{ 4,	0,	sys_clock_nanosleep,	"clock_nanosleep"}, /* 267 */
+#if defined LINUX && defined HAVE_STATFS64
 	{ 3,	TF,	sys_statfs64,		"statfs64"	}, /* 268 */
 	{ 3,	TD,	sys_fstatfs64,		"fstatfs64"	}, /* 269 */
+#endif
 	{ 3,	TS,	sys_tgkill,		"tgkill"	}, /* 270 */
 	{ 2,	TF,	sys_utimes,		"utimes"	}, /* 271 */
 	{ 6,	TD,	sys_fadvise64_64,	"fadvise64_64"	}, /* 272 */

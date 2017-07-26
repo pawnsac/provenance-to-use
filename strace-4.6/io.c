@@ -31,7 +31,6 @@
  */
 
 #include "defs.h"
-#include "cdenet.h"
 
 #include <fcntl.h>
 #if HAVE_SYS_UIO_H
@@ -49,47 +48,14 @@
 
 extern void CDEnet_read(struct tcb* tcp);
 extern void CDEnet_write(struct tcb* tcp);
+extern int printllval (struct tcb*, const char*, int);  // from strace util.c
 
-int
-sys_read(struct tcb *tcp)
-{
-	tcp->u_arg[3] = 0;
-	if (entering(tcp)) {
-		CDEnet_begin_recv(tcp);
-		// TODO quanpt - similar to CDEnet_recv
-	} else {
-		CDEnet_end_recv(tcp);
-	}
-	//~ if (entering(tcp)) {
-		//~ printfd(tcp, tcp->u_arg[0]);
-		//~ tprintf(", ");
-	//~ } else {
-		//~ if (syserror(tcp))
-			//~ tprintf("%#lx", tcp->u_arg[1]);
-		//~ else
-			//~ printstr(tcp, tcp->u_arg[1], tcp->u_rval);
-		//~ tprintf(", %lu", tcp->u_arg[2]);
-	//~ }
+int sys_read (struct tcb* tcp) {
 	return 0;
 }
 
-int
-sys_write(struct tcb *tcp)
-{
-	tcp->u_arg[3] = 0;
-	if (entering(tcp)) {
-		CDEnet_begin_send(tcp);
-		// TODO quanpt - similar to CDEnet_send
-	} else {
-		CDEnet_end_send(tcp);
-	}
-	//~ if (entering(tcp)) {
-		//~ printfd(tcp, tcp->u_arg[0]);
-		//~ tprintf(", ");
-		//~ printstr(tcp, tcp->u_arg[1], tcp->u_arg[2]);
-		//~ tprintf(", %lu", tcp->u_arg[2]);
-	//~ }
-	return 0;
+int sys_write (struct tcb* tcp) {
+    return 0;
 }
 
 #if HAVE_SYS_UIO_H

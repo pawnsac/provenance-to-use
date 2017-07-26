@@ -5,9 +5,6 @@
 //
 // warning, this is not thread-safe since it uses lots of globals :0
 
-__asm__(".symver __xstat64,__xstat64@GLIBC_2.1"); // hack to eliminate glibc 2.2 dependency
-
-
 /* readelf.c -- display contents of an ELF format file
    Copyright 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
    2008, 2009  Free Software Foundation, Inc.
@@ -56,6 +53,7 @@ __asm__(".symver __xstat64,__xstat64@GLIBC_2.1"); // hack to eliminate glibc 2.2
 #include <assert.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <ctype.h>  // ISOC: isprint()
 
 #undef HAVE_ZLIB_H // pgbovine - remove dependency on libz
 
@@ -11514,7 +11512,7 @@ process_archive (char * file_name, FILE * file, bfd_boolean is_thin_archive)
   return ret;
 }
 
-static int
+int
 process_file (char * file_name)
 {
   FILE * file;
