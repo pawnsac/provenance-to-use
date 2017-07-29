@@ -33,6 +33,10 @@ the whole application (or a specific subpart of it) on a bare Linux machine.
     * [High Level Architecture](#markdown-header-high-level-architecture)
     * [Source Code Layout](#markdown-header-source-code-layout)
     * [Modules And Functions](#markdown-header-modules-and-functions)
+* [Git Workflow](#markdown-header-git-workflow)
+    * [Initial Setup](#markdown-header-initial-setup)
+    * [Development Workflow](#markdown-header-development-workflow)
+    * [Merging Pull Requests](#markdown-header-merging-pull-requests)
 * [Project Team](#markdown-header-project-team)
 * [License](#markdown-header-license)
 
@@ -426,6 +430,112 @@ created by this project.
 │   ├── sys_open()*               # Sys call: open file
 │   ├── sys_openat()*             # Sys call: open file relative to specified dir
 ```
+
+## Git Workflow
+
+### Initial Setup
+
+1. [GITHUB PAGE] Fork the project repo:
+
+    * click "fork" from https://bitbucket.org/depauldbgroup/provenance-to-use
+
+2. [LOCAL] Create local repo:
+
+        $ git clone https://bitbucket.org/YOUR-BITBUCKET-USERNAME/provenance-to-use.git
+
+3. [LOCAL] Link upstream repo:
+
+        $ git remote add upstream https://bitbucket.org/depauldbgroup/provenance-to-use
+
+### Development Workflow
+
+1. Find the issue you have been assigned, or assign a needed issue to yourself.
+
+2. [LOCAL] Retrieve all changes from upstream.  Update local master branch and
+sync it with your forked origin repo.  Create new local branches to track
+upstream branches you want to follow locally:
+
+        $ git fetch upstream
+        $ git checkout master
+        $ git merge upstream/master
+        $ git push origin master
+        $ git branch --track [branch-name] upstream/[branch-name]
+
+3. [LOCAL] Create and switch to a feature/fix branch for your issue:
+
+        $ git checkout master
+        $ git checkout -b feat-issuename
+
+4. [LOCAL] Work on your feature branch until it is complete:
+
+        $ [edit existing files / new files]
+        $ git add [new/existing files]
+        $ git commit
+
+5. [LOCAL] Retrieve all changes from upstream.  Update local master branch and
+sync it with your forked origin repo.  Create new local branches to track new
+upstream branches you want to follow locally.  Update other existing local
+branches with their upstream counterparts:
+
+        $ git fetch upstream
+        $ git checkout master
+        $ git merge upstream/master
+        $ git push origin master
+        $ git branch --track [new-branch-name] upstream/[new-branch-name]
+        $ git checkout [other-local-branch]
+        $ git merge upstream/[other-local-branch]
+
+6. [LOCAL] Merge changes from retrieved upstream master branch into your feature
+branch:
+
+        $ git checkout feat-issuename
+        $ git merge master
+
+7. [LOCAL - AS NEEDED] If merge notifies of conflicts, determine conflict files.
+Edit and correct conflict files.  Flag conflict files as "corrected" by adding
+them.  Finish the merge by committing:
+
+        $ git status
+        $ [edit and correct conflict files]
+        $ git add [conflict files]
+        $ git commit
+
+8. [LOCAL] Condense all commits in your feature branch into one single commit:
+
+        $ git rebase -i master
+
+9. [LOCAL] Push your feature branch to your forked repo, and to upstream repo
+(if others want to pull it down and test it):
+
+        $ git push origin feat-issuename
+        $ git push upstream feat-issuename
+
+10. [GITHUB PAGE] Create pull request, specifying additions/changes and issue
+number(s):
+
+    * Pull request is FROM your-forked-repo/feat-issuename TO
+      upstream-repo/master.
+
+11. [GITHUB PAGE] If pull request rejected, begin again from Step #4.
+
+12. [LOCAL] Delete the feature branch locally, from your forked origin repo, and
+from upstream repo (if you pushed it to upstream in step 9):
+
+        $ git branch -d feat-issuename
+        $ git push origin --delete feat-issuename
+        $ git push upstream --delete feat-issuename
+
+### Merging Pull Requests
+
+NOTE: do not merge your own pull requests.
+
+1. [GITHUB PAGE] Make sure pull request commentary is properly descriptive.
+
+2. [GITHUB PAGE] Review each changed/added line in each source file.
+
+3. [GITHUB PAGE] Comment appropriately on specific source code sections.
+
+4. [GITHUB PAGE] Merge or reject pull request.
 
 ## Project Team
 
