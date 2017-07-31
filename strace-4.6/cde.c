@@ -37,6 +37,7 @@
 #include <sys/stat.h>    // P2001: S_ISLINK(), S_ISDIR(), stat(), umask(), chmod(), mkdir()
 #include <sys/param.h>   // P2001: MAXPATHLEN
 #include <fcntl.h>       // P2001: AT_FDCWD, O_RDONLY, open()
+#include <stdio.h>       // ISOC: fopen(), fclose(), getline() [P2008]
 
 /*******************************************************************************
  * USER INCLUDES
@@ -47,6 +48,7 @@
 #include "provenance.h"
 #include "const.h"
 #include "syslimits.h"   // max_open_files()
+#include "strutils.h"    // str_rstrip(), str_startswith(), str_endswith()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
@@ -79,6 +81,38 @@ static bool local_network_settings = true; // use local hostnames/etc during aud
 /*******************************************************************************
  * PRIVATE MACROS / FUNCTIONS
  ******************************************************************************/
+
+// try to extract script command from #! line or .x extension of script file path
+static bool get_script_command (const char* const script_file_path, char** script_command) {
+  FILE* infile = fopen(script_file_path, "rb");
+  char* firstline = NULL;         // first line of script file
+  size_t len = 0;                 // size of char* buffer after read
+  ssize_t bytes_read = 0;         // num bytes read, not including null byte
+  bool is_textual_script = false; // true if extraction successful
+
+  // read 1st line of script file
+  bytes_read = getline(&firstline, &len, infile);
+
+  // if 1st line is #! line, extract script command from it
+  if (bytes_read > 2) {
+    str_rstrip(firstline);
+    if ( str_startswith(firstline, "#!") ) {
+      *script_command = strdup(&firstline[2]);
+      is_textual_script = true;
+    }
+  }
+
+  // 1st line not #! line: if .sh extension of script file path, assume /bin/sh
+  if ( !is_textual_script && str_endswith(script_file_path, ".sh") ) {
+    *script_command = strdup("/bin/sh");
+    is_textual_script = true;
+  }
+
+  fclose(infile);
+  free(firstline);
+
+  return is_textual_script;
+}
 
 /*******************************************************************************
  * PUBLIC FUNCTIONS
@@ -1438,7 +1472,7 @@ void CDE_begin_execve(struct tcb* tcp) {
   //
   // e.g., #! /bin/sh
   // e.g., #! /usr/bin/env python
-  char is_textual_script = 0;
+  bool is_textual_script = false;
   char is_elf_binary = 0;
 
   FILE* f = fopen(path_to_executable, "rb"); // open in binary mode
@@ -1478,41 +1512,12 @@ void CDE_begin_execve(struct tcb* tcp) {
     }
     assert(IS_ABSPATH(ld_linux_filename));
   }
+
+  // not elf binary: determine whether file is script file
   else {
-    // find out whether it's a script file (starting with #! line)
-    FILE* f = fopen(path_to_executable, "rb"); // open in binary mode
 
-    size_t len = 0;
-    ssize_t read;
-    char* tmp = NULL; // getline() mallocs for us
-    read = getline(&tmp, &len, f);
-    if (read > 2) {
-      assert(tmp[read-1] == '\n'); // strip of trailing newline
-      tmp[read-1] = '\0'; // strip of trailing newline
-      if (tmp[0] == '#' && tmp[1] == '!') {
-        is_textual_script = 1;
-        script_command = strdup(&tmp[2]);
-      }
-    }
-    int n = strlen(path_to_executable);
-    if (n>=3 && path_to_executable[n-3]=='.' &&  path_to_executable[n-2]=='s' &&
-        path_to_executable[n-1]=='h') {
-      is_textual_script = 1;
-      script_command = strdup("/bin/bash");
-    }
-    //printf("%d %d %s %d\n", tmp[0], tmp[1], script_command, read);
-    free(tmp);
-    /* Patch from Yang Chen
-
-       "I am packaging our tool using it. I found there is a possible
-       bug in cde.c where opened files were not closed. In a long run,
-       it could cause fopen fail. I noticed it because our toolchain has
-       a lot of invocations on shell scripts and hence hit this
-       problem.""
-
-    */
-    fclose(f);
-
+    // try to extract script cmd from 1st #! line of file, or from file's ".sh" extension
+    is_textual_script = get_script_command(path_to_executable, &script_command);
 
     if (!script_command) {
       fprintf(stderr, "Ignored: Fatal error: '%s' seems to be a script without a #! line.\n(cde can only execute scripts that start with a proper #! line)\n",
@@ -1529,7 +1534,7 @@ void CDE_begin_execve(struct tcb* tcp) {
     // (this string is most likely "/lib/ld-linux.so.2")
 
     // libc is so dumb ... strtok() alters its argument in an un-kosher way
-    tmp = strdup(script_command);
+    char* tmp = strdup(script_command);
     char* p = strtok(tmp, " ");
 
     // to have find_ELF_program_interpreter succeed, we might need to
