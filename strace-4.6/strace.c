@@ -2680,11 +2680,11 @@ int main (int argc, char *argv[]) {
     // MOVE qualify to after getopt
 
 	while ((c = getopt(argc, argv,
-		"+cCdfFhqrtTvVxzlsSnbw"
+		"+cCdfFhqrtTvVxzlsSnNbw"
 #ifndef USE_PROCFS
 		"D"
 #endif
-		"a:e:o:O:u:E:i:p:N:P:I:")) != EOF) {
+		"a:e:o:O:u:E:i:p:P:I:")) != EOF) {
 		switch (c) {
 		case 'c':
       // pgbovine - hijack for -c option
@@ -2748,9 +2748,8 @@ int main (int argc, char *argv[]) {
 			CDE_block_net_access = 1;
 			break;
 		case 'N':
-			// quanpt - network simulation mode
-			/*DB_NAME = strdup(optarg);*/
-			/*CDE_network_content_mode = 1;*/
+			// NOT use local network hostnames/etc during audit/exec
+			use_local_network_settings(false);
 			break;
 		case 'P':
 			// quanpt - replay from pidkey

@@ -31,7 +31,7 @@
 #include <sys/shm.h>     // P2001: shared mem: IPC_CREAT, IPC_EXCL, IPC_RMID, shmctl(), shmget(), shmat(), shmdt()
 #include <dirent.h>      // P2001: stuct dirent, DIR, readdir(), opendir(), closedir()
 #include <pthread.h>     // P2001: pthread_mutex_t, pthread_mutex_init(), pthread_mutex_lock/unlock()
-#include <stdbool.h>     // C99: true, false
+#include <stdbool.h>     // C99: bool, true, false
 #include <stdarg.h>      // ISOC: va_start, va_end
 #include <assert.h>      // P2001/P2008: assert()
 #include <sys/stat.h>    // P2001: S_ISLINK(), S_ISDIR(), stat(), umask(), chmod(), mkdir()
@@ -74,6 +74,7 @@ const size_t shared_page_size = MAXPATHLEN * 4; // shared mem page size
 // private variables
 static char cde_cderoot_dir[MAXPATHLEN]; // abs path to cde-root dir (root of captured app)
 static pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER; // quanpt: make find_ELF_program_interpreter threadsafe
+static bool local_network_settings = true; // use local hostnames/etc during audit/exec
 
 /*******************************************************************************
  * PRIVATE MACROS / FUNCTIONS
@@ -148,6 +149,11 @@ void free_tcb_cde_fields (struct tcb* tcp) {
     tcp->current_dir = NULL;
   }
   tcp->current_repo_ind = -1;
+}
+
+// use local network hostnames/etc during audit/exec
+void use_local_network_settings (bool new_setting) {
+  local_network_settings = new_setting;
 }
 
 /*******************************************************************************
@@ -3200,18 +3206,21 @@ void CDE_init(char** argv, int optind) {
       fputs("\n# Ignore .Xauthority to allow X Windows programs to work\n", f);
       fputs("ignore_substr=.Xauthority\n", f);
 
-      // we gotta ignore /etc/resolv.conf or else Google Earth can't
-      // access the network when on another machine, so it won't work
-      // (and I think other network-facing apps might not work either!)
-      fputs("\n# Ignore so that networking can work properly\n", f);
-      fputs("ignore_exact=/etc/resolv.conf\n", f);
-
-      fputs("# These files might be useful to ignore along with /etc/resolv.conf\n", f);
-      fputs("# (un-comment if you want to try them)\n", f);
-      fputs("#ignore_exact=/etc/host.conf\n", f);
-      fputs("#ignore_exact=/etc/hosts\n", f);
-      fputs("#ignore_exact=/etc/nsswitch.conf\n", f);
-      fputs("#ignore_exact=/etc/gai.conf\n", f);
+      if (local_network_settings) {
+        fputs("ignore_exact=/etc/resolv.conf\n", f);
+        fputs("ignore_exact=/etc/host.conf\n", f);
+        fputs("ignore_exact=/etc/hosts\n", f);
+        fputs("ignore_exact=/etc/nsswitch.conf\n", f);
+        fputs("ignore_exact=/etc/gai.conf\n", f);
+      } else {
+        fputs("# These files might be useful to ignore if you have network issues.\n", f);
+        fputs("# (un-comment if you want to try them)\n", f);
+        fputs("#ignore_exact=/etc/resolv.conf\n", f);
+        fputs("#ignore_exact=/etc/host.conf\n", f);
+        fputs("#ignore_exact=/etc/hosts\n", f);
+        fputs("#ignore_exact=/etc/nsswitch.conf\n", f);
+        fputs("#ignore_exact=/etc/gai.conf\n", f);
+      }
 
       // ewencp also suggests looking into ignoring these other
       // networking-related files:
