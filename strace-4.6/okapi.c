@@ -47,13 +47,32 @@ CDE is currently licensed under GPL v3:
 
 */
 
-// system includes
+/*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
 #include <stdarg.h>
 #include <stdio.h>
+#include <limits.h>
+#include <stdlib.h>    // P2001: realpath() [XSI]
+#include <assert.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/param.h>
+#include <errno.h>
+#include <fcntl.h>
 
-// user includes
+/*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
 #include "okapi.h"
 #include "perftimers.h"   // performance timing of certain code segments
+
+/*******************************************************************************
+ * IMPLEMENTATION
+ ******************************************************************************/
 
 // forward declares
 extern char* format (const char *format, ...);

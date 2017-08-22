@@ -485,7 +485,7 @@ internal_exit(struct tcb *tcp)
 			tcp->flags |= TCB_GROUP_EXITING;
 #endif
 	}
-	print_iexit_prov(tcp);
+	print_exit_prov(tcp);
 	return 0;
 }
 

@@ -36,20 +36,6 @@ CDE is currently licensed under GPL v3:
 #ifndef _OKAPI_H
 #define _OKAPI_H
 
-#include <limits.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#include <errno.h>
-#include <fcntl.h>
-
-//#define _GNU_SOURCE // for vasprintf (now we include _GNU_SOURCE in Makefile)
-#include <stdio.h>
-
-
 // quick check for whether a path is absolute
 #define IS_ABSPATH(p) ((p) && p[0] == '/')
 

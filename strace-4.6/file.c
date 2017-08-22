@@ -30,7 +30,10 @@
  *	$Id$
  */
 
-#include "defs.h"
+#include "defs.h"  // def std macros and include req libs using cmake defines
+
+#include <sys/sysmacros.h>   // GLIBC/BSD: major(), minor()
+
 #include "provenance.h"
 
 // pgbovine
@@ -71,6 +74,7 @@ extern void CDE_end_unlinkat_rmdir(struct tcb* tcp);
 extern void CDE_end_getcwd(struct tcb* tcp);
 
 extern int isprint (int ch);
+extern int printllval (struct tcb*, const char*, int);  // from strace util.c
 
 #define CDE_standard_fileop_macro(tcp) \
   if (entering(tcp)) { \

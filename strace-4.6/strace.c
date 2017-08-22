@@ -57,6 +57,8 @@
 #include <limits.h>
 #include <dirent.h>
 
+extern int getopt (int argc, char * const argv[], const char *optstring);
+
 #ifdef LINUX
 # include <asm/unistd.h>
 # if defined __NR_tgkill
@@ -96,8 +98,7 @@
 #include "cde.h"          // pgbovine
 #include "okapi.h"        // pgbovine
 #include "provenance.h"
-#include "cdenet.h"
-#include "perftimers.h"
+#include "perftimers.h"   // set_perf_timer(), get_total_perf_time()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
@@ -119,11 +120,6 @@ extern char* CDE_ROOT_NAME;
 extern void CDE_clear_options_arrays();
 extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
-
-// quanpt
-extern char* DB_NAME;
-extern char* PIDKEY;
-extern char CDE_network_content_mode;
 
 /*******************************************************************************
  * PRIVATE VARIABLES
@@ -2753,17 +2749,16 @@ int main (int argc, char *argv[]) {
 			break;
 		case 'N':
 			// quanpt - network simulation mode
-			Cdenet_network_mode = 1;
-			DB_NAME = strdup(optarg);
-			CDE_network_content_mode = 1;
+			/*DB_NAME = strdup(optarg);*/
+			/*CDE_network_content_mode = 1;*/
 			break;
 		case 'P':
 			// quanpt - replay from pidkey
-			PIDKEY = strdup(optarg);
+			/*PIDKEY = strdup(optarg);*/
 			break;
 		case 'I':
 			// quanpt - id of the new db in SSH replacement mode
-			Prov_db_id = strdup(optarg);
+			/*Prov_db_id = strdup(optarg);*/
 			break;
 		case 'T':
 			dtime++;
@@ -2846,7 +2841,7 @@ int main (int argc, char *argv[]) {
 		case 'S':
 			// quanpt - hijack for NOT follow SSH
 			//~ set_sortby(optarg);
-			Cde_follow_ssh_mode = 0;
+			/*Cde_follow_ssh_mode = 0;*/
 			break;
 		case 'u':
 			username = strdup(optarg);
@@ -2859,7 +2854,7 @@ int main (int argc, char *argv[]) {
 			}
 			break;
 		case 'w':
-			CDE_network_content_mode = 1;
+			/*CDE_network_content_mode = 1;*/
 			break;
 		default:
 			usage(stderr, 1);
@@ -2886,14 +2881,7 @@ int main (int argc, char *argv[]) {
 			",mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr" \
 			",connect,accept,listen,close" \
 			",exit_group"
-	char* tmp;
-	if (CDE_network_content_mode || Cdenet_network_mode)
-		tmp = strdup(SYSCALL_1ST
-			",send,sendto,sendmsg,recv,recvfrom,recvmsg,read,write");
-			//,getsockopt,getsockname,poll");
-			//,socket,connect,send,recv,sendto,recvfrom,sendmsg,recvmsg,listen,accept,shutdown,exit_group");
-	else
-		tmp = strdup(SYSCALL_1ST);
+	char* tmp = strdup(SYSCALL_1ST);
 	qualify(tmp);
   	free(tmp);
 
@@ -3002,18 +2990,12 @@ int main (int argc, char *argv[]) {
 	extern void CDE_init(char** argv, int optind);
 	CDE_init(argv, optind);
 
-    init_prov(); // quanpt: initialize leveldb prov-db and provlog file
-	extern void init_nwdb();
-	if (Cdenet_network_mode && Cde_exec_mode && !Prov_prov_mode)
-		init_nwdb();
+    init_prov(); // quanpt: initialize provlog file
 		
 	extern void CDE_load_environment_vars(char* repo_name);
 	extern void CDE_load_environment_vars_for_pid(char* pidkey);
 	if (Cde_exec_mode) {
-		if (PIDKEY == NULL)
-			CDE_load_environment_vars(CDE_ROOT_NAME);
-		else
-			CDE_load_environment_vars_for_pid(PIDKEY);
+		CDE_load_environment_vars(CDE_ROOT_NAME);
 	}
 
 

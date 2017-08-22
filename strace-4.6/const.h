@@ -1,6 +1,8 @@
 #ifndef _HEADER_CONST_H
 #define _HEADER_CONST_H
 
+#include "defs.h"
+
 // system includes
 #include <sys/socket.h>
 #include <sys/un.h>
