@@ -2,6 +2,12 @@
 #define _CDE_H
 
 /*******************************************************************************
+ * SYSTEM INCLUDES
+ ******************************************************************************/
+
+#include <stdbool.h>     // C99: bool, true, false
+
+/*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
  ******************************************************************************/
 
@@ -31,6 +37,8 @@ extern char Cde_app_dir[];       // abs path to cde app dir (contains cde-root)
 void alloc_tcb_cde_fields (struct tcb* tcp);
 // free heap-allocated cde fields in a tcb
 void free_tcb_cde_fields (struct tcb* tcp);
+// use local network hostnames/etc during audit/exec
+void use_local_network_settings (bool new_setting);
 
 #endif // _CDE_H
 
