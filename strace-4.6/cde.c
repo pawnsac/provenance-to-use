@@ -3117,7 +3117,7 @@ void CDE_init(char** argv, int optind) {
   }
   else {
     if (!CDE_PACKAGE_DIR) { // if it hasn't been set by the '-o' option, set to a default
-      CDE_PACKAGE_DIR = (char*)"ptu-package";
+      CDE_PACKAGE_DIR = (char*)"cde-package";
     }
 
     // make this an absolute path!
