@@ -335,7 +335,7 @@ void print_begin_execve_prov (struct tcb* tcp) {
     char *filename_abspath = canonicalize_path(opened_filename, tcp->current_dir);
     assert(filename_abspath);
     int parentPid = tcp->parent == NULL ? getpid() : tcp->parent->pid;
-    char args[KEYLEN*10];
+    char* args = (char*) malloc(sysconf(_SC_ARG_MAX));
     print_arg_prov(args, tcp, tcp->u_arg[1]);
 
     fprintf(prov_logfile, "%d %d EXECVE %u %s %s %s\n", (int)time(0),
@@ -347,6 +347,7 @@ void print_begin_execve_prov (struct tcb* tcp) {
 
     free(filename_abspath);
     free(opened_filename);
+    free(args);
   }
 }
 
