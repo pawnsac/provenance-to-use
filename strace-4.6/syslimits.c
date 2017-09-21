@@ -16,6 +16,12 @@ ref:      Advanced Programming In The UNIX Environment, 3rd Ed, Section 2.6
 #include <stdio.h>    // ISOC: perror()
 
 /*******************************************************************************
+ * USER INCLUDES
+ ******************************************************************************/
+
+#include "syslimits.h"
+
+/*******************************************************************************
  * max_open_files()
  * return max num open files, at any given time, on this system (APUE 2.6)
  *******************************************************************************/
@@ -45,6 +51,7 @@ long max_open_files (void) {
         max_open = max_open_fallback;
       // sysconf set an errno value: problem executing sysconf
       } else {
+        max_open = -1;
         perror("sysconf call in max_open_files()");
       }
     }

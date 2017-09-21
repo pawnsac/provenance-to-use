@@ -34,6 +34,13 @@ the whole application (or a specific subpart of it) on a bare Linux machine.
     * [Initial Setup](#markdown-header-initial-setup)
     * [Development Workflow](#markdown-header-development-workflow)
     * [Merging Pull Requests](#markdown-header-merging-pull-requests)
+* [Testing](#markdown-header-testing)
+    * [Testing Framework](#markdown-header-testing-framework)
+    * [Installing Testing Framework](#markdown-header-installing-testing-framework)
+    * [Updating Testing Framework](#markdown-header-updating-testing-framework)
+    * [Building PTU With Test Harness](#markdown-header-building-ptu-with-test-harness)
+    * [Writing Tests](#markdown-header-writing-tests)
+    * [Running Tests](#markdown-header-running-tests)
 * [Project Team](#markdown-header-project-team)
 * [License](#markdown-header-license)
 
@@ -59,15 +66,16 @@ disk space and 4GB of RAM.
 
 3. Download the PTU application via Bitbucket:
 
-        $ git clone https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
+        $ git clone --recursive https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
 
 4. Change to the newly-cloned PTU directory:
 
         $ cd provenance-to-use
 
-5. Make build directory, run cmake, and build ptu app:
+5. Make build directory, run cmake, and build ptu app (release version, with no
+tests):
 
-        $ ./run.sh
+        $ ./run.sh -r
 
 ### Ubuntu
 
@@ -82,15 +90,16 @@ disk space and 4GB of RAM.
 
 3. Download the PTU application via Bitbucket:
 
-        $ git clone https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
+        $ git clone --recursive https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
 
 4. Change to the newly-cloned PTU directory:
 
         $ cd provenance-to-use
 
-5. Make build directory, run cmake, and build ptu app:
+5. Make build directory, run cmake, and build ptu app (release version, with no
+tests):
 
-        $ ./run.sh
+        $ ./run.sh -r
 
 #### Ubuntu Mate 16-10
 
@@ -103,15 +112,16 @@ disk space and 4GB of RAM.
 
 3. Download the PTU application via Bitbucket:
 
-        $ git clone https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
+        $ git clone --recursive https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
 
 4. Change to the newly-cloned PTU directory:
 
         $ cd provenance-to-use
 
-5. Make build directory, run cmake, and build ptu app:
+5. Make build directory, run cmake, and build ptu app (release version, with no
+tests):
 
-        $ ./run.sh
+        $ ./run.sh -r
 
 #### Ubuntu Desktop 17-04
 
@@ -124,15 +134,16 @@ disk space and 4GB of RAM.
 
 3. Download the PTU application via Bitbucket:
 
-        $ git clone https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
+        $ git clone --recursive https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
 
 4. Change to the newly-cloned PTU directory:
 
         $ cd provenance-to-use
 
-5. Make build directory, run cmake, and build ptu app:
+5. Make build directory, run cmake, and build ptu app (release version, with no
+tests):
 
-        $ ./run.sh
+        $ ./run.sh -r
 
 ### CentOS
 
@@ -150,15 +161,16 @@ required PTU dependencies and create link to needed C++ library:
 
 3. Download the PTU application via Bitbucket:
 
-        $ git clone https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
+        $ git clone --recursive https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
 
 4. Change to the newly-cloned PTU directory:
 
         $ cd provenance-to-use
 
-5. Make build directory, run cmake, and build ptu app:
+5. Make build directory, run cmake, and build ptu app (release version, with no
+tests):
 
-        $ ./run.sh
+        $ ./run.sh -r
 
 ### Arch Linux
 
@@ -177,15 +189,16 @@ and 4GB of RAM.  Select the KDE desktop environment option.
 
 3. Download the PTU application via Bitbucket:
 
-        $ git clone https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
+        $ git clone --recursive https://[your-bitbucket-username]@bitbucket.org/depauldbgroup/provenance-to-use.git
 
 4. Change to the newly-cloned PTU directory:
 
         $ cd provenance-to-use
 
-5. Make build directory, run cmake, and build ptu app:
+5. Make build directory, run cmake, and build ptu app (release version, with no
+tests):
 
-        $ ./run.sh
+        $ ./run.sh -r
 
 ## Usage
 
@@ -325,13 +338,13 @@ provenance-to-use/
 
 ### Initial Setup
 
-1. [GITHUB PAGE] Fork the project repo:
+1. [BITBUCKET PAGE] Fork the project repo:
 
     * click "fork" from https://bitbucket.org/depauldbgroup/provenance-to-use
 
 2. [LOCAL] Create local repo:
 
-        $ git clone https://bitbucket.org/YOUR-BITBUCKET-USERNAME/provenance-to-use.git
+        $ git clone --recursive https://bitbucket.org/[your-bitbucket-username]/provenance-to-use.git
 
 3. [LOCAL] Link upstream repo:
 
@@ -420,13 +433,13 @@ on origin and upstream:
         $ git push -f origin feat-issuename
         $ git push -f upstream feat-issuename
 
-12. [GITHUB PAGE] Create pull request, specifying additions/changes and issue
+12. [BITBUCKET PAGE] Create pull request, specifying additions/changes and issue
 number(s):
 
     * Pull request is FROM your-forked-repo/feat-issuename TO
       upstream-repo/master.
 
-13. [GITHUB PAGE] If pull request rejected, begin again from Step #4.
+13. [BITBUCKET PAGE] If pull request rejected, begin again from Step #4.
 
 14. [LOCAL] Delete the feature branch locally, from your forked origin repo, and
 from upstream repo (if you pushed it to upstream in step 11):
@@ -439,13 +452,100 @@ from upstream repo (if you pushed it to upstream in step 11):
 
 NOTE: do not merge your own pull requests.
 
-1. [GITHUB PAGE] Make sure pull request commentary is properly descriptive.
+1. [BITBUCKET PAGE] Make sure pull request commentary is properly descriptive.
 
-2. [GITHUB PAGE] Review each changed/added line in each source file.
+2. [BITBUCKET PAGE] Review each changed/added line in each source file.
 
-3. [GITHUB PAGE] Comment appropriately on specific source code sections.
+3. [BITBUCKET PAGE] Comment appropriately on specific source code sections.
 
-4. [GITHUB PAGE] Merge or reject pull request.
+4. [BITBUCKET PAGE] Merge or reject pull request.
+
+## Testing
+
+### Testing Framework
+
+* PTU uses the C++ [doctest version 1.2.1](https://github.com/onqtam/doctest/tree/1.2.1)
+framework for testing functions in source files.  doctest is specified as a git
+submodule of the ptu repo.
+
+### Installing Testing Framework
+
+* Install required C++ dependency:
+
+    * For Fedora, install `gcc-c++`.
+    * For Ubuntu, install `g++`.
+    * For CentOS, first install `epel-release` (installs repository).  Next,
+      install `gcc-c++` and `cmake3`.  Lastly, create a link to the newer cmake
+      with `ln -s /usr/bin/cmake3 /usr/bin/cmake`.
+    * For Antergos, C++ is installed automatically with `gcc`.
+
+* The doctest submodule is automatically downloaded when ptu is cloned, as long
+as the `--recursive` argument to the clone command is used.
+
+* If you have cloned ptu __without__ the `--recursive` argument, initialize and
+update the doctest submodule from within the provenance-to-use/tests/doctest
+directory:
+
+        $ cd provenance-to-use/tests/doctest
+        $ git submodule init
+        $ git submodule update
+
+### Updating Testing Framework
+
+* To update the doctest submodule to a newer doctest version, show the version
+changes, and commit the doctest submodule changes to the main ptu repo:
+
+        $ cd provenance-to-use
+        $ git submodule update --remote doctest
+        $ git diff
+        $ git commit
+
+### Building PTU With Test Harness
+
+* To build the normal `ptu` release version executable with debugging info,
+along with the `ptutest` executable that serves as the test harness, run the
+build script without any options:
+
+        $ cd provenance-to-use
+        $ ./run.sh
+
+### Writing Tests
+
+1. If you created a new module as a new source file, ensure it is placed within
+the ptu source tree.
+
+2. Since ptu modules are C modules, but doctest is C++, ensure the header of
+module to be tested is wrapped properly.  See an existing tested module header
+for an example.
+
+3. Add a new C++ unit test source file (for the module to be tested) in the
+`tests` directory.
+
+4. Write tests in the new unit test source file.  See existing unit test source
+files for examples and consult the doctest documentation.  Note that tests are
+written __only__ for the interface/header of the module to be tested.
+
+### Running Tests
+
+* To run all unit tests:
+
+        $ /path/to/provenance-to-use/ptutest
+
+* To run unit tests for a specific ptu module, or to run certain subtests
+within a module, consult the doctest documentation.
+
+* The following example runs all tests for a specific module:
+
+        $ /path/to/provenance-to-use/ptutest --source-file="*mymodule_test*"
+
+* The following example runs all the tests for a specific function within a
+module:
+
+        $ /path/to/provenance-to-use/ptutest --test-case="myfunction"
+
+* The following example runs a specific test for a function within a module:
+
+        $ /path/to/provenance-to-use/ptutest --test-case="myfunction" --subcase="mytestname"
 
 ## Project Team
 

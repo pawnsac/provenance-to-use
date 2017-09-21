@@ -1,56 +1,67 @@
-################################################################################
-# DOC / META
-################################################################################
-
-# cmake switches:
-#   PRIVATE:   affects .c
-#   INTERFACE: affects .h
-#   PUBLIC:    affects .h, .c
-
 # minimum cmake version required to build project
 cmake_minimum_required(VERSION 3.1.3)
 
 ################################################################################
-# BUILD INPUTS / OUTPUTS
+# MAIN PROJECT DEF
 ################################################################################
 
-# cmake project name, source languages
-project(ptu_project C)
+project(ptu_project NONE)
 
-# source files
-file(GLOB ptu_sources "strace-4.6/*.c")
-file(GLOB readelf_sources "readelf-mini/*.c")
+################################################################################
+# CMAKE LANGUAGE SUPPORT CHECK
+################################################################################
 
-# libs
+enable_language(C)
+
+################################################################################
+# SOURCE FILE LISTS
+################################################################################
+
+# ptu sources
+file(GLOB ptu_sources "strace-4.6/*.c" "readelf-mini/*.c")
+list(REMOVE_ITEM ptu_sources strace-4.6/strace.c)
+
+# ptu main entry point source
+set(ptu_main_source strace-4.6/strace.c)
+
+################################################################################
+# USER LIBS (COMPILED FROM SOURCE FILE LISTS)
+################################################################################
+
+add_library(ptu_lib ${ptu_sources})
+
+################################################################################
+# EXTERNAL LIBS
+################################################################################
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-# executable (i.e. "target") to build from source files / libs
-add_executable(ptu ${readelf_sources} ${ptu_sources})
-
-# link libs to target
-target_link_libraries(ptu Threads::Threads)
-
 ################################################################################
-# ARCHITECTURE
+# MAIN PROJECT EXECUTABLE / LINKED LIBS
 ################################################################################
 
-# set I386 / X86_64 macro for system arch
+add_executable(ptu ${ptu_main_source})
+target_link_libraries(ptu PRIVATE ptu_lib PRIVATE Threads::Threads)
+
+################################################################################
+# ARCHITECTURE CHECKS / DEFS
+################################################################################
+
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  target_compile_definitions(ptu PUBLIC "X86_64=1")
+  add_definitions("-DX86_64=1")
 elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-  target_compile_definitions(ptu PUBLIC "I386=1")
+  add_definitions("-DI386=1")
 else()
   message(FATAL_ERROR "System architecture not 32-bit or 64-bit (based on size of void*)")
 endif()
 
 ################################################################################
-# OS
+# OS CHECKS / DEFS
 ################################################################################
 
-# enforce compilation on Linux system due to required libs
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  target_compile_definitions(ptu PUBLIC "LINUX=1")
+  add_definitions("-DLINUX=1")
 else()
   message(FATAL_ERROR "PTU requires Linux libraries.")
 endif()
@@ -61,43 +72,35 @@ endif()
 
 # warnings: enable most warnings for ptu
 if(${CMAKE_C_COMPILER_ID} MATCHES "GNU")
-  target_compile_options(ptu PUBLIC "-Wall")
+  add_definitions(-Wall -Wno-unused -Wno-unused-result -Wno-nonnull)
 endif()
 
 ################################################################################
 # SOURCE CONFIG
 ################################################################################
 
-# c language standards for specific sources
-set(CMAKE_CSTANDARD_REQURIED ON)
-set_source_files_properties(${ptu_sources} PROPERTIES CMAKE_C_STANDARD 11)
-set_source_files_properties(${readelf_sources} PROPERTIES CMAKE_C_STANDARD 11)
+# language standards for specific sources
+set_target_properties(ptu ptu_lib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 
 # system include standards for specific sources
-set_source_files_properties(${ptu_sources} PROPERTIES COMPILE_DEFINITIONS "_GNU_SOURCE")
-set_source_files_properties(${readelf_sources} PROPERTIES COMPILE_DEFINITIONS "_GNU_SOURCE")
+add_definitions("-D_GNU_SOURCE")
 
 # custom include dirs for specific sources
-target_include_directories(ptu PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
-target_include_directories(ptu PRIVATE "readelf-mini/include")
-target_include_directories(ptu PRIVATE "strace-4.6/linux/x86_64" PRIVATE "strace-4.6/linux")
-
-# silence "unused var" warns on legacy source
-if(${CMAKE_C_COMPILER_ID} MATCHES "GNU")
-  set_source_files_properties(${readelf_sources} PROPERTIES COMPILE_FLAGS "-Wno-unused-but-set-variable")
-  set_source_files_properties("strace-4.6/syscall.c" PROPERTIES COMPILE_FLAGS "-Wno-unused-variable -Wno-unused-but-set-variable")
-endif()
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories("readelf-mini/include")
+include_directories("strace-4.6/linux/x86_64")
+include_directories("strace-4.6/linux")
 
 # use cmake built-in modules to check availability
 # --> checks make defs used by config.h.in to produce config.h
 
-INCLUDE(CheckTypeSize)
-INCLUDE(CheckVariableExists)
-INCLUDE(CheckFunctionExists)
-INCLUDE(CheckIncludeFiles)
-INCLUDE(CheckLibraryExists)
-INCLUDE(CheckPrototypeDefinition)
-INCLUDE(TestBigEndian)
+include(CheckTypeSize)
+include(CheckVariableExists)
+include(CheckFunctionExists)
+include(CheckIncludeFiles)
+include(CheckLibraryExists)
+include(CheckPrototypeDefinition)
+include(TestBigEndian)
 
 # check type availability
 # --> also checks sys/types.h, stdint.h, stddef.h unless BUILTIN_TYPES_ONLY
@@ -120,7 +123,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 check_type_size("off_t" OFF_T LANGUAGE C)
 
-if( HAVE_LONG_LONG AND (OFF_T EQUAL LONG_LONG) AND (OFF_T GREATER LONG) )
+if(HAVE_LONG_LONG AND (OFF_T EQUAL LONG_LONG) AND (OFF_T GREATER LONG))
   set(HAVE_LONG_LONG_OFF_T 1)
 endif()
 
@@ -144,7 +147,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES "sys/resource.h")
 check_type_size("rlim_t" RLIM_T LANGUAGE C)
 set(CMAKE_EXTRA_INCLUDE_FILES)
 
-if( HAVE_RLIM_T AND HAVE_LONG_LONG AND (RLIM_T EQUAL LONG_LONG) AND (RLIM_T GREATER LONG) )
+if(HAVE_RLIM_T AND HAVE_LONG_LONG AND (RLIM_T EQUAL LONG_LONG) AND (RLIM_T GREATER LONG))
   set(HAVE_LONG_LONG_RLIM_T 1)
 endif()
 
@@ -229,18 +232,18 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 # type replacements (for unavailable types)
 
 if(HAVE_GID_T)
-  target_compile_definitions(ptu PUBLIC "GETGROUPS_T=gid_t")
+  add_definitions("-DGETGROUPS_T=gid_t")
 else()
-  target_compile_definitions(ptu PUBLIC "GETGROUPS_T=int")
-  target_compile_definitions(ptu PUBLIC "gid_t=int")
+  add_definitions("-DGETGROUPS_T=int")
+  add_definitions("-Dgid_t=int")
 endif()
 
 if(NOT HAVE_MODE_T)
-  target_compile_definitions(ptu PUBLIC "mode_t=int")
+  add_definitions("-Dmode_t=int")
 endif()
 
 if(NOT HAVE_UID_T)
-  target_compile_definitions(ptu PUBLIC "uid_t=int")
+  add_definitions("-Duid_t=int")
 endif()
 
 # check var availability
@@ -251,7 +254,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES "mkdev.h")
 check_variable_exists("major" HAVE_MKDEV_MAJOR)
 check_variable_exists("minor" HAVE_MKDEV_MINOR)
 check_variable_exists("makedev" HAVE_MKDEV_MAKEDEV)
-if( HAVE_MKDEV_MAJOR AND HAVE_MKDEV_MINOR AND HAVE_MKDEV_MAKEDEV)
+if(HAVE_MKDEV_MAJOR AND HAVE_MKDEV_MINOR AND HAVE_MKDEV_MAKEDEV)
   set(MAJOR_IN_MKDEV 1)
 endif()
 set(CMAKE_EXTRA_INCLUDE_FILES)
@@ -260,7 +263,7 @@ set(CMAKE_EXTRA_INCLUDE_FILES "sysmacros.h")
 check_variable_exists("major" HAVE_SYSMACROS_MAJOR)
 check_variable_exists("minor" HAVE_SYSMACROS_MINOR)
 check_variable_exists("makedev" HAVE_SYSMACROS_MAKEDEV)
-if( HAVE_SYSMACROS_MAJOR AND HAVE_SYSMACROS_MINOR AND HAVE_SYSMACROS_MAKEDEV)
+if(HAVE_SYSMACROS_MAJOR AND HAVE_SYSMACROS_MINOR AND HAVE_SYSMACROS_MAKEDEV)
   set(MAJOR_IN_SYSMACROS 1)
 endif()
 set(CMAKE_EXTRA_INCLUDE_FILES)
@@ -295,12 +298,7 @@ check_function_exists("vsnprintf" HAVE_DECL_VSNPRINTF)
 
 # check include availability
 
-list(APPEND STDC_LIST "assert.h;complex.h;ctype.h;errno.h;fenv.h;float.h;")
-list(APPEND STDC_LIST "inttypes.h;iso646.h;limits.h;locale.h;math.h;setjmp.h;")
-list(APPEND STDC_LIST "signal.h;stdarg.h;stdbool.h;stddef.h;stdio.h;stdlib.h;")
-list(APPEND STDC_LIST "string.h;tgmath.h;time.h;wchar.h;wctype.h")
-check_include_files("${STDC_LIST}" STDC_HEADERS)
-
+check_include_files("stddef.h" STDC_HEADERS)
 check_include_files("alloca.h" HAVE_ALLOCA_H)
 check_include_files("asm/cachectl.h" HAVE_ASM_CACHECTL_H)
 check_include_files("asm/sigcontext.h" HAVE_ASM_SIGCONTEXT_H)
@@ -358,7 +356,7 @@ check_library_exists("nsl" "gethostbyname" "" HAVE_LIBNSL)
 # check misc conditions
 
 test_big_endian(HAVE_BIG_ENDIAN)
-if( (NOT HAVE_BIG_ENDIAN) AND HAVE_LONG_LONG )
+if((NOT HAVE_BIG_ENDIAN) AND HAVE_LONG_LONG)
   set(HAVE_LITTLE_ENDIAN_LONG_LONG 1)
 endif()
 
@@ -369,8 +367,44 @@ endif()
 # process all the defs made by all the checks
 
 # def all the availables in config.h (using rules in config.h.in)
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/config.h")
+configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 # def that config.h was generated by cmake
-target_compile_definitions(ptu PUBLIC "HAVE_CONFIG_H=1")
+add_definitions("-DHAVE_CONFIG_H=1")
+
+################################################################################
+# TESTING (OPTIONAL ADD-ON TO BUILD)
+################################################################################
+
+# build tests by default (sets BUILD_TESTING, override invoking cmake on cli)
+include(CTest)
+
+if(BUILD_TESTING)
+
+  enable_testing()
+
+  # cmake language support check
+
+  enable_language(CXX)
+
+  # source file lists
+
+  file(GLOB unit_test_sources "tests/*.cpp")
+
+  # test harness executable / cmake ctests to run / linked libs
+
+  add_executable(ptutest ${unit_test_sources})
+  add_test(testall ptutest)
+  target_link_libraries(ptutest PRIVATE ptu_lib)
+
+  # source config
+
+  # language standards for specific sources
+  set_target_properties(ptutest PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
+
+  # custom include dirs for specific sources
+  target_include_directories(ptutest PRIVATE strace-4.6)
+  target_include_directories(ptutest PRIVATE tests/doctest/doctest)
+
+endif()
 

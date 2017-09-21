@@ -7,7 +7,12 @@ timers:   AUDIT_FILE_COPYING (track total time spent copying files during audit)
 *******************************************************************************/
 
 #ifndef PERFTIMERS_H
-#define PERFTIMERS_H
+#define PERFTIMERS_H 1
+
+// allow this header to be included from c++ source file
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*******************************************************************************
  * PUBLIC TYPES / CONSTANTS / VARIABLES
@@ -58,6 +63,11 @@ TimerAction stop_perf_timer (PerfTimer pt);
 
 // get total accum time of specific enabled perf timer and return success/error of the action
 TimerAction get_total_perf_time (PerfTimer pt, double* total_time);
+
+// allow this header to be included from c++ source file
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PERFTIMERS_H
 

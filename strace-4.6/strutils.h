@@ -6,7 +6,12 @@ purpose:  various c-string utility functions
 *******************************************************************************/
 
 #ifndef STRUTILS_H
-#define STRUTILS_H
+#define STRUTILS_H 1
+
+// allow this header to be included from c++ source file
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*******************************************************************************
  * SYSTEM INCLUDES
@@ -29,6 +34,11 @@ bool str_startswith (const char* str, const char* starting_substr);
 
 // return true if str ends with ending_substr
 bool str_endswith (const char* str, const char* ending_substr);
+
+// allow this header to be included from c++ source file
+#ifdef __cplusplus
+}
+#endif
 
 #endif // STRUTILS_H
 

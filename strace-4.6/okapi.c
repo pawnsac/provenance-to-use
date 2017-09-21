@@ -96,8 +96,8 @@ char* realpath_strdup(char* filename) {
   char* ret = realpath(filename, path);
   assert(ret); // the target path must actually exist!
 
-  assert(path[0] == '/'); // must be an absolute path
-  return strdup(path);
+  assert(ret[0] == '/'); // must be an absolute path
+  return strdup(ret);
 }
 
 // mallocs a new string
