@@ -155,6 +155,8 @@ void alloc_tcb_cde_fields (struct tcb* tcp) {
   for (int i = 0; i < maxof; i++) {
     tcp->opened_file_paths[i] = NULL;
   }
+  // digimokan: r/w/rw mode used to open this proc's currently open files
+  tcp->opened_file_modes = (int*) malloc(maxof * sizeof(int));
 
   tcp->current_dir = NULL;
   tcp->p_ignores = NULL;
@@ -178,6 +180,8 @@ void free_tcb_cde_fields (struct tcb* tcp) {
       free(tcp->opened_file_paths[i]);
     }
   }
+  // digimokan: r/w/rw mode used to open this proc's currently open files
+  free(tcp->opened_file_modes);
 
   if (tcp->current_dir) {
     free(tcp->current_dir);

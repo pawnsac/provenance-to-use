@@ -99,6 +99,7 @@ extern int getopt (int argc, char * const argv[], const char *optstring);
 #include "okapi.h"        // pgbovine
 #include "provenance.h"
 #include "perftimers.h"   // set_perf_timer(), get_total_perf_time()
+#include "versioning.h"   // init_versioning(), clear_versioning()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
@@ -2637,6 +2638,9 @@ int main (int argc, char *argv[]) {
   // digimokan: set performance timer for okapi file copying during audit
   set_perf_timer(AUDIT_FILE_COPYING, DISABLED);
 
+  // digimokan: initialize versioning operations structures
+  init_versioning();
+
   // pgbovine - make sure this constant is a reasonable number and not something KRAZY
   if (MAXPATHLEN > (1024 * 4096)) {
     fprintf(stderr, "cde error, MAXPATHLEN is HUGE!!!\n");
@@ -3060,10 +3064,13 @@ int main (int argc, char *argv[]) {
 	}
 
 	// print audit file copying total time (only if timer was ENABLED)
-    double audit_time;
-    if (get_total_perf_time(AUDIT_FILE_COPYING, &audit_time) == SUCCESS_TIMER_TOTAL_RETURNED) {
-      printf("total time doing file copying during audit: %.3f\n", audit_time);
-    }
+	double audit_time;
+	if (get_total_perf_time(AUDIT_FILE_COPYING, &audit_time) == SUCCESS_TIMER_TOTAL_RETURNED) {
+		printf("total time doing file copying during audit: %.3f\n", audit_time);
+	}
+
+	// digimokan: log vers graph edges, clear vers operations structures
+	clear_versioning();
 
 	exit(exit_code);
 }

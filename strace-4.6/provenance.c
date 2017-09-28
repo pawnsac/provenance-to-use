@@ -18,6 +18,7 @@
 #include "provenance.h"
 #include "cde.h"
 #include "okapi.h"      // canonicalize_path()
+#include "versioning.h" // versioned_open()
 #include "const.h"
 
 /*******************************************************************************
@@ -130,7 +131,15 @@ static void print_io_prov (struct tcb* tcp, const int path_index, const int acti
   char *filename = strcpy_from_child_or_null(tcp, tcp->u_arg[path_index]);
   char *filename_abspath = canonicalize_path(filename, tcp->current_dir);
   assert(filename_abspath);
+  /*int pid_version_num;*/
+  /*int file_version_num;*/
 
+  // get filename_abspath_active_version
+  // get pid_active_version
+  // connect filename_abspath_active_version to pid_active_version
+  /*open_file_version(tcp->pid, filename_abspath, &pid_version_num, &file_version_num);*/
+
+  // log the filename_abspath_active_version, pid_active_version
   fprintf(prov_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid,
       (action == PRV_RDONLY ? "READ" : (
         action == PRV_WRONLY ? "WRITE" : (
@@ -279,6 +288,7 @@ void init_prov () {
   char *env_prov_mode = getenv("IN_CDE_PROVENANCE_MODE");
   char path[PATH_MAX];
   int subns=1;
+  init_versioning();  // init data structs req for versioning operations
 
   if (env_prov_mode != NULL)
     Prov_prov_mode = (strcmp(env_prov_mode, "1") == 0) ? 1 : 0;
@@ -410,19 +420,37 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
 
     // translate mode bits into mode enum
     int action;
+    OpenType ot;
     switch (open_mode) {
-      case O_RDONLY: action = PRV_RDONLY; break;
-      case O_WRONLY: action = PRV_WRONLY; break;
-      case O_RDWR: action = PRV_RDWR; break;
-      default: action = PRV_UNKNOWNIO; break;
+      case O_RDONLY:
+        action = PRV_RDONLY;
+        ot = READ_ONLY;
+        break;
+      case O_WRONLY:
+        action = PRV_WRONLY;
+        ot = WRITE_ONLY;
+        break;
+      case O_RDWR:
+        action = PRV_RDWR;
+        ot = READ_WRITE;
+        break;
+      default:
+        action = PRV_UNKNOWNIO;
+        ot = UNKNOWN_OTYPE;
+        break;
     }
 
     // log the open call to prov log
     print_io_prov(tcp, path_index - 1, action);
 
+    // store this open event in the versioning graph
+    versioned_open(tcp->pid, filename_abspath, ot);
+
     // store exact abs path used to open the file
     freeifnn(tcp->opened_file_paths[tcp->u_rval]);
     tcp->opened_file_paths[tcp->u_rval] = strdup(filename_abspath);
+    // store r/w/rw mode used to open the file
+    tcp->opened_file_modes[tcp->u_rval] = ot;
   }
 
   // log to stderr if verbose
@@ -481,7 +509,7 @@ void print_close_prov (struct tcb* tcp) {
   const int closefd = tcp->u_arg[0];
 
   // will hold stored exact abs path used to open the file
-  const char* openpath;
+  char* openpath;
 
   // exit early if closing an fd this proc did NOT open
   //  --> there is no prov value in a close without a matching open
@@ -494,6 +522,9 @@ void print_close_prov (struct tcb* tcp) {
 
   // log to provlog
   fprintf(prov_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid, "CLOSE", openpath);
+
+  /* // store this close event in the versioning graph */
+  versioned_close(tcp->pid, openpath, tcp->opened_file_modes[closefd]);
 
   // log to stderr if verbose
   if (Cde_verbose_mode) {

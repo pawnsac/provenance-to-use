@@ -446,6 +446,7 @@ struct tcb {
 
   int current_repo_ind;     // quanpt: multi repo
   char** opened_file_paths; // digimokan: abs paths used to open this proc's currently open files
+  int* opened_file_modes;   // digimokan: r/w/rw mode used to open this proc's currently open files
 };
 
 /* TCB flags */

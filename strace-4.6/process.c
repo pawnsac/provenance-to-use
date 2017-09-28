@@ -131,6 +131,7 @@
  ******************************************************************************/
 
 #include "provenance.h"
+#include "versioning.h"   // versioned_spawn()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED FUNCTIONS
@@ -886,6 +887,7 @@ handle_new_child(struct tcb *tcp, int pid, int bpt)
 
   CDE_init_tcb_dir_fields(tcpchild); // pgbovine - do it AFTER you init parent
   print_spawn_prov(tcpchild); // quanpt
+  versioned_spawn(tcp->pid, pid);
 
 	tcp->nchildren++;
 	if (tcpchild->flags & TCB_SUSPENDED) {
