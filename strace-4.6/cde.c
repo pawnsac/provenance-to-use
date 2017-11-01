@@ -49,6 +49,7 @@
 #include "const.h"
 #include "syslimits.h"   // max_open_files()
 #include "strutils.h"    // str_rstrip(), str_startswith(), str_endswith()
+#include "shellutils.h"  // malloc_quoted_arg_str()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
@@ -3291,10 +3292,15 @@ void CDE_init(char** argv, int optind) {
     }
     free(log_filename);
 
-    fprintf(log_f, "'./%s.cde'", basename(argv[optind]));
-    int i;
-    for (i = optind + 1; argv[i] != NULL; i++) {
-      fprintf(log_f, " '%s'", argv[i]); // add quotes for accuracy
+    // write cmd name to cde.log, quoting it if it contains unsafe chars
+    char* safed_cmd = malloc_quoted_arg_str(basename(argv[optind]));
+    fprintf(log_f, "./%s.cde", safed_cmd);
+    free(safed_cmd);
+    // write cmd args to cde.log, quoting any that contain unsafe chars
+    for (int i = optind + 1; argv[i] != NULL; i++) {
+      char* safed_arg = malloc_quoted_arg_str(argv[i]);
+      fprintf(log_f, " %s", safed_arg);
+      free(safed_arg);
     }
     fputc('\n', log_f);
     fclose(log_f);
