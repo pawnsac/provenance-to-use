@@ -275,6 +275,7 @@ check_variable_exists("_sys_siglist" HAVE_DECL__SYS_SIGLIST)
 # check function availability
 
 check_function_exists("alloca" HAVE_ALLOCA)
+check_function_exists("clock_gettime" HAVE_CLOCK_GETTIME)
 check_function_exists("fork" HAVE_FORK)
 check_function_exists("fprintf" HAVE_DECL_FPRINTF)
 check_function_exists("getenv" HAVE_DECL_GETENV)
@@ -349,9 +350,14 @@ check_include_files("termio.h" HAVE_TERMIO_H)
 check_include_files("unistd.h" HAVE_UNISTD_H)
 check_include_files("zlib.h" HAVE_ZLIB_H)
 
-# check linked library availability
+# check library availability
 
-check_library_exists("nsl" "gethostbyname" "" HAVE_LIBNSL)
+if(NOT HAVE_CLOCK_GETTIME)
+  check_library_exists(rt clock_gettime "time.h" HAVE_LIBRT)
+  if(HAVE_LIBRT)
+    target_link_libraries(ptu PRIVATE rt)
+  endif()
+endif()
 
 # check misc conditions
 
