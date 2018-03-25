@@ -259,6 +259,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -282,6 +283,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -294,6 +296,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr2));
     CHECK(entry->version_num == 2);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -306,6 +309,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr3));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == PROCESS_NODE);
     CHECK(slink_count(entry->edges) == 0);
   }
@@ -339,6 +343,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -373,6 +378,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -385,6 +391,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr2));
     CHECK(entry->version_num == 2);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -397,6 +404,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr3));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == PROCESS_NODE);
     CHECK(slink_count(entry->edges) == 0);
   }
@@ -630,6 +638,7 @@ TEST_CASE("retrieve_latest_versioned_node") {
     CHECK(strlen(entry->label) == strlen(node_entry_label));
     CHECK(entry->version_num == 1);
     CHECK(entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -650,6 +659,7 @@ TEST_CASE("retrieve_latest_versioned_node") {
     CHECK(strlen(entry_same->label) == strlen(node_entry_label));
     CHECK(entry_same->version_num == 1);
     CHECK(entry_same->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(entry_same->ntype == FILE_NODE);
     CHECK(slink_count(entry_same->edges) == 0);
 
@@ -686,6 +696,7 @@ TEST_CASE("duplicate_node_entry") {
     CHECK(strlen(dup_entry->keystr) == strlen(dup_entry_keystr));
     CHECK(dup_entry->version_num == 2);
     CHECK(dup_entry->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(dup_entry->ntype == FILE_NODE);
     CHECK(slink_count(dup_entry->edges) == 0);
 
@@ -708,6 +719,7 @@ TEST_CASE("duplicate_node_entry") {
     CHECK(strlen(dup_entry3->keystr) == strlen(dup_entry_keystr3));
     CHECK(dup_entry3->version_num == 4);
     CHECK(dup_entry3->marked == false);
+    CHECK(entry->modflag == false);
     CHECK(dup_entry3->ntype == FILE_NODE);
     CHECK(slink_count(dup_entry3->edges) == 0);
 
