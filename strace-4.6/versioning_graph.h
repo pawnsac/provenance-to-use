@@ -56,6 +56,7 @@ struct node_entry {
   char* label;                  // file/pid str
   int version_num;              // version num of this file/process
   bool marked;                  // a node is marked when closed/inactive
+  bool modflag;                 // node (or parent) modified since prog last run
   NodeType ntype;               // file node or process node
   struct edge_entry_slink* edges;  // edges to/from this node (slink)
   UT_hash_handle hh;            // makes this structure uthash hashable

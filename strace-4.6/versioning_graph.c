@@ -36,6 +36,7 @@ static void init_node_entry (struct node_entry* entry, char* label, int version_
   entry->label = strdup(label);
   entry->version_num = version_num;
   entry->marked = is_marked;
+  entry->modflag = false;
   entry->ntype = ntype;
   entry->edges = make_edge_entry_slink();
 }
