@@ -213,13 +213,13 @@ TEST_CASE("versioned_close") {
     HASH_FIND(hh, graph->node_table, pid1_keystr, strlen(pid1_keystr), found_node);
 
     REQUIRE(found_node == pid1_node);
-    CHECK(found_node->marked == UNMARKED);
+    CHECK(found_node->mark == UNMARKED);
 
     found_node = NULL;
     HASH_FIND(hh, graph->node_table, file1_keystr, strlen(file1_keystr), found_node);
 
     REQUIRE(found_node == file1_node);
-    CHECK(found_node->marked == UNMARKED);
+    CHECK(found_node->mark == UNMARKED);
 
     CHECK(HASH_CNT(hh, graph->edge_table) == 0);
   }
@@ -241,13 +241,13 @@ TEST_CASE("versioned_close") {
     HASH_FIND(hh, graph->node_table, pid1_keystr, strlen(pid1_keystr), found_node);
 
     REQUIRE(found_node == pid1_node);
-    CHECK(found_node->marked == MARKED);
+    CHECK(found_node->mark == MARKED);
 
     found_node = NULL;
     HASH_FIND(hh, graph->node_table, file1_keystr, strlen(file1_keystr), found_node);
 
     REQUIRE(found_node == file1_node);
-    CHECK(found_node->marked == UNMARKED);
+    CHECK(found_node->mark == UNMARKED);
 
     CHECK(HASH_CNT(hh, graph->edge_table) == 1);
 
@@ -274,13 +274,13 @@ TEST_CASE("versioned_close") {
     HASH_FIND(hh, graph->node_table, pid1_keystr, strlen(pid1_keystr), found_node);
 
     REQUIRE(found_node == pid1_node);
-    CHECK(found_node->marked == MARKED);
+    CHECK(found_node->mark == MARKED);
 
     found_node = NULL;
     HASH_FIND(hh, graph->node_table, file1_keystr, strlen(file1_keystr), found_node);
 
     REQUIRE(found_node == file1_node);
-    CHECK(found_node->marked == MARKED);
+    CHECK(found_node->mark == MARKED);
 
     CHECK(HASH_CNT(hh, graph->edge_table) == 2);
 

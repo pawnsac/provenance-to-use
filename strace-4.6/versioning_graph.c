@@ -36,7 +36,7 @@ static void init_node_entry (struct node_entry* entry, char* label, int version_
   malloc_str_from_str_plus_int(&(entry->keystr), label, version_num);
   entry->label = strdup(label);
   entry->version_num = version_num;
-  entry->marked = is_marked;
+  entry->mark = is_marked;
   entry->modflag = false;
   entry->ntype = ntype;
   entry->edges = make_edge_entry_slink();
@@ -480,7 +480,7 @@ struct node_entry* collect_nodes_connected_by_target_edges (
   for (struct node_entry* snode = dequeue(search_queue); snode; snode = dequeue(search_queue)) {
 
     // dequeued node matches is_marked param: add to coll table
-    if (snode->marked == is_marked)
+    if (snode->mark == is_marked)
       HASH_ADD_KEYPTR(hh_collected, collected_table, snode->keystr, strlen(snode->keystr), snode);
 
     // search dequeued node edges
@@ -637,7 +637,7 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
   // mark all the collected nodes
   struct node_entry *coll_node, *tmp = NULL;
   HASH_ITER(hh_collected, collected_table, coll_node, tmp)
-    coll_node->marked = MARKED;
+    coll_node->mark = MARKED;
 
   // deactivate the active edge between node1 and node2
   target_edge->edge_label = INACTIVE;
