@@ -56,13 +56,20 @@ typedef enum {
   MARKED_OR_UNMARKED
 } Mark;
 
+// modflag field of the struct node_entry
+typedef enum {
+  MODIFIED,
+  UNMODIFIED,
+  MODIFIED_OR_UNMODIFIED
+} ModFlag;
+
 // a version-numbered file/process node in the provenance graph
 struct node_entry {
   char* keystr;                 // label + version_number
   char* label;                  // file/pid str
   int version_num;              // version num of this file/process
   Mark mark;                    // a node is marked when closed/inactive
-  bool modflag;                 // node (or parent) modified since prog last run
+  ModFlag modflag;                 // node (or parent) modified since prog last run
   NodeType ntype;               // file node or process node
   struct edge_entry_slink* edges;  // edges to/from this node (slink)
   UT_hash_handle hh;            // makes this structure uthash hashable
@@ -230,7 +237,7 @@ void connect (struct versioned_prov_graph* graph, struct node_entry* node1, stru
 VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);
 
 // flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
-VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, bool modflag);
+VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag);
 
 // allow this header to be included from c++ source file
 #ifdef __cplusplus

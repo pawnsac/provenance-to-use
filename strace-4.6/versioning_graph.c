@@ -37,7 +37,7 @@ static void init_node_entry (struct node_entry* entry, char* label, int version_
   entry->label = strdup(label);
   entry->version_num = version_num;
   entry->mark = is_marked;
-  entry->modflag = false;
+  entry->modflag = UNMODIFIED;
   entry->ntype = ntype;
   entry->edges = make_edge_entry_slink();
 }
@@ -649,13 +649,13 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
 }
 
 // flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
-VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, bool modflag) {
+VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag) {
   struct node_entry* node = get_node_entry(graph, node_entry_keystr);
 
   if (node == NULL)
     return ERR_NODE_NOT_EXIST;
 
-  node->modflag = true;
+  node->modflag = MODIFIED;
 
   return SUCCESS_NODE_AND_CHILDREN_MARKED;
 }

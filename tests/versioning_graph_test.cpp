@@ -259,7 +259,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -283,7 +283,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -296,7 +296,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr2));
     CHECK(entry->version_num == 2);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -309,7 +309,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr3));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == PROCESS_NODE);
     CHECK(slink_count(entry->edges) == 0);
   }
@@ -343,7 +343,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -378,7 +378,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -391,7 +391,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr2));
     CHECK(entry->version_num == 2);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -404,7 +404,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr3));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == PROCESS_NODE);
     CHECK(slink_count(entry->edges) == 0);
   }
@@ -638,7 +638,7 @@ TEST_CASE("retrieve_latest_versioned_node") {
     CHECK(strlen(entry->label) == strlen(node_entry_label));
     CHECK(entry->version_num == 1);
     CHECK(entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
 
@@ -659,7 +659,7 @@ TEST_CASE("retrieve_latest_versioned_node") {
     CHECK(strlen(entry_same->label) == strlen(node_entry_label));
     CHECK(entry_same->version_num == 1);
     CHECK(entry_same->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(entry_same->ntype == FILE_NODE);
     CHECK(slink_count(entry_same->edges) == 0);
 
@@ -696,7 +696,7 @@ TEST_CASE("duplicate_node_entry") {
     CHECK(strlen(dup_entry->keystr) == strlen(dup_entry_keystr));
     CHECK(dup_entry->version_num == 2);
     CHECK(dup_entry->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(dup_entry->ntype == FILE_NODE);
     CHECK(slink_count(dup_entry->edges) == 0);
 
@@ -719,7 +719,7 @@ TEST_CASE("duplicate_node_entry") {
     CHECK(strlen(dup_entry3->keystr) == strlen(dup_entry_keystr3));
     CHECK(dup_entry3->version_num == 4);
     CHECK(dup_entry3->mark == UNMARKED);
-    CHECK(entry->modflag == false);
+    CHECK(entry->modflag == UNMODIFIED);
     CHECK(dup_entry3->ntype == FILE_NODE);
     CHECK(slink_count(dup_entry3->edges) == 0);
 
@@ -1490,11 +1490,11 @@ TEST_CASE("set_modflag_for_node_and_descendents") {
   struct edge_entry* edge2to3 = link_nodes_with_edge(graph, node2, node3, ACTIVE);
 
   SUBCASE("mod-flag last descendent in chain") {
-    set_modflag_for_node_and_descendents(graph, node_keystr3, true);
+    set_modflag_for_node_and_descendents(graph, node_keystr3, MODIFIED);
 
-    CHECK(node1->modflag == false);
-    CHECK(node2->modflag == false);
-    CHECK(node3->modflag == true);
+    CHECK(node1->modflag == UNMODIFIED);
+    CHECK(node2->modflag == UNMODIFIED);
+    CHECK(node3->modflag == MODIFIED);
   }
 
   clear_graph(&graph);
