@@ -644,3 +644,15 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
 
 }
 
+// flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
+VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, bool modflag) {
+  struct node_entry* node = get_node_entry(graph, node_entry_keystr);
+
+  if (node == NULL)
+    return ERR_NODE_NOT_EXIST;
+
+  node->modflag = true;
+
+  return SUCCESS_NODE_AND_CHILDREN_MARKED;
+}
+

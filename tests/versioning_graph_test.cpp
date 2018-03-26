@@ -1464,3 +1464,40 @@ TEST_CASE("disconnect") {
 
 }
 
+TEST_CASE("set_modflag_for_node_and_descendents") {
+
+  struct versioned_prov_graph* graph = create_new_graph();
+
+  char node_keystr1[] = "some_file_path_str1";
+  char node_label1[] = "some_file_path_str";
+  int node_version1 = 1;
+  struct node_entry* node1 = add_node_entry(graph, node_label1, node_version1, FILE_NODE);
+  REQUIRE(node1);
+
+  char node_keystr2[] = "some_file_path_str2";
+  char node_label2[] = "some_file_path_str";
+  int node_version2 = 2;
+  struct node_entry* node2 = add_node_entry(graph, node_label2, node_version2, FILE_NODE);
+  REQUIRE(node2);
+
+  char node_keystr3[] = "some_file_path_str3";
+  char node_label3[] = "some_file_path_str";
+  int node_version3 = 3;
+  struct node_entry* node3 = add_node_entry(graph, node_label3, node_version3, FILE_NODE);
+  REQUIRE(node3);
+
+  struct edge_entry* edge1to2 = link_nodes_with_edge(graph, node1, node2, ACTIVE);
+  struct edge_entry* edge2to3 = link_nodes_with_edge(graph, node2, node3, ACTIVE);
+
+  SUBCASE("mod-flag last descendent in chain") {
+    set_modflag_for_node_and_descendents(graph, node_keystr3, true);
+
+    CHECK(node1->modflag == false);
+    CHECK(node2->modflag == false);
+    CHECK(node3->modflag == true);
+  }
+
+  clear_graph(&graph);
+
+}
+

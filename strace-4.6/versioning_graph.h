@@ -34,7 +34,9 @@ typedef enum {
   SUCCESS_VERSION_GRAPH_CLEARED,
   SUCCESS_EDGE_ADDED_TO_NODE,
   SUCCESS_NODES_DISCONNECTED,
+  SUCCESS_NODE_AND_CHILDREN_MARKED,
   ERR_VERSION_ENTRY_NOT_EXIST,
+  ERR_NODE_NOT_EXIST,
   ERR_CONNECTED_NODE_NOT_EXIST,
   ERR_NODE_NOT_EXIST_IN_EDGE,
   ERR_NO_ACTIVE_EDGE_BETWEEN_NODES,
@@ -213,6 +215,9 @@ void connect (struct versioned_prov_graph* graph, struct node_entry* node1, stru
 
 // disconnect one node from another node, marking select related nodes as required
 VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);
+
+// flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
+VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, bool modflag);
 
 // allow this header to be included from c++ source file
 #ifdef __cplusplus
