@@ -70,8 +70,13 @@ struct node_entry {
   UT_hash_handle hh_collected;  // make hashable (allow storage in mult tables)
 };
 
-#define ACTIVE true
-#define INACTIVE false
+// active/inactive label field of the struct edge_entry
+typedef enum {
+  ACTIVE,
+  INACTIVE ,
+  ACTIVE_OR_INACTIVE,
+} EdgeLabel;
+
 #define OUTBOUND true
 #define INBOUND false
 
@@ -80,7 +85,7 @@ struct edge_entry {
   char* keystr;                 // 1st node hash key + 2nd node hash key
   char* node1_keystr;           // 1st node hash key
   char* node2_keystr;           // 2nd node hash key
-  bool active;                  // edge status relating to marked nodes
+  EdgeLabel edge_label;         // active/inactive label relating to node marks
   UT_hash_handle hh;            // makes this structure uthash hashable
   UT_hash_handle hh_ne;         // make hashable (allow storage in mult tables)
 };
@@ -158,7 +163,7 @@ struct node_entry* get_or_add_node_entry (struct versioned_prov_graph* graph, ch
 struct edge_entry* get_edge_entry (struct versioned_prov_graph* graph, char* edge_entry_keystr);
 
 // add edge entry to edge table
-struct edge_entry* add_edge_entry (struct versioned_prov_graph* graph, char* node_entry1_keystr, char* node_entry2_keystr, bool is_active);
+struct edge_entry* add_edge_entry (struct versioned_prov_graph* graph, char* node_entry1_keystr, char* node_entry2_keystr, EdgeLabel is_active);
 
 // find edge entry from edge table by its node endpoints
 struct edge_entry* find_edge_entry (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);
@@ -209,10 +214,10 @@ struct node_entry* retrieve_latest_versioned_node (struct versioned_prov_graph* 
 struct node_entry* duplicate_node_entry (struct versioned_prov_graph* graph, struct node_entry* entry);
 
 // add directed edge from node1 to node2 - add to graph and to node edge tables
-struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2, bool is_active);
+struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2, EdgeLabel is_active);
 
 // return table of is_marked nodes connected to start_node by is_active is_outbound edges
-struct node_entry* collect_nodes_connected_by_target_edges (struct versioned_prov_graph* graph, struct node_entry* entry, Mark is_marked, bool is_active, bool is_outbound);
+struct node_entry* collect_nodes_connected_by_target_edges (struct versioned_prov_graph* graph, struct node_entry* entry, Mark is_marked, EdgeLabel is_active, bool is_outbound);
 
 // connect one node to another node, versioning and creating nodes as required
 void connect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);

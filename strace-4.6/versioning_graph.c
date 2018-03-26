@@ -10,6 +10,7 @@ purpose:  graph operations for a specially-versioned provenance graph
  ******************************************************************************/
 
 #include <stdbool.h>            // ISOC: bool, false, true
+#include <assert.h>             // ISOC: assert()
 
 /*******************************************************************************
  * USER INCLUDES
@@ -43,13 +44,14 @@ static void init_node_entry (struct node_entry* entry, char* label, int version_
 
 // initialize edge_entry struct fields
 static void init_edge_entry (struct edge_entry* entry, char* keystr1, char* keystr2,
-    bool is_active) {
+    EdgeLabel is_active) {
   char* edge_keystr = NULL;
   malloc_str_from_two_strs(&edge_keystr, keystr1, keystr2);
   entry->keystr = edge_keystr;
   entry->node1_keystr = strdup(keystr1);
   entry->node2_keystr = strdup(keystr2);
-  entry->active = is_active;
+  assert((is_active == ACTIVE) || (is_active == INACTIVE));
+  entry->edge_label = is_active;
 }
 
 /*******************************************************************************
@@ -223,7 +225,7 @@ struct edge_entry* get_edge_entry (struct versioned_prov_graph* graph, char* edg
 
 // add edge entry to edge table
 struct edge_entry* add_edge_entry (struct versioned_prov_graph* graph,
-    char* node_entry1_keystr, char* node_entry2_keystr, bool is_active) {
+    char* node_entry1_keystr, char* node_entry2_keystr, EdgeLabel is_active) {
 
   char* edge_keystr;
   malloc_str_from_two_strs(&edge_keystr, node_entry1_keystr, node_entry2_keystr);
@@ -231,7 +233,8 @@ struct edge_entry* add_edge_entry (struct versioned_prov_graph* graph,
   free(edge_keystr);
 
   if (entry) {
-    entry->active = is_active;
+    assert((is_active == ACTIVE) || (is_active == INACTIVE));
+    entry->edge_label = is_active;
   } else {
     entry = (struct edge_entry*) malloc(sizeof(struct edge_entry));
     init_edge_entry(entry, node_entry1_keystr, node_entry2_keystr, is_active);
@@ -451,8 +454,9 @@ struct node_entry* duplicate_node_entry (struct versioned_prov_graph* graph, str
 
 // add directed edge from node1 to node2 - add to graph and to node edge tables
 struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph,
-    struct node_entry* node1, struct node_entry* node2, bool is_active) {
+    struct node_entry* node1, struct node_entry* node2, EdgeLabel is_active) {
 
+  assert((is_active == ACTIVE) || (is_active == INACTIVE));
   struct edge_entry* edge = add_edge_entry(graph, node1->keystr, node2->keystr, is_active);
   add_edge_to_node(graph, node1, edge);
   add_edge_to_node(graph, node2, edge);
@@ -463,7 +467,7 @@ struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph,
 // return table of is_marked nodes connected to start_node by is_active is_outbound edges
 struct node_entry* collect_nodes_connected_by_target_edges (
     struct versioned_prov_graph* graph, struct node_entry* start_node,
-    Mark is_marked, bool is_active, bool is_outbound) {
+    Mark is_marked, EdgeLabel is_active, bool is_outbound) {
 
   struct node_entry_queue* search_queue = make_node_entry_queue();  // nodes to BFS
   struct node_entry* visited_table = NULL;    // nodes already BFSed
@@ -492,7 +496,7 @@ struct node_entry* collect_nodes_connected_by_target_edges (
         : n_edge->node1_keystr;
 
       // edge is is_active and matches is_outbound from dequeued node
-      if ((n_edge->active == is_active) && (strncmp(dq_endpoint, snode->keystr, strlen(snode->keystr)) == 0)) {
+      if ((n_edge->edge_label == is_active) && (strncmp(dq_endpoint, snode->keystr, strlen(snode->keystr)) == 0)) {
         // see if matching-edge-neighbor was already visited
         struct node_entry* neighbor = NULL;
         HASH_FIND(hh_visited, visited_table, other_endpoint, strlen(other_endpoint), neighbor);
@@ -538,11 +542,11 @@ void connect (struct versioned_prov_graph* graph, struct node_entry* node1, stru
       struct edge_entry* cn_edge = een->entry;  // an edge of coll_node
 
       // only iterate through active edges
-      if (! cn_edge->active)
+      if (cn_edge->edge_label == INACTIVE)
         continue;
 
       // deactivate the active edge
-      cn_edge->active = false;
+      cn_edge->edge_label = INACTIVE;
 
       // collected node is 1st endpoint of edge
       if (strncmp(coll_node->keystr, cn_edge->node1_keystr, strlen(coll_node->keystr)) == 0) {
@@ -619,7 +623,7 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
     struct edge_entry* edge_1to2 = een->entry;  // an edge of node1
 
     // find the first active edge
-    if (edge_1to2->active)
+    if (edge_1to2->edge_label == ACTIVE)
       target_edge = edge_1to2;
   }
 
@@ -636,7 +640,7 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
     coll_node->marked = MARKED;
 
   // deactivate the active edge between node1 and node2
-  target_edge->active = false;
+  target_edge->edge_label = INACTIVE;
 
   HASH_CLEAR(hh_collected, collected_table);
 

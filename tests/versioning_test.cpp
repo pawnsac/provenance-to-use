@@ -128,7 +128,7 @@ TEST_CASE("versioned_open") {
     edge1to2 = find_edge_entry(graph, pid1_node, file1_node);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == true);
+    CHECK(edge1to2->edge_label == ACTIVE);
   }
 
   SUBCASE("process opens file for read-write") {
@@ -158,12 +158,12 @@ TEST_CASE("versioned_open") {
     edge1to2 = find_edge_entry(graph, pid1_node, file1_node);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == true);
+    CHECK(edge1to2->edge_label == ACTIVE);
 
     edge2to1 = find_edge_entry(graph, file1_node, pid1_node);
 
     REQUIRE(edge2to1);
-    CHECK(edge2to1->active == true);
+    CHECK(edge2to1->edge_label == ACTIVE);
   }
 
   clear_versioning();
@@ -254,7 +254,7 @@ TEST_CASE("versioned_close") {
     edge1to2 = find_edge_entry(graph, pid1_node, file1_node);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
   }
 
   SUBCASE("versioned_close following versioned_open for read-write") {
@@ -287,12 +287,12 @@ TEST_CASE("versioned_close") {
     edge1to2 = find_edge_entry(graph, pid1_node, file1_node);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
 
     edge2to1 = find_edge_entry(graph, file1_node, pid1_node);
 
     REQUIRE(edge2to1);
-    CHECK(edge2to1->active == false);
+    CHECK(edge2to1->edge_label == INACTIVE);
   }
 
   clear_versioning();
@@ -351,7 +351,7 @@ TEST_CASE("versioned_spawn") {
     edge1to2 = find_edge_entry(graph, pid1_node, pid2_node);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
   }
 
   clear_versioning();

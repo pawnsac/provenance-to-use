@@ -454,7 +454,7 @@ TEST_CASE("add_edge_entry") {
     CHECK(strlen(entry->node1_keystr) == strlen(node_entry_keystr));
     CHECK(strncmp(entry->node2_keystr, node_entry_keystr2, strlen(node_entry_keystr2)) == 0);
     CHECK(strlen(entry->node2_keystr) == strlen(node_entry_keystr2));
-    CHECK(entry->active == ACTIVE);
+    CHECK(entry->edge_label == ACTIVE);
 
     entry_from_get = get_edge_entry(graph, edge_entry_keystr1);
 
@@ -476,7 +476,7 @@ TEST_CASE("add_edge_entry") {
     CHECK(strlen(entry->node1_keystr) == strlen(node_entry_keystr));
     CHECK(strncmp(entry->node2_keystr, node_entry_keystr2, strlen(node_entry_keystr2)) == 0);
     CHECK(strlen(entry->node2_keystr) == strlen(node_entry_keystr2));
-    CHECK(entry->active == ACTIVE);
+    CHECK(entry->edge_label == ACTIVE);
 
     entry = get_edge_entry(graph, edge_entry_keystr2);
 
@@ -487,7 +487,7 @@ TEST_CASE("add_edge_entry") {
     CHECK(strlen(entry->node1_keystr) == strlen(node_entry_keystr3));
     CHECK(strncmp(entry->node2_keystr, node_entry_keystr4, strlen(node_entry_keystr4)) == 0);
     CHECK(strlen(entry->node2_keystr) == strlen(node_entry_keystr4));
-    CHECK(entry->active == ACTIVE);
+    CHECK(entry->edge_label == ACTIVE);
 
     entry = get_edge_entry(graph, edge_entry_keystr3);
 
@@ -498,7 +498,7 @@ TEST_CASE("add_edge_entry") {
     CHECK(strlen(entry->node1_keystr) == strlen(node_entry_keystr5));
     CHECK(strncmp(entry->node2_keystr, node_entry_keystr6, strlen(node_entry_keystr6)) == 0);
     CHECK(strlen(entry->node2_keystr) == strlen(node_entry_keystr6));
-    CHECK(entry->active == INACTIVE);
+    CHECK(entry->edge_label == INACTIVE);
 
   }
 
@@ -766,7 +766,7 @@ TEST_CASE("link_nodes_with_edge") {
     CHECK(strlen(edge1to2->node1_keystr) == strlen(node_keystr1));
     CHECK(strncmp(edge1to2->node2_keystr, node_keystr2, strlen(node_keystr2)) == 0);
     CHECK(strlen(edge1to2->node2_keystr) == strlen(node_keystr2));
-    CHECK(edge1to2->active == INACTIVE);
+    CHECK(edge1to2->edge_label == INACTIVE);
 
     CHECK(slink_find_by_edge_keystr(node1->edges, edge1to2->keystr) == edge1to2);
     CHECK(slink_find_by_edge_keystr(node2->edges, edge1to2->keystr) == edge1to2);
@@ -788,42 +788,42 @@ TEST_CASE("link_nodes_with_edge") {
     CHECK(strlen(edge1to2->node1_keystr) == strlen(node_keystr1));
     CHECK(strncmp(edge1to2->node2_keystr, node_keystr2, strlen(node_keystr2)) == 0);
     CHECK(strlen(edge1to2->node2_keystr) == strlen(node_keystr2));
-    CHECK(edge1to2->active == ACTIVE);
+    CHECK(edge1to2->edge_label == ACTIVE);
 
     REQUIRE(edge1to3);
     CHECK(strncmp(edge1to3->node1_keystr, node_keystr1, strlen(node_keystr1)) == 0);
     CHECK(strlen(edge1to3->node1_keystr) == strlen(node_keystr1));
     CHECK(strncmp(edge1to3->node2_keystr, node_keystr3, strlen(node_keystr3)) == 0);
     CHECK(strlen(edge1to3->node2_keystr) == strlen(node_keystr3));
-    CHECK(edge1to3->active == INACTIVE);
+    CHECK(edge1to3->edge_label == INACTIVE);
 
     REQUIRE(edge2to1);
     CHECK(strncmp(edge2to1->node1_keystr, node_keystr2, strlen(node_keystr2)) == 0);
     CHECK(strlen(edge2to1->node1_keystr) == strlen(node_keystr2));
     CHECK(strncmp(edge2to1->node2_keystr, node_keystr1, strlen(node_keystr1)) == 0);
     CHECK(strlen(edge2to1->node2_keystr) == strlen(node_keystr1));
-    CHECK(edge2to1->active == ACTIVE);
+    CHECK(edge2to1->edge_label == ACTIVE);
 
     REQUIRE(edge2to3);
     CHECK(strncmp(edge2to3->node1_keystr, node_keystr2, strlen(node_keystr2)) == 0);
     CHECK(strlen(edge2to3->node1_keystr) == strlen(node_keystr2));
     CHECK(strncmp(edge2to3->node2_keystr, node_keystr3, strlen(node_keystr3)) == 0);
     CHECK(strlen(edge2to3->node2_keystr) == strlen(node_keystr3));
-    CHECK(edge2to3->active == INACTIVE);
+    CHECK(edge2to3->edge_label == INACTIVE);
 
     REQUIRE(edge3to1);
     CHECK(strncmp(edge3to1->node1_keystr, node_keystr3, strlen(node_keystr3)) == 0);
     CHECK(strlen(edge3to1->node1_keystr) == strlen(node_keystr3));
     CHECK(strncmp(edge3to1->node2_keystr, node_keystr1, strlen(node_keystr1)) == 0);
     CHECK(strlen(edge3to1->node2_keystr) == strlen(node_keystr1));
-    CHECK(edge3to1->active == ACTIVE);
+    CHECK(edge3to1->edge_label == ACTIVE);
 
     REQUIRE(edge3to2);
     CHECK(strncmp(edge3to2->node1_keystr, node_keystr3, strlen(node_keystr3)) == 0);
     CHECK(strlen(edge3to2->node1_keystr) == strlen(node_keystr3));
     CHECK(strncmp(edge3to2->node2_keystr, node_keystr2, strlen(node_keystr2)) == 0);
     CHECK(strlen(edge3to2->node2_keystr) == strlen(node_keystr2));
-    CHECK(edge3to2->active == INACTIVE);
+    CHECK(edge3to2->edge_label == INACTIVE);
 
     CHECK(slink_find_by_edge_keystr(node1->edges, edge1to2->keystr) == edge1to2);
     CHECK(slink_find_by_edge_keystr(node1->edges, edge2to1->keystr) == edge2to1);
@@ -1073,7 +1073,7 @@ TEST_CASE("connect") {
     edge1to2 = find_edge_entry(graph, node1, node2);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == true);
+    CHECK(edge1to2->edge_label == ACTIVE);
   }
 
   SUBCASE("one unmarked node connects to one marked node") {
@@ -1105,12 +1105,12 @@ TEST_CASE("connect") {
     edge1to2dup = find_edge_entry(graph, node1, node2dup);
 
     REQUIRE(edge1to2dup);
-    CHECK(edge1to2dup->active == true);
+    CHECK(edge1to2dup->edge_label == ACTIVE);
 
     edge2to2dup = find_edge_entry(graph, node2, node2dup);
 
     REQUIRE(edge2to2dup);
-    CHECK(edge2to2dup->active == false);
+    CHECK(edge2to2dup->edge_label == INACTIVE);
   }
 
   SUBCASE("marked A connects to marked B (B already has act edge to A)") {
@@ -1149,27 +1149,27 @@ TEST_CASE("connect") {
     edge2to1 = find_edge_entry(graph, node2, node1);
 
     REQUIRE(edge2to1);
-    CHECK(edge2to1->active == false);
+    CHECK(edge2to1->edge_label == INACTIVE);
 
     edge1to1dup = find_edge_entry(graph, node1, node1dup);
 
     REQUIRE(edge1to1dup);
-    CHECK(edge1to1dup->active == false);
+    CHECK(edge1to1dup->edge_label == INACTIVE);
 
     edge2to2dup = find_edge_entry(graph, node2, node2dup);
 
     REQUIRE(edge2to2dup);
-    CHECK(edge2to2dup->active == false);
+    CHECK(edge2to2dup->edge_label == INACTIVE);
 
     edge1dupto2dup = find_edge_entry(graph, node1dup, node2dup);
 
     REQUIRE(edge1dupto2dup);
-    CHECK(edge1dupto2dup->active == true);
+    CHECK(edge1dupto2dup->edge_label == ACTIVE);
 
     edge2dupto1dup = find_edge_entry(graph, node2dup, node1dup);
 
     REQUIRE(edge2dupto1dup);
-    CHECK(edge2dupto1dup->active == true);
+    CHECK(edge2dupto1dup->edge_label == ACTIVE);
   }
 
   SUBCASE("A connects to marked B (already have A==>B==>C, both active)") {
@@ -1209,27 +1209,27 @@ TEST_CASE("connect") {
     edge1to2 = find_edge_entry(graph, node1, node2);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
 
     edge1to2dup = find_edge_entry(graph, node1, node2dup);
 
     REQUIRE(edge1to2dup);
-    CHECK(edge1to2dup->active == true);
+    CHECK(edge1to2dup->edge_label == ACTIVE);
 
     edge2to2dup = find_edge_entry(graph, node2, node2dup);
 
     REQUIRE(edge2to2dup);
-    CHECK(edge2to2dup->active == false);
+    CHECK(edge2to2dup->edge_label == INACTIVE);
 
     edge2to3 = find_edge_entry(graph, node2, node3);
 
     REQUIRE(edge2to3);
-    CHECK(edge2to3->active == false);
+    CHECK(edge2to3->edge_label == INACTIVE);
 
     edge2dupto3 = find_edge_entry(graph, node2dup, node3);
 
     REQUIRE(edge2dupto3);
-    CHECK(edge2dupto3->active == true);
+    CHECK(edge2dupto3->edge_label == ACTIVE);
   }
 
   SUBCASE("A connects to B (have fully connected/marked/active A, B, C)") {
@@ -1285,77 +1285,77 @@ TEST_CASE("connect") {
     edge1to2 = find_edge_entry(graph, node1, node2);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
 
     edge1to3 = find_edge_entry(graph, node1, node3);
 
     REQUIRE(edge1to3);
-    CHECK(edge1to3->active == false);
+    CHECK(edge1to3->edge_label == INACTIVE);
 
     edge1to1dup = find_edge_entry(graph, node1, node1dup);
 
     REQUIRE(edge1to1dup);
-    CHECK(edge1to1dup->active == false);
+    CHECK(edge1to1dup->edge_label == INACTIVE);
 
     edge1dupto2dup = find_edge_entry(graph, node1dup, node2dup);
 
     REQUIRE(edge1dupto2dup);
-    CHECK(edge1dupto2dup->active == true);
+    CHECK(edge1dupto2dup->edge_label == ACTIVE);
 
     edge1dupto3dup = find_edge_entry(graph, node1dup, node3dup);
 
     REQUIRE(edge1dupto3dup);
-    CHECK(edge1dupto3dup->active == true);
+    CHECK(edge1dupto3dup->edge_label == ACTIVE);
 
     edge2to1 = find_edge_entry(graph, node2, node1);
 
     REQUIRE(edge2to1);
-    CHECK(edge2to1->active == false);
+    CHECK(edge2to1->edge_label == INACTIVE);
 
     edge2to3 = find_edge_entry(graph, node2, node3);
 
     REQUIRE(edge2to3);
-    CHECK(edge2to3->active == false);
+    CHECK(edge2to3->edge_label == INACTIVE);
 
     edge2to2dup = find_edge_entry(graph, node2, node2dup);
 
     REQUIRE(edge2to2dup);
-    CHECK(edge2to2dup->active == false);
+    CHECK(edge2to2dup->edge_label == INACTIVE);
 
     edge2dupto1dup = find_edge_entry(graph, node2dup, node1dup);
 
     REQUIRE(edge2dupto1dup);
-    CHECK(edge2dupto1dup->active == true);
+    CHECK(edge2dupto1dup->edge_label == ACTIVE);
 
     edge2dupto3dup = find_edge_entry(graph, node2dup, node3dup);
 
     REQUIRE(edge2dupto3dup);
-    CHECK(edge2dupto3dup->active == true);
+    CHECK(edge2dupto3dup->edge_label == ACTIVE);
 
     edge3to1 = find_edge_entry(graph, node3, node1);
 
     REQUIRE(edge3to1);
-    CHECK(edge3to1->active == false);
+    CHECK(edge3to1->edge_label == INACTIVE);
 
     edge3to2 = find_edge_entry(graph, node3, node2);
 
     REQUIRE(edge3to2);
-    CHECK(edge3to2->active == false);
+    CHECK(edge3to2->edge_label == INACTIVE);
 
     edge3to3dup = find_edge_entry(graph, node3, node3dup);
 
     REQUIRE(edge3to3dup);
-    CHECK(edge3to3dup->active == false);
+    CHECK(edge3to3dup->edge_label == INACTIVE);
 
     edge3dupto1dup = find_edge_entry(graph, node3dup, node1dup);
 
     REQUIRE(edge3dupto1dup);
-    CHECK(edge3dupto1dup->active == true);
+    CHECK(edge3dupto1dup->edge_label == ACTIVE);
 
     edge3dupto2dup = find_edge_entry(graph, node3dup, node2dup);
 
     REQUIRE(edge3dupto2dup);
-    CHECK(edge3dupto2dup->active == true);
+    CHECK(edge3dupto2dup->edge_label == ACTIVE);
   }
 
   HASH_CLEAR(hh_collected, collected_nodes_table);
@@ -1426,7 +1426,7 @@ TEST_CASE("disconnect") {
     edge1to2 = find_edge_entry(graph, node1, node2);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
   }
 
   SUBCASE("A disconnects from B (existing active edge between A and B)") {
@@ -1456,7 +1456,7 @@ TEST_CASE("disconnect") {
     edge1to2 = find_edge_entry(graph, node1, node2);
 
     REQUIRE(edge1to2);
-    CHECK(edge1to2->active == false);
+    CHECK(edge1to2->edge_label == INACTIVE);
   }
 
   HASH_CLEAR(hh_collected, collected_nodes_table);
