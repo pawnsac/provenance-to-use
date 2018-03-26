@@ -1467,6 +1467,9 @@ TEST_CASE("disconnect") {
 TEST_CASE("set_modflag_for_node_and_descendents") {
 
   struct versioned_prov_graph* graph = create_new_graph();
+  VersionGraphAction act;
+
+  char node_keystr_empty[] = "no_path_str1";
 
   char node_keystr1[] = "some_file_path_str1";
   char node_label1[] = "some_file_path_str";
@@ -1490,25 +1493,37 @@ TEST_CASE("set_modflag_for_node_and_descendents") {
   link_nodes_with_edge(graph, node1, node2, ACTIVE);
   link_nodes_with_edge(graph, node2, node3, INACTIVE);
 
-  SUBCASE("mod-flag top node in chain") {
-    set_modflag_for_node_entry_and_descendents(graph, node_keystr1, MODIFIED);
+  SUBCASE("attempt mod-flag for non-existent node") {
+    act = set_modflag_for_node_entry_and_descendents(graph, node_keystr_empty, MODIFIED);
 
+    CHECK(act == ERR_NODE_NOT_EXIST);
+    CHECK(node1->modflag == UNMODIFIED);
+    CHECK(node2->modflag == UNMODIFIED);
+    CHECK(node3->modflag == UNMODIFIED);
+  }
+
+  SUBCASE("mod-flag top node in chain") {
+    act = set_modflag_for_node_entry_and_descendents(graph, node_keystr1, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
     CHECK(node1->modflag == MODIFIED);
     CHECK(node2->modflag == MODIFIED);
     CHECK(node3->modflag == MODIFIED);
   }
 
   SUBCASE("mod-flag last descendent in chain") {
-    set_modflag_for_node_entry_and_descendents(graph, node_keystr3, MODIFIED);
+    act = set_modflag_for_node_entry_and_descendents(graph, node_keystr3, MODIFIED);
 
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
     CHECK(node1->modflag == UNMODIFIED);
     CHECK(node2->modflag == UNMODIFIED);
     CHECK(node3->modflag == MODIFIED);
   }
 
   SUBCASE("mod-flag middle descendent in chain") {
-    set_modflag_for_node_entry_and_descendents(graph, node_keystr2, MODIFIED);
+    act = set_modflag_for_node_entry_and_descendents(graph, node_keystr2, MODIFIED);
 
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
     CHECK(node1->modflag == UNMODIFIED);
     CHECK(node2->modflag == MODIFIED);
     CHECK(node3->modflag == MODIFIED);
