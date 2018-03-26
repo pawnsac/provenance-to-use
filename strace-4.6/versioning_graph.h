@@ -49,8 +49,12 @@ typedef enum {
   PROCESS_NODE
 } NodeType;
 
-#define MARKED true
-#define UNMARKED false
+// mark field of the struct node_entry
+typedef enum {
+  MARKED,
+  UNMARKED,
+  MARKED_OR_UNMARKED
+} MarkType;
 
 // a version-numbered file/process node in the provenance graph
 struct node_entry {
@@ -208,7 +212,7 @@ struct node_entry* duplicate_node_entry (struct versioned_prov_graph* graph, str
 struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2, bool is_active);
 
 // return table of is_marked nodes connected to start_node by is_active is_outbound edges
-struct node_entry* collect_nodes_connected_by_target_edges (struct versioned_prov_graph* graph, struct node_entry* entry, bool is_marked, bool is_active, bool is_outbound);
+struct node_entry* collect_nodes_connected_by_target_edges (struct versioned_prov_graph* graph, struct node_entry* entry, MarkType is_marked, bool is_active, bool is_outbound);
 
 // connect one node to another node, versioning and creating nodes as required
 void connect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);

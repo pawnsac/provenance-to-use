@@ -258,7 +258,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr, strlen(node_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -282,7 +282,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr, strlen(node_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -295,7 +295,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr2, strlen(node_entry_keystr2)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr2));
     CHECK(entry->version_num == 2);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -308,7 +308,7 @@ TEST_CASE("add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr3, strlen(node_entry_keystr3)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr3));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == PROCESS_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -342,7 +342,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr, strlen(node_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -377,7 +377,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr, strlen(node_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -390,7 +390,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr2, strlen(node_entry_keystr2)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr2));
     CHECK(entry->version_num == 2);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -403,7 +403,7 @@ TEST_CASE("get_or_add_node_entry") {
     CHECK(strncmp(entry->keystr, node_entry_keystr3, strlen(node_entry_keystr3)) == 0);
     CHECK(strlen(entry->keystr) == strlen(node_entry_keystr3));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == PROCESS_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -637,7 +637,7 @@ TEST_CASE("retrieve_latest_versioned_node") {
     CHECK(strncmp(entry->label, node_entry_label, strlen(node_entry_label)) == 0);
     CHECK(strlen(entry->label) == strlen(node_entry_label));
     CHECK(entry->version_num == 1);
-    CHECK(entry->marked == false);
+    CHECK(entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry->ntype == FILE_NODE);
     CHECK(slink_count(entry->edges) == 0);
@@ -658,7 +658,7 @@ TEST_CASE("retrieve_latest_versioned_node") {
     CHECK(strncmp(entry_same->label, node_entry_label, strlen(node_entry_label)) == 0);
     CHECK(strlen(entry_same->label) == strlen(node_entry_label));
     CHECK(entry_same->version_num == 1);
-    CHECK(entry_same->marked == false);
+    CHECK(entry_same->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(entry_same->ntype == FILE_NODE);
     CHECK(slink_count(entry_same->edges) == 0);
@@ -695,7 +695,7 @@ TEST_CASE("duplicate_node_entry") {
     CHECK(strncmp(dup_entry->keystr, dup_entry_keystr, strlen(dup_entry_keystr)) == 0);
     CHECK(strlen(dup_entry->keystr) == strlen(dup_entry_keystr));
     CHECK(dup_entry->version_num == 2);
-    CHECK(dup_entry->marked == false);
+    CHECK(dup_entry->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(dup_entry->ntype == FILE_NODE);
     CHECK(slink_count(dup_entry->edges) == 0);
@@ -718,7 +718,7 @@ TEST_CASE("duplicate_node_entry") {
     CHECK(strncmp(dup_entry3->keystr, dup_entry_keystr3, strlen(dup_entry_keystr3)) == 0);
     CHECK(strlen(dup_entry3->keystr) == strlen(dup_entry_keystr3));
     CHECK(dup_entry3->version_num == 4);
-    CHECK(dup_entry3->marked == false);
+    CHECK(dup_entry3->marked == UNMARKED);
     CHECK(entry->modflag == false);
     CHECK(dup_entry3->ntype == FILE_NODE);
     CHECK(slink_count(dup_entry3->edges) == 0);
@@ -879,7 +879,7 @@ TEST_CASE("collect_nodes_connected_by_target_edges") {
 
   SUBCASE("single unconnected node") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
-    node1->marked = true;
+    node1->marked = MARKED;
 
     collected_nodes_table = collect_nodes_connected_by_target_edges(graph, node1, MARKED, ACTIVE, OUTBOUND);
 
@@ -899,9 +899,9 @@ TEST_CASE("collect_nodes_connected_by_target_edges") {
   SUBCASE("node connected to marked/unmarked inbound/outbound nodes") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
     node3 = retrieve_latest_versioned_node(graph, node_label3, FILE_NODE);
-    node3->marked = true;
+    node3->marked = MARKED;
     node4 = retrieve_latest_versioned_node(graph, node_label4, FILE_NODE);
     node5 = retrieve_latest_versioned_node(graph, node_label5, FILE_NODE);
     link_nodes_with_edge(graph, node1, node2, INACTIVE);
@@ -921,11 +921,11 @@ TEST_CASE("collect_nodes_connected_by_target_edges") {
 
   SUBCASE("\"connected\" graph with three nodes") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
-    node1->marked = true;
+    node1->marked = MARKED;
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
     node3 = retrieve_latest_versioned_node(graph, node_label3, FILE_NODE);
-    node3->marked = true;
+    node3->marked = MARKED;
     link_nodes_with_edge(graph, node1, node2, ACTIVE);
     link_nodes_with_edge(graph, node2, node3, ACTIVE);
     link_nodes_with_edge(graph, node3, node1, ACTIVE);
@@ -955,23 +955,23 @@ TEST_CASE("collect_nodes_connected_by_target_edges") {
 
   SUBCASE("node with many indirect connections") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
-    node1->marked = true;
+    node1->marked = MARKED;
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
     node3 = retrieve_latest_versioned_node(graph, node_label3, FILE_NODE);
-    node3->marked = true;
+    node3->marked = MARKED;
     node4 = retrieve_latest_versioned_node(graph, node_label4, FILE_NODE);
-    node4->marked = true;
+    node4->marked = MARKED;
     node5 = retrieve_latest_versioned_node(graph, node_label5, FILE_NODE);
-    node5->marked = true;
+    node5->marked = MARKED;
     node6 = retrieve_latest_versioned_node(graph, node_label6, FILE_NODE);
-    node6->marked = true;
+    node6->marked = MARKED;
     node7 = retrieve_latest_versioned_node(graph, node_label7, FILE_NODE);
-    node7->marked = true;
+    node7->marked = MARKED;
     node8 = retrieve_latest_versioned_node(graph, node_label8, FILE_NODE);
-    node8->marked = true;
+    node8->marked = MARKED;
     node9 = retrieve_latest_versioned_node(graph, node_label9, FILE_NODE);
-    node9->marked = true;
+    node9->marked = MARKED;
     link_nodes_with_edge(graph, node1, node2, INACTIVE);
     link_nodes_with_edge(graph, node1, node3, ACTIVE);
     link_nodes_with_edge(graph, node6, node2, ACTIVE);
@@ -1079,7 +1079,7 @@ TEST_CASE("connect") {
   SUBCASE("one unmarked node connects to one marked node") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
 
     connect(graph, node1, node2);
 
@@ -1115,9 +1115,9 @@ TEST_CASE("connect") {
 
   SUBCASE("marked A connects to marked B (B already has act edge to A)") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
-    node1->marked = true;
+    node1->marked = MARKED;
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
     edge2to1 = link_nodes_with_edge(graph, node2, node1, ACTIVE);
 
     connect(graph, node1, node2);
@@ -1175,7 +1175,7 @@ TEST_CASE("connect") {
   SUBCASE("A connects to marked B (already have A==>B==>C, both active)") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
     node3 = retrieve_latest_versioned_node(graph, node_label3, FILE_NODE);
     edge1to2 = link_nodes_with_edge(graph, node1, node2, ACTIVE);
     edge2to3 = link_nodes_with_edge(graph, node2, node3, ACTIVE);
@@ -1234,11 +1234,11 @@ TEST_CASE("connect") {
 
   SUBCASE("A connects to B (have fully connected/marked/active A, B, C)") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
-    node1->marked = true;
+    node1->marked = MARKED;
     node2 = retrieve_latest_versioned_node(graph, node_label2, FILE_NODE);
-    node2->marked = true;
+    node2->marked = MARKED;
     node3 = retrieve_latest_versioned_node(graph, node_label3, FILE_NODE);
-    node3->marked = true;
+    node3->marked = MARKED;
     edge1to2 = link_nodes_with_edge(graph, node1, node2, ACTIVE);
     edge2to1 = link_nodes_with_edge(graph, node2, node1, ACTIVE);
     edge2to3 = link_nodes_with_edge(graph, node2, node3, ACTIVE);
@@ -1443,13 +1443,13 @@ TEST_CASE("disconnect") {
     HASH_FIND(hh, graph->node_table, node1->keystr, strlen(node1->keystr), found_node);
 
     REQUIRE(found_node == node1);
-    CHECK(node1->marked == true);
+    CHECK(node1->marked == MARKED);
 
     found_node = NULL;
     HASH_FIND(hh, graph->node_table, node2->keystr, strlen(node2->keystr), found_node);
 
     REQUIRE(found_node == node2);
-    CHECK(node2->marked == false);
+    CHECK(node2->marked == UNMARKED);
 
     CHECK(HASH_CNT(hh, graph->edge_table) == 1);
 

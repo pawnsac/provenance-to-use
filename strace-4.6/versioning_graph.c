@@ -31,7 +31,7 @@ static void init_version_num_entry (struct version_num_entry* entry, char* keyst
 
 // initialize node_entry struct fields
 static void init_node_entry (struct node_entry* entry, char* label, int version_num,
-    bool is_marked, NodeType ntype) {
+    MarkType is_marked, NodeType ntype) {
   malloc_str_from_str_plus_int(&(entry->keystr), label, version_num);
   entry->label = strdup(label);
   entry->version_num = version_num;
@@ -463,7 +463,7 @@ struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph,
 // return table of is_marked nodes connected to start_node by is_active is_outbound edges
 struct node_entry* collect_nodes_connected_by_target_edges (
     struct versioned_prov_graph* graph, struct node_entry* start_node,
-    bool is_marked, bool is_active, bool is_outbound) {
+    MarkType is_marked, bool is_active, bool is_outbound) {
 
   struct node_entry_queue* search_queue = make_node_entry_queue();  // nodes to BFS
   struct node_entry* visited_table = NULL;    // nodes already BFSed
@@ -633,7 +633,7 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
   // mark all the collected nodes
   struct node_entry *coll_node, *tmp = NULL;
   HASH_ITER(hh_collected, collected_table, coll_node, tmp)
-    coll_node->marked = true;
+    coll_node->marked = MARKED;
 
   // deactivate the active edge between node1 and node2
   target_edge->active = false;
