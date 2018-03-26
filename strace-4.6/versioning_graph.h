@@ -155,6 +155,9 @@ struct version_num_entry* get_or_add_version_num_entry (struct versioned_prov_gr
 // get current/active version number of a file
 VersionGraphAction get_active_version_num (struct versioned_prov_graph* graph, char* version_num_entry_keystr, int* version_num);
 
+// get node entry for versioned file/pid to node table
+struct node_entry* get_node_entry_by_version (struct versioned_prov_graph* graph, char* node_label, int version_num);
+
 // get node entry for versioned file/pid from node table
 struct node_entry* get_node_entry (struct versioned_prov_graph* graph, char* node_entry_keystr);
 

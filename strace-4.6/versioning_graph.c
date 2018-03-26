@@ -176,6 +176,19 @@ VersionGraphAction get_active_version_num (struct versioned_prov_graph* graph,
 
 }
 
+// get node entry for versioned file/pid to node table
+struct node_entry* get_node_entry_by_version (struct versioned_prov_graph* graph, char* node_label, int version_num) {
+
+  char* node_entry_keystr = NULL;
+  malloc_str_from_str_plus_int(&node_entry_keystr, node_label, version_num);
+  struct node_entry* entry = NULL;
+  HASH_FIND(hh, graph->node_table, node_entry_keystr, strlen(node_entry_keystr), entry);
+
+  free(node_entry_keystr);
+  return entry;
+
+}
+
 // get node entry for versioned file/pid from node table
 struct node_entry* get_node_entry (struct versioned_prov_graph* graph,
     char* node_entry_keystr) {
@@ -201,14 +214,11 @@ struct node_entry* add_node_entry (struct versioned_prov_graph* graph, char* nod
 struct node_entry* get_or_add_node_entry (struct versioned_prov_graph* graph,
     char* node_label, int version_num, NodeType ntype) {
 
-  char* node_entry_keystr = NULL;
-  malloc_str_from_str_plus_int(&node_entry_keystr, node_label, version_num);
-  struct node_entry* entry = NULL;
-  HASH_FIND(hh, graph->node_table, node_entry_keystr, strlen(node_entry_keystr), entry);
+  struct node_entry* entry = get_node_entry_by_version(graph, node_label, version_num);
+
   if (entry == NULL)
     entry = add_node_entry(graph, node_label, version_num, ntype);
 
-  free(node_entry_keystr);
   return entry;
 
 }
@@ -649,7 +659,8 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
 }
 
 // flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
-VersionGraphAction set_modflag_for_node_entry_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag) {
+VersionGraphAction set_modflag_for_node_entry_and_descendents (struct versioned_prov_graph* graph,
+    char* node_entry_keystr, ModFlag modflag) {
 
   // retrieve target node
   struct node_entry* node = get_node_entry(graph, node_entry_keystr);
