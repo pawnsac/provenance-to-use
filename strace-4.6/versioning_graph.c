@@ -651,10 +651,12 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
 VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag) {
   struct node_entry* node = get_node_entry(graph, node_entry_keystr);
 
+  assert((modflag == MODIFIED) || (modflag == UNMODIFIED));
+
   if (node == NULL)
     return ERR_NODE_NOT_EXIST;
 
-  node->modflag = MODIFIED;
+  node->modflag = modflag;
 
   return SUCCESS_NODE_AND_CHILDREN_MARKED;
 }
