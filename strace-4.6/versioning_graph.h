@@ -70,15 +70,19 @@ struct node_entry {
   UT_hash_handle hh_collected;  // make hashable (allow storage in mult tables)
 };
 
-// active/inactive label field of the struct edge_entry
+// label field of the struct edge_entry
 typedef enum {
   ACTIVE,
   INACTIVE ,
   ACTIVE_OR_INACTIVE,
 } EdgeLabel;
 
-#define OUTBOUND true
-#define INBOUND false
+// direction of an edge
+typedef enum {
+  OUTBOUND,
+  INBOUND ,
+  OUTBOUND_OR_INBOUND,
+} EdgeDirection;
 
 // an edge in the provenance graph
 struct edge_entry {
@@ -216,8 +220,8 @@ struct node_entry* duplicate_node_entry (struct versioned_prov_graph* graph, str
 // add directed edge from node1 to node2 - add to graph and to node edge tables
 struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2, EdgeLabel is_active);
 
-// return table of is_marked nodes connected to start_node by is_active is_outbound edges
-struct node_entry* collect_nodes_connected_by_target_edges (struct versioned_prov_graph* graph, struct node_entry* entry, Mark is_marked, EdgeLabel is_active, bool is_outbound);
+// return table of is_marked nodes connected to start_node by is_active edge_direction edges
+struct node_entry* collect_nodes_connected_by_target_edges (struct versioned_prov_graph* graph, struct node_entry* entry, Mark is_marked, EdgeLabel is_active, EdgeDirection edge_direction);
 
 // connect one node to another node, versioning and creating nodes as required
 void connect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);

@@ -464,10 +464,10 @@ struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph,
   return (edge);
 }
 
-// return table of is_marked nodes connected to start_node by is_active is_outbound edges
+// return table of is_marked nodes connected to start_node by is_active edge_direction edges
 struct node_entry* collect_nodes_connected_by_target_edges (
     struct versioned_prov_graph* graph, struct node_entry* start_node,
-    Mark is_marked, EdgeLabel is_active, bool is_outbound) {
+    Mark is_marked, EdgeLabel is_active, EdgeDirection edge_direction) {
 
   struct node_entry_queue* search_queue = make_node_entry_queue();  // nodes to BFS
   struct node_entry* visited_table = NULL;    // nodes already BFSed
@@ -488,10 +488,10 @@ struct node_entry* collect_nodes_connected_by_target_edges (
       struct edge_entry* n_edge = een->entry;  // dequeued node edge
 
       // dequeued node is 1st or 2nd endpoint of edge, depending on is_outbound
-      char* dq_endpoint = is_outbound
+      char* dq_endpoint = (edge_direction == OUTBOUND)
         ? n_edge->node1_keystr
         : n_edge->node2_keystr;
-      char* other_endpoint = is_outbound
+      char* other_endpoint = (edge_direction == OUTBOUND)
         ? n_edge->node2_keystr
         : n_edge->node1_keystr;
 
