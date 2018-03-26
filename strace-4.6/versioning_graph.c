@@ -683,3 +683,18 @@ VersionGraphAction set_modflag_for_node_entry_and_descendents (struct versioned_
 
 }
 
+// flag all vers of a node and descendents (i.e. connected by outbound edges) as mod/unmod
+VersionGraphAction set_modflag_for_all_node_versions_and_descendents (struct versioned_prov_graph* graph,
+    char* node_label, ModFlag modflag) {
+
+  struct node_entry* entry = get_node_entry_by_version(graph, node_label, FIRST_VERSION_NUM);
+
+  if (entry == NULL)
+    return ERR_NODE_NOT_EXIST;
+
+  VersionGraphAction act = set_modflag_for_node_entry_and_descendents(graph, entry->keystr, modflag);
+
+  return act;
+
+}
+

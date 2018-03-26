@@ -1464,7 +1464,7 @@ TEST_CASE("disconnect") {
 
 }
 
-TEST_CASE("set_modflag_for_node_and_descendents") {
+TEST_CASE("set_modflag_for_node_entry_and_descendents") {
 
   struct versioned_prov_graph* graph = create_new_graph();
   VersionGraphAction act;
@@ -1527,6 +1527,162 @@ TEST_CASE("set_modflag_for_node_and_descendents") {
     CHECK(node1->modflag == UNMODIFIED);
     CHECK(node2->modflag == MODIFIED);
     CHECK(node3->modflag == MODIFIED);
+  }
+
+  clear_graph(&graph);
+
+}
+
+TEST_CASE("set_modflag_for_all_node_versions_and_descendents") {
+
+  struct versioned_prov_graph* graph = create_new_graph();
+  VersionGraphAction act;
+
+  char node_label_empty[] = "no_path_str";
+
+  char node_label_A[] = "A";
+  struct node_entry* node_A = retrieve_latest_versioned_node(graph, node_label_A, FILE_NODE);
+
+  char node_label_B1[] = "B1";
+  struct node_entry* node_B1 = retrieve_latest_versioned_node(graph, node_label_B1, FILE_NODE);
+
+  struct node_entry* node_B2 = duplicate_node_entry(graph, node_B1);
+  char* node_label_B2 = node_B2->label;
+
+  char node_label_C[] = "C";
+  struct node_entry* node_C = retrieve_latest_versioned_node(graph, node_label_C, FILE_NODE);
+
+  char node_label_E[] = "E";
+  struct node_entry* node_E = retrieve_latest_versioned_node(graph, node_label_E, FILE_NODE);
+
+  char node_label_D[] = "D";
+  struct node_entry* node_D = retrieve_latest_versioned_node(graph, node_label_D, FILE_NODE);
+
+  char node_label_F[] = "F";
+  struct node_entry* node_F = retrieve_latest_versioned_node(graph, node_label_F, FILE_NODE);
+
+  char node_label_P[] = "P";
+  struct node_entry* node_P = retrieve_latest_versioned_node(graph, node_label_P, PROCESS_NODE);
+
+  char node_label_Q[] = "Q";
+  struct node_entry* node_Q = retrieve_latest_versioned_node(graph, node_label_Q, PROCESS_NODE);
+
+  char node_label_R[] = "R";
+  struct node_entry* node_R = retrieve_latest_versioned_node(graph, node_label_R, PROCESS_NODE);
+
+  link_nodes_with_edge(graph, node_A, node_P, INACTIVE);
+  link_nodes_with_edge(graph, node_B1, node_Q, INACTIVE);
+  link_nodes_with_edge(graph, node_B1, node_B2, INACTIVE);
+  link_nodes_with_edge(graph, node_B2, node_R, INACTIVE);
+  link_nodes_with_edge(graph, node_C, node_Q, INACTIVE);
+  link_nodes_with_edge(graph, node_E, node_R, INACTIVE);
+  link_nodes_with_edge(graph, node_P, node_B1, INACTIVE);
+  link_nodes_with_edge(graph, node_P, node_B2, INACTIVE);
+  link_nodes_with_edge(graph, node_P, node_R, INACTIVE);
+  link_nodes_with_edge(graph, node_P, node_Q, INACTIVE);
+  link_nodes_with_edge(graph, node_Q, node_D, INACTIVE);
+  link_nodes_with_edge(graph, node_R, node_F, INACTIVE);
+
+  SUBCASE("attempt mod-flag for non-existent node") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_empty, MODIFIED);
+
+    CHECK(act == ERR_NODE_NOT_EXIST);
+  }
+
+  SUBCASE("mod-flag top node in tree") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_A, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
+    CHECK(node_A->modflag == MODIFIED);
+    CHECK(node_B1->modflag == MODIFIED);
+    CHECK(node_B2->modflag == MODIFIED);
+    CHECK(node_C->modflag == UNMODIFIED);
+    CHECK(node_D->modflag == MODIFIED);
+    CHECK(node_E->modflag == UNMODIFIED);
+    CHECK(node_F->modflag == MODIFIED);
+    CHECK(node_P->modflag == MODIFIED);
+    CHECK(node_Q->modflag == MODIFIED);
+    CHECK(node_R->modflag == MODIFIED);
+  }
+
+  SUBCASE("mod-flag alternate top node in tree") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_C, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
+    CHECK(node_A->modflag == UNMODIFIED);
+    CHECK(node_B1->modflag == UNMODIFIED);
+    CHECK(node_B2->modflag == UNMODIFIED);
+    CHECK(node_C->modflag == MODIFIED);
+    CHECK(node_D->modflag == MODIFIED);
+    CHECK(node_E->modflag == UNMODIFIED);
+    CHECK(node_F->modflag == UNMODIFIED);
+    CHECK(node_P->modflag == UNMODIFIED);
+    CHECK(node_Q->modflag == MODIFIED);
+    CHECK(node_R->modflag == UNMODIFIED);
+  }
+
+  SUBCASE("mod-flag second-from-top node in tree") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_P, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
+    CHECK(node_A->modflag == UNMODIFIED);
+    CHECK(node_B1->modflag == MODIFIED);
+    CHECK(node_B2->modflag == MODIFIED);
+    CHECK(node_C->modflag == UNMODIFIED);
+    CHECK(node_D->modflag == MODIFIED);
+    CHECK(node_E->modflag == UNMODIFIED);
+    CHECK(node_F->modflag == MODIFIED);
+    CHECK(node_P->modflag == MODIFIED);
+    CHECK(node_Q->modflag == MODIFIED);
+    CHECK(node_R->modflag == MODIFIED);
+  }
+
+  SUBCASE("mod-flag first-of-a-versioned-node node in tree") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_B1, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
+    CHECK(node_A->modflag == UNMODIFIED);
+    CHECK(node_B1->modflag == MODIFIED);
+    CHECK(node_B2->modflag == MODIFIED);
+    CHECK(node_C->modflag == UNMODIFIED);
+    CHECK(node_D->modflag == MODIFIED);
+    CHECK(node_E->modflag == UNMODIFIED);
+    CHECK(node_F->modflag == MODIFIED);
+    CHECK(node_P->modflag == UNMODIFIED);
+    CHECK(node_Q->modflag == MODIFIED);
+    CHECK(node_R->modflag == MODIFIED);
+  }
+
+  SUBCASE("mod-flag last-of-a-versioned-node node in tree") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_B2, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
+    CHECK(node_A->modflag == UNMODIFIED);
+    CHECK(node_B1->modflag == MODIFIED);
+    CHECK(node_B2->modflag == MODIFIED);
+    CHECK(node_C->modflag == UNMODIFIED);
+    CHECK(node_D->modflag == MODIFIED);
+    CHECK(node_E->modflag == UNMODIFIED);
+    CHECK(node_F->modflag == MODIFIED);
+    CHECK(node_P->modflag == UNMODIFIED);
+    CHECK(node_Q->modflag == MODIFIED);
+    CHECK(node_R->modflag == MODIFIED);
+  }
+
+  SUBCASE("mod-flag leaf node in tree") {
+    act = set_modflag_for_all_node_versions_and_descendents(graph, node_label_F, MODIFIED);
+
+    CHECK(act == SUCCESS_NODE_AND_CHILDREN_MARKED);
+    CHECK(node_A->modflag == UNMODIFIED);
+    CHECK(node_B1->modflag == UNMODIFIED);
+    CHECK(node_B2->modflag == UNMODIFIED);
+    CHECK(node_C->modflag == UNMODIFIED);
+    CHECK(node_D->modflag == UNMODIFIED);
+    CHECK(node_E->modflag == UNMODIFIED);
+    CHECK(node_F->modflag == MODIFIED);
+    CHECK(node_P->modflag == UNMODIFIED);
+    CHECK(node_Q->modflag == UNMODIFIED);
+    CHECK(node_R->modflag == UNMODIFIED);
   }
 
   clear_graph(&graph);
