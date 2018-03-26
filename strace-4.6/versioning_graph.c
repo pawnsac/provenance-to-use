@@ -9,7 +9,6 @@ purpose:  graph operations for a specially-versioned provenance graph
  * SYSTEM INCLUDES
  ******************************************************************************/
 
-#include <stdbool.h>            // ISOC: bool, false, true
 #include <assert.h>             // ISOC: assert()
 
 /*******************************************************************************
