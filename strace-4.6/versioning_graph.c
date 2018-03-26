@@ -649,16 +649,26 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
 }
 
 // flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
-VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag) {
+VersionGraphAction set_modflag_for_node_entry_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag) {
+
+  // retrieve target node
   struct node_entry* node = get_node_entry(graph, node_entry_keystr);
-
-  assert((modflag == MODIFIED) || (modflag == UNMODIFIED));
-
   if (node == NULL)
     return ERR_NODE_NOT_EXIST;
 
-  node->modflag = modflag;
+  // collect outbound nodes connected to node (INCLUDING node)
+  struct node_entry* collected_table = collect_nodes_connected_by_target_edges(graph, node,
+    MARKED_OR_UNMARKED, ACTIVE_OR_INACTIVE, OUTBOUND);
+
+  // mark all the collected nodes
+  struct node_entry *coll_node, *tmp = NULL;
+  assert((modflag == MODIFIED) || (modflag == UNMODIFIED));
+  HASH_ITER(hh_collected, collected_table, coll_node, tmp)
+    coll_node->modflag = modflag;
+
+  HASH_CLEAR(hh_collected, collected_table);
 
   return SUCCESS_NODE_AND_CHILDREN_MARKED;
+
 }
 

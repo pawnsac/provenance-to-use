@@ -231,7 +231,7 @@ void connect (struct versioned_prov_graph* graph, struct node_entry* node1, stru
 VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2);
 
 // flag a node and descendents (i.e. connected by outbound edges) as mod/unmod
-VersionGraphAction set_modflag_for_node_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag);
+VersionGraphAction set_modflag_for_node_entry_and_descendents (struct versioned_prov_graph* graph, char* node_entry_keystr, ModFlag modflag);
 
 // allow this header to be included from c++ source file
 #ifdef __cplusplus

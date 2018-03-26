@@ -1479,6 +1479,7 @@ TEST_CASE("set_modflag_for_node_and_descendents") {
   int node_version2 = 2;
   struct node_entry* node2 = add_node_entry(graph, node_label2, node_version2, FILE_NODE);
   REQUIRE(node2);
+  node2->mark = MARKED;
 
   char node_keystr3[] = "some_file_path_str3";
   char node_label3[] = "some_file_path_str";
@@ -1486,14 +1487,30 @@ TEST_CASE("set_modflag_for_node_and_descendents") {
   struct node_entry* node3 = add_node_entry(graph, node_label3, node_version3, FILE_NODE);
   REQUIRE(node3);
 
-  struct edge_entry* edge1to2 = link_nodes_with_edge(graph, node1, node2, ACTIVE);
-  struct edge_entry* edge2to3 = link_nodes_with_edge(graph, node2, node3, ACTIVE);
+  link_nodes_with_edge(graph, node1, node2, ACTIVE);
+  link_nodes_with_edge(graph, node2, node3, INACTIVE);
+
+  SUBCASE("mod-flag top node in chain") {
+    set_modflag_for_node_entry_and_descendents(graph, node_keystr1, MODIFIED);
+
+    CHECK(node1->modflag == MODIFIED);
+    CHECK(node2->modflag == MODIFIED);
+    CHECK(node3->modflag == MODIFIED);
+  }
 
   SUBCASE("mod-flag last descendent in chain") {
-    set_modflag_for_node_and_descendents(graph, node_keystr3, MODIFIED);
+    set_modflag_for_node_entry_and_descendents(graph, node_keystr3, MODIFIED);
 
     CHECK(node1->modflag == UNMODIFIED);
     CHECK(node2->modflag == UNMODIFIED);
+    CHECK(node3->modflag == MODIFIED);
+  }
+
+  SUBCASE("mod-flag middle descendent in chain") {
+    set_modflag_for_node_entry_and_descendents(graph, node_keystr2, MODIFIED);
+
+    CHECK(node1->modflag == UNMODIFIED);
+    CHECK(node2->modflag == MODIFIED);
     CHECK(node3->modflag == MODIFIED);
   }
 
