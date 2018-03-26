@@ -843,7 +843,7 @@ TEST_CASE("link_nodes_with_edge") {
 
 }
 
-TEST_CASE("collect_nodes_connected_by_active_edges") {
+TEST_CASE("collect_nodes_connected_by_target_edges") {
 
   struct versioned_prov_graph* graph = create_new_graph();
 
@@ -881,7 +881,7 @@ TEST_CASE("collect_nodes_connected_by_active_edges") {
     node1 = retrieve_latest_versioned_node(graph, node_label1, FILE_NODE);
     node1->marked = true;
 
-    collected_nodes_table = collect_nodes_connected_by_active_edges(graph, node1, MARKED, OUTBOUND);
+    collected_nodes_table = collect_nodes_connected_by_target_edges(graph, node1, MARKED, ACTIVE, OUTBOUND);
 
     CHECK(HASH_CNT(hh_collected, collected_nodes_table) == 1);
 
@@ -891,7 +891,7 @@ TEST_CASE("collect_nodes_connected_by_active_edges") {
     CHECK(found_node == node1);
 
     collected_nodes_table = NULL;
-    collected_nodes_table = collect_nodes_connected_by_active_edges(graph, node1, UNMARKED, INBOUND);
+    collected_nodes_table = collect_nodes_connected_by_target_edges(graph, node1, UNMARKED, ACTIVE, INBOUND);
 
     CHECK(HASH_CNT(hh_collected, collected_nodes_table) == 0);
   }
@@ -909,7 +909,7 @@ TEST_CASE("collect_nodes_connected_by_active_edges") {
     link_nodes_with_edge(graph, node4, node1, INACTIVE);
     link_nodes_with_edge(graph, node5, node1, ACTIVE);
 
-    collected_nodes_table = collect_nodes_connected_by_active_edges(graph, node1, MARKED, OUTBOUND);
+    collected_nodes_table = collect_nodes_connected_by_target_edges(graph, node1, MARKED, ACTIVE, OUTBOUND);
 
     CHECK(HASH_CNT(hh_collected, collected_nodes_table) == 1);
 
@@ -933,7 +933,7 @@ TEST_CASE("collect_nodes_connected_by_active_edges") {
     link_nodes_with_edge(graph, node3, node2, ACTIVE);
     link_nodes_with_edge(graph, node2, node1, ACTIVE);
 
-    collected_nodes_table = collect_nodes_connected_by_active_edges(graph, node1, MARKED, OUTBOUND);
+    collected_nodes_table = collect_nodes_connected_by_target_edges(graph, node1, MARKED, ACTIVE, OUTBOUND);
 
     CHECK(HASH_CNT(hh_collected, collected_nodes_table) == 3);
 
@@ -983,7 +983,7 @@ TEST_CASE("collect_nodes_connected_by_active_edges") {
     link_nodes_with_edge(graph, node9, node5, ACTIVE);
     link_nodes_with_edge(graph, node5, node1, ACTIVE);
 
-    collected_nodes_table = collect_nodes_connected_by_active_edges(graph, node1, MARKED, OUTBOUND);
+    collected_nodes_table = collect_nodes_connected_by_target_edges(graph, node1, MARKED, ACTIVE, OUTBOUND);
 
     CHECK(HASH_CNT(hh_collected, collected_nodes_table) == 4);
 

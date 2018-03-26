@@ -460,10 +460,10 @@ struct edge_entry* link_nodes_with_edge (struct versioned_prov_graph* graph,
   return (edge);
 }
 
-// return table of is_marked nodes connected to start_node by active is_outbound edges
-struct node_entry* collect_nodes_connected_by_active_edges (
+// return table of is_marked nodes connected to start_node by is_active is_outbound edges
+struct node_entry* collect_nodes_connected_by_target_edges (
     struct versioned_prov_graph* graph, struct node_entry* start_node,
-    bool is_marked, bool is_outbound) {
+    bool is_marked, bool is_active, bool is_outbound) {
 
   struct node_entry_queue* search_queue = make_node_entry_queue();  // nodes to BFS
   struct node_entry* visited_table = NULL;    // nodes already BFSed
@@ -491,8 +491,8 @@ struct node_entry* collect_nodes_connected_by_active_edges (
         ? n_edge->node2_keystr
         : n_edge->node1_keystr;
 
-      // edge is active and matches is_outbound from dequeued node
-      if (n_edge->active && (strncmp(dq_endpoint, snode->keystr, strlen(snode->keystr)) == 0)) {
+      // edge is is_active and matches is_outbound from dequeued node
+      if ((n_edge->active == is_active) && (strncmp(dq_endpoint, snode->keystr, strlen(snode->keystr)) == 0)) {
         // see if matching-edge-neighbor was already visited
         struct node_entry* neighbor = NULL;
         HASH_FIND(hh_visited, visited_table, other_endpoint, strlen(other_endpoint), neighbor);
@@ -519,7 +519,7 @@ struct node_entry* collect_nodes_connected_by_active_edges (
 void connect (struct versioned_prov_graph* graph, struct node_entry* node1, struct node_entry* node2) {
 
   // collect marked nodes connected to node2 (INCLUDING node2) by active outbound edges from node2
-  struct node_entry* collected_table = collect_nodes_connected_by_active_edges(graph, node2, MARKED, OUTBOUND);
+  struct node_entry* collected_table = collect_nodes_connected_by_target_edges(graph, node2, MARKED, ACTIVE, OUTBOUND);
 
   // make new duplicated version of each collected node
   struct node_entry *coll_node, *tmp = NULL;
@@ -628,7 +628,7 @@ VersionGraphAction disconnect (struct versioned_prov_graph* graph, struct node_e
     return (ERR_NO_ACTIVE_EDGE_BETWEEN_NODES);
 
   // collect unmarked nodes connected to node1 (INCLUDING node1) by active inbound edges
-  struct node_entry* collected_table = collect_nodes_connected_by_active_edges(graph, node1, UNMARKED, INBOUND);
+  struct node_entry* collected_table = collect_nodes_connected_by_target_edges(graph, node1, UNMARKED, ACTIVE, INBOUND);
 
   // mark all the collected nodes
   struct node_entry *coll_node, *tmp = NULL;
