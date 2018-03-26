@@ -77,7 +77,7 @@ TEST_CASE("add_version_num_entry") {
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr, strlen(version_num_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
 
     entry_from_get = get_version_num_entry(graph, version_num_entry_keystr);
 
@@ -95,21 +95,21 @@ TEST_CASE("add_version_num_entry") {
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr, strlen(version_num_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
 
     entry = get_version_num_entry(graph, version_num_entry_keystr2);
 
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr2, strlen(version_num_entry_keystr2)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr2));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
 
     entry = get_version_num_entry(graph, version_num_entry_keystr3);
 
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr3, strlen(version_num_entry_keystr3)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr3));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
   }
 
   clear_graph(&graph);
@@ -131,7 +131,7 @@ TEST_CASE("get_or_add_version_num_entry") {
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr, strlen(version_num_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
 
     entry_from_get = get_version_num_entry(graph, version_num_entry_keystr);
 
@@ -141,13 +141,13 @@ TEST_CASE("get_or_add_version_num_entry") {
 
   SUBCASE("get_or_add same entry: original version_num_entry returned") {
     entry = get_or_add_version_num_entry(graph, version_num_entry_keystr);
-    entry->version_num = 2;
+    entry->version_num = (FIRST_VERSION_NUM + 1);
     entry = get_or_add_version_num_entry(graph, version_num_entry_keystr);
 
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr, strlen(version_num_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr));
-    CHECK(entry->version_num == 2);
+    CHECK(entry->version_num ==(FIRST_VERSION_NUM + 1));
   }
 
   SUBCASE("get_or_add three entries: correct version_num_entries returned") {
@@ -160,21 +160,21 @@ TEST_CASE("get_or_add_version_num_entry") {
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr, strlen(version_num_entry_keystr)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
 
     entry = get_version_num_entry(graph, version_num_entry_keystr2);
 
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr2, strlen(version_num_entry_keystr2)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr2));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
 
     entry = get_version_num_entry(graph, version_num_entry_keystr3);
 
     REQUIRE(entry);
     CHECK(strncmp(entry->keystr, version_num_entry_keystr3, strlen(version_num_entry_keystr3)) == 0);
     CHECK(strlen(entry->keystr) == strlen(version_num_entry_keystr3));
-    CHECK(entry->version_num == 1);
+    CHECK(entry->version_num == FIRST_VERSION_NUM);
   }
 
   clear_graph(&graph);
@@ -201,7 +201,7 @@ TEST_CASE("get_active_version_num") {
     act = get_active_version_num(graph, version_num_entry_keystr, &vnum);
 
     CHECK(act == SUCCESS_VERSION_ENTRY_RETURNED);
-    CHECK(vnum == 1);
+    CHECK(vnum == FIRST_VERSION_NUM);
   }
 
   SUBCASE("get active_version_num for keystr with modified version_entry") {

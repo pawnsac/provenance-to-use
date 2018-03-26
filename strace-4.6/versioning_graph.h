@@ -23,6 +23,8 @@ extern "C" {
  * PUBLIC TYPES / CONSTANTS / VARIABLES
  ******************************************************************************/
 
+#define FIRST_VERSION_NUM 1
+
 typedef enum {
   SUCCESS_VERSION_ENTRY_RETURNED,
   SUCCESS_VERSION_GRAPH_CLEARED,

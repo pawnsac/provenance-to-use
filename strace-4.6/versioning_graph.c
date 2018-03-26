@@ -26,7 +26,7 @@ purpose:  graph operations for a specially-versioned provenance graph
 // initialize version_num_entry struct fields
 static void init_version_num_entry (struct version_num_entry* entry, char* keystr) {
   entry->keystr = strdup(keystr);
-  entry->version_num = 1;
+  entry->version_num = FIRST_VERSION_NUM;
 }
 
 // initialize node_entry struct fields
