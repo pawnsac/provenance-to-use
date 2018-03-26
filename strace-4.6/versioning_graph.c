@@ -479,7 +479,7 @@ struct node_entry* collect_nodes_connected_by_target_edges (
   for (struct node_entry* snode = dequeue(search_queue); snode; snode = dequeue(search_queue)) {
 
     // dequeued node matches is_marked param: add to coll table
-    if (snode->mark == is_marked)
+    if ((is_marked == MARKED_OR_UNMARKED) || (snode->mark == is_marked))
       HASH_ADD_KEYPTR(hh_collected, collected_table, snode->keystr, strlen(snode->keystr), snode);
 
     // search dequeued node edges
@@ -494,8 +494,9 @@ struct node_entry* collect_nodes_connected_by_target_edges (
         ? n_edge->node2_keystr
         : n_edge->node1_keystr;
 
-      // edge is is_active and matches is_outbound from dequeued node
-      if ((n_edge->edge_label == is_active) && (strncmp(dq_endpoint, snode->keystr, strlen(snode->keystr)) == 0)) {
+      // edge matches is_active param and matches is_outbound from dequeued node
+      if (((is_active == ACTIVE_OR_INACTIVE) || (n_edge->edge_label == is_active)) &&
+          (strncmp(dq_endpoint, snode->keystr, strlen(snode->keystr)) == 0)) {
         // see if matching-edge-neighbor was already visited
         struct node_entry* neighbor = NULL;
         HASH_FIND(hh_visited, visited_table, other_endpoint, strlen(other_endpoint), neighbor);
