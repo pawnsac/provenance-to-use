@@ -240,3 +240,44 @@ void log_versioned_edges () {
 
 }
 
+// query versioning graph to see if file modified since last prog run
+VersionAction is_file_modified (char* filename_abspath) {
+
+  if (graph == NULL)
+    return (ERR_VERSIONING_NOT_INITIALIZED);
+
+  struct node_entry* entry = get_node_entry_by_version(graph, filename_abspath, FIRST_VERSION_NUM);
+
+  if (entry == NULL)
+    return FILE_NOT_EXIST;
+  else if (entry->modflag == MODIFIED)
+    return FILE_MODIFIED;
+  else if (entry->modflag == UNMODIFIED)
+    return FILE_NOT_MODIFIED;
+  else
+    return ERR_UNKNOWN_VERSION_ERR;
+
+}
+
+// query versioning graph to see if process modified since last prog run
+VersionAction is_process_modified (int pid) {
+
+  if (graph == NULL)
+    return (ERR_VERSIONING_NOT_INITIALIZED);
+
+  char* pid_str;
+  malloc_str_from_int(&pid_str, pid);
+  struct node_entry* entry = get_node_entry_by_version(graph, pid_str, FIRST_VERSION_NUM);
+  free(pid_str);
+
+  if (entry == NULL)
+    return PROCESS_NOT_EXIST;
+  else if (entry->modflag == MODIFIED)
+    return PROCESS_MODIFIED;
+  else if (entry->modflag == UNMODIFIED)
+    return PROCESS_NOT_MODIFIED;
+  else
+    return ERR_UNKNOWN_VERSION_ERR;
+
+}
+

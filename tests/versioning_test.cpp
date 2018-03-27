@@ -358,6 +358,74 @@ TEST_CASE("versioned_spawn") {
 
 }
 
+TEST_CASE("is_modified") {
+
+  VersionAction act;
+  struct versioned_prov_graph* graph = NULL;
+
+  int process_p = 1;
+  char process_p_label[]  = "1";
+  int process_q = 2;
+
+  char file_a[]  = "A";
+  char file_b[]  = "B";
+
+  init_versioning();
+
+  versioned_open(process_p, file_a, WRITE_ONLY);
+  versioned_close(process_p, file_a, WRITE_ONLY);
+
+  SUBCASE("attempt is_file_modified with uninitialized graph") {
+    clear_versioning();
+    act = is_file_modified(file_a);
+
+    CHECK(act == ERR_VERSIONING_NOT_INITIALIZED);
+  }
+
+  SUBCASE("is_modified for nonexistent file/process") {
+    graph = get_versioning_graph();
+
+    act = is_file_modified(file_b);
+
+    CHECK(act == FILE_NOT_EXIST);
+
+    act = is_process_modified(process_q);
+
+    CHECK(act == PROCESS_NOT_EXIST);
+  }
+
+  SUBCASE("two nodes: unmodified file/process") {
+    graph = get_versioning_graph();
+
+    act = is_file_modified(file_a);
+
+    CHECK(act == FILE_NOT_MODIFIED);
+
+    act = is_process_modified(process_p);
+
+    CHECK(act == PROCESS_NOT_MODIFIED);
+  }
+
+  SUBCASE("two nodes: modified file/process") {
+    graph = get_versioning_graph();
+    struct node_entry* file_a_node = get_node_entry_by_version(graph, file_a, 1);
+    file_a_node->modflag = MODIFIED;
+    struct node_entry* process_p_node = get_node_entry_by_version(graph, process_p_label, 1);
+    process_p_node->modflag = MODIFIED;
+
+    act = is_file_modified(file_a);
+
+    CHECK(act == FILE_MODIFIED);
+
+    act = is_process_modified(process_p);
+
+    CHECK(act == PROCESS_MODIFIED);
+  }
+
+  clear_versioning();
+
+}
+
 TEST_CASE("end-to-end tests"
           * doctest::skip(true)) {
 

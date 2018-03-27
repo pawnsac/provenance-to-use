@@ -23,6 +23,12 @@ typedef enum {
   SUCCESS_FILE_VERSION_OPENED,
   SUCCESS_FILE_VERSION_CLOSED,
   SUCCESS_PROCESS_SPAWNED,
+  FILE_MODIFIED,
+  FILE_NOT_MODIFIED,
+  FILE_NOT_EXIST,
+  PROCESS_MODIFIED,
+  PROCESS_NOT_MODIFIED,
+  PROCESS_NOT_EXIST,
   ERR_VERSIONING_ALREADY_INITIALIZED,
   ERR_VERSIONING_NOT_INITIALIZED,
   ERR_PROCESS_ALREADY_EXIST,
@@ -72,6 +78,12 @@ VersionAction log_versioned_spawn (char parent_proc, char child_proc);
 
 // print each versioning graph edge to stdout
 void log_versioned_edges ();
+
+// query versioning graph to see if file modified since last prog run
+VersionAction is_file_modified (char* filename_abspath);
+
+// query versioning graph to see if process modified since last prog run
+VersionAction is_process_modified (int pid);
 
 // allow this header to be included from c++ source file
 #ifdef __cplusplus
