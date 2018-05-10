@@ -3282,12 +3282,19 @@ void CDE_init(char** argv, int optind) {
       fputs("\n# Ignore so that networking can work properly\n", f);
       fputs("ignore_exact=/etc/resolv.conf\n", f);
 
-      fputs("# These files might be useful to ignore along with /etc/resolv.conf\n", f);
-      fputs("# (un-comment if you want to try them)\n", f);
-      fputs("#ignore_exact=/etc/host.conf\n", f);
-      fputs("#ignore_exact=/etc/hosts\n", f);
-      fputs("#ignore_exact=/etc/nsswitch.conf\n", f);
-      fputs("#ignore_exact=/etc/gai.conf\n", f);
+      if (CDE_network_content_mode) {
+        fputs("ignore_exact=/etc/host.conf\n", f);
+        fputs("ignore_exact=/etc/hosts\n", f);
+        fputs("ignore_exact=/etc/nsswitch.conf\n", f);
+        fputs("ignore_exact=/etc/gai.conf\n", f);
+      } else {
+        fputs("# These files might be useful to ignore along with /etc/resolv.conf\n", f);
+        fputs("# (un-comment if you want to try them)\n", f);
+        fputs("#ignore_exact=/etc/host.conf\n", f);
+        fputs("#ignore_exact=/etc/hosts\n", f);
+        fputs("#ignore_exact=/etc/nsswitch.conf\n", f);
+        fputs("#ignore_exact=/etc/gai.conf\n", f);
+      }
 
       // ewencp also suggests looking into ignoring these other
       // networking-related files:
