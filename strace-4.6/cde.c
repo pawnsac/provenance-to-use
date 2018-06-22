@@ -291,27 +291,27 @@ char cde_starting_pwd[MAXPATHLEN];
 static char* ignore_exact_paths[100];
 static char* ignore_prefix_paths[100];
 static char* ignore_substr_paths[100];
-int ignore_exact_paths_ind = 0;
-int ignore_prefix_paths_ind = 0;
-int ignore_substr_paths_ind = 0;
+static int ignore_exact_paths_ind;
+static int ignore_prefix_paths_ind;
+static int ignore_substr_paths_ind;
 
 static char* multi_repo_paths[100]; // quanpt
-int multi_repo_paths_ind = 0;
-int multi_repo_paths_curr = 0;
+static int multi_repo_paths_ind;
+static int multi_repo_paths_curr;
 
 // these override their ignore path counterparts
 static char* redirect_exact_paths[100];
 static char* redirect_prefix_paths[100];
 static char* redirect_substr_paths[100];
-int redirect_exact_paths_ind = 0;
-int redirect_prefix_paths_ind = 0;
-int redirect_substr_paths_ind = 0;
+static int redirect_exact_paths_ind;
+static int redirect_prefix_paths_ind;
+static int redirect_substr_paths_ind;
 
 static char* ignore_envvars[100]; // each element should be an environment variable to ignore
-int ignore_envvars_ind = 0;
+static int ignore_envvars_ind;
 
-struct PI process_ignores[50];
-int process_ignores_ind = 0;
+static struct PI process_ignores[50];
+static int process_ignores_ind;
 
 // the path to where the root directory is mounted on the remote machine
 // (only relevant for "cde-exec -s")
@@ -3468,32 +3468,6 @@ void CDE_add_multi_repo_path(char* p) {
 }
 
 
-// call this at the VERY BEGINNING of execution, so that ignore paths can be
-// specified on the command line (e.g., using the '-i' and '-p' options)
-void CDE_clear_options_arrays() {
-  memset(ignore_exact_paths,    0, sizeof(ignore_exact_paths));
-  memset(ignore_prefix_paths,   0, sizeof(ignore_prefix_paths));
-  memset(ignore_substr_paths,   0, sizeof(ignore_substr_paths));
-  memset(redirect_exact_paths,  0, sizeof(redirect_exact_paths));
-  memset(redirect_prefix_paths, 0, sizeof(redirect_prefix_paths));
-  memset(redirect_substr_paths, 0, sizeof(redirect_substr_paths));
-  memset(ignore_envvars,        0, sizeof(ignore_envvars));
-  memset(process_ignores,       0, sizeof(process_ignores));
-  memset(multi_repo_paths,      0, sizeof(multi_repo_paths)); // quanpt
-
-
-  ignore_exact_paths_ind = 0;
-  ignore_prefix_paths_ind = 0;
-  ignore_substr_paths_ind = 0;
-  redirect_exact_paths_ind = 0;
-  redirect_prefix_paths_ind = 0;
-  redirect_substr_paths_ind = 0;
-  ignore_envvars_ind = 0;
-  process_ignores_ind = 0;
-  multi_repo_paths_ind = 0; // quanpt
-}
-
-
 // initialize arrays based on the cde.options file, which has the grammar:
 //
 // ignore_exact=<exact path to ignore>
@@ -3510,7 +3484,6 @@ void CDE_clear_options_arrays() {
 //   process_ignore_prefix=<path prefix to ignore for the given process>
 // }
 static void CDE_init_options() {
-  // Pre-req: CDE_clear_options_arrays() has already been called!
 
   char in_braces = false;
 

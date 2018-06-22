@@ -117,7 +117,6 @@ extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
 extern FILE* CDE_copied_files_logfile;
 extern char* CDE_PACKAGE_DIR;
 extern char* CDE_ROOT_NAME;
-extern void CDE_clear_options_arrays();
 extern void CDE_add_ignore_exact_path(char* p);
 extern void CDE_add_ignore_prefix_path(char* p);
 
@@ -2648,8 +2647,6 @@ int main (int argc, char *argv[]) {
     exit(1);
   }
 	progname = argv[0];
-
-  CDE_clear_options_arrays(); // pgbovine - call this as EARLY as possible so that '-i' and '-p' options work!
 
   // pgbovine - if program name is 'cde-exec', then activate Cde_exec_mode
   Cde_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
