@@ -3699,38 +3699,22 @@ static void CDE_init_options() {
 
 void load_environment_vars_from_mem(char* environ_start) {
   
-  char* environ_str = (char*)environ_start;
-  while (*environ_str) {
-    int environ_strlen = strlen(environ_str);
+  for (char* environ_str = environ_start; *environ_str;
+       environ_str = strchr(environ_str, '\0') + 1) {
 
     // format: "name=value"
     // note that 'value' might itself contain '=' characters,
     // so only split on the FIRST '='
+    char* sp = strchr(environ_str, '=');
 
-    char* cur = strdup(environ_str); // strtok needs to mutate
-    char* name = NULL;
-    char* val = NULL;
+    // ignore an invalid variable with an empty name or a name
+    // that's simply a newline character (some files have a trailing
+    // newline, which strtok picks up, ugh):
+    if (sp == NULL || sp == environ_str)
+      continue;
 
-    int count = 0;
-    char* p;
-    int start_index_of_value = 0;
-
-    // strtok is so dumb!!!  need to munch through the entire string
-    // before it restores the string to its original value
-    for (p = strtok(cur, "="); p; p = strtok(NULL, "=")) {
-      if (count == 0) {
-        name = strdup(p);
-      }
-      else if (count == 1) {
-        start_index_of_value = (p - cur);
-      }
-
-      count++;
-    }
-
-    if (start_index_of_value) {
-      val = strdup(environ_str + start_index_of_value);
-    }
+    char* name = strndup(environ_str, sp - environ_str);
+    char* val = sp + 1;
 
     // make sure we're not ignoring this environment var:
     int i;
@@ -3745,24 +3729,8 @@ void load_environment_vars_from_mem(char* environ_start) {
       }
     }
 
-    // ignore an invalid variable with an empty name or a name
-    // that's simply a newline character (some files have a trailing
-    // newline, which strtok picks up, ugh):
-    if (!name || (strcmp(name, "\n") == 0)) {
-      ignore_me = 1;
-    }
-
     if (!ignore_me) {
-      // subtle ... if val is NULL, then we should call setenv() with
-      // an empty string as val, NOT a NULL, since calling it with a
-      // NULL parameter will cause it to DELETE the environment
-      // variable, not set it to ""
-      if (val) {
-        setenv(name, val, 1);
-      }
-      else {
-        setenv(name, "", 1);
-      }
+      setenv(name, val, 0);
     }
     else {
       if (Cde_verbose_mode) {
@@ -3770,13 +3738,7 @@ void load_environment_vars_from_mem(char* environ_start) {
       }
     }
 
-    if (name) free(name);
-    if (val) free(val);
-    free(cur);
-
-    // every string in cde_full_environment_abspath is
-    // null-terminated, so this advances to the next string
-    environ_str += (environ_strlen + 1);
+    free(name);
   }
 }
 
