@@ -275,6 +275,7 @@ check_variable_exists("_sys_siglist" HAVE_DECL__SYS_SIGLIST)
 # check function availability
 
 check_function_exists("alloca" HAVE_ALLOCA)
+check_function_exists("clearenv" HAVE_CLEARENV)
 check_function_exists("clock_gettime" HAVE_CLOCK_GETTIME)
 check_function_exists("fork" HAVE_FORK)
 check_function_exists("fprintf" HAVE_DECL_FPRINTF)

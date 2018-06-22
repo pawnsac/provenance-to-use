@@ -308,6 +308,7 @@ static int redirect_prefix_paths_ind;
 static int redirect_substr_paths_ind;
 
 static char* ignore_envvars[100]; // each element should be an environment variable to ignore
+static char* ignore_envvars_values[100];
 static int ignore_envvars_ind;
 
 static struct PI process_ignores[50];
@@ -3443,6 +3444,12 @@ void CDE_add_redirect_substr_path(char* p) {
 
 void CDE_add_ignore_envvar(char* p) {
   _add_to_array_internal(ignore_envvars, &ignore_envvars_ind, p, (char*)"ignore_envvars");
+  for (int i = 0; i < ignore_envvars_ind; ++i) {
+    char* vp = getenv(ignore_envvars[i]);
+    if (vp) {
+      ignore_envvars_values[i] = strdup(vp);
+    }
+  }
 }
 
 void CDE_add_ignore_process(char* p){
@@ -3730,6 +3737,9 @@ void load_environment_vars_from_mem(char* environ_start) {
     int ignore_me = 0;
     for (i = 0; i < ignore_envvars_ind; i++) {
       if (strcmp(name, ignore_envvars[i]) == 0) {
+        if (ignore_envvars_values[i]) {
+          setenv(name, ignore_envvars_values[i], 0);
+        }
         ignore_me = 1;
         break;
       }
@@ -3787,6 +3797,12 @@ void CDE_load_environment_vars(char* repo_name) {
   void* environ_start =
     (char*)mmap(0, env_file_stat.st_size, PROT_READ, MAP_PRIVATE, full_environment_fd, 0);
 
+#ifdef HAVE_CLEARENV
+  clearenv();
+#else
+  extern char **environ;
+  environ = NULL;
+#endif
   load_environment_vars_from_mem(environ_start);
 
   munmap(environ_start, env_file_stat.st_size);

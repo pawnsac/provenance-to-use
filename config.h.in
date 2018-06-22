@@ -150,6 +150,9 @@
 /* getenv function is available */
 #cmakedefine01 HAVE_DECL_GETENV
 
+/* clearenv function is available */
+#cmakedefine HAVE_CLEARENV 1
+
 /* getopt function is available */
 #cmakedefine HAVE_DECL_GETOPT 1
 
