@@ -38,6 +38,8 @@ char* CDE_ROOT_NAME;
 // pgbovine - these are both ABSOLUTE paths
 char* CDE_PACKAGE_DIR;
 char* CDE_ROOT_DIR;
+// digimokan: executable_name
+#include <sys/param.h>   // P2001: MAXPATHLEN
 
 
 #ifdef HAVE_CONFIG_H
@@ -445,6 +447,7 @@ struct tcb {
                         // this traced process has custom ignore options
 
   int current_repo_ind;     // quanpt: multi repo
+  char executable_name[MAXPATHLEN]; // digimokan: abs path of executable for this process image
   char** opened_file_paths; // digimokan: abs paths used to open this proc's currently open files
   int* opened_file_modes;   // digimokan: r/w/rw mode used to open this proc's currently open files
 };
