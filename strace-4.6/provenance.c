@@ -20,6 +20,7 @@
 #include "okapi.h"      // canonicalize_path()
 #include "versioning.h" // versioned_open()
 #include "const.h"
+#include "strutils.h"   // str_copy_src_to_dest()
 
 /*******************************************************************************
  * EXTERNALLY-DEFINED FUNCTIONS
@@ -355,6 +356,12 @@ void print_begin_execve_prov (struct tcb* tcp) {
       vbprintf("[%d-prov] BEGIN %s '%s'\n", tcp->pid, "execve", opened_filename);
     }
 
+    // store this spawn event in the versioning graph (unless parent is null)
+    StrAction act = str_copy_src_to_dest(tcp->executable_name, sizeof(tcp->executable_name), filename_abspath);
+    assert(act == SUCCESS_STR_COPIED);
+    if (tcp->parent != NULL)
+      versioned_spawn(tcp->parent->executable_name, tcp->executable_name);
+
     free(filename_abspath);
     free(opened_filename);
   }
@@ -444,7 +451,7 @@ void print_open_prov (struct tcb* tcp, const char* syscall_name) {
     print_io_prov(tcp, path_index - 1, action);
 
     // store this open event in the versioning graph
-    versioned_open(tcp->pid, filename_abspath, ot);
+    versioned_open(tcp->executable_name, filename_abspath, ot);
 
     // store exact abs path used to open the file
     freeifnn(tcp->opened_file_paths[tcp->u_rval]);
@@ -523,8 +530,8 @@ void print_close_prov (struct tcb* tcp) {
   // log to provlog
   fprintf(prov_logfile, "%d %u %s %s\n", (int)time(0), tcp->pid, "CLOSE", openpath);
 
-  /* // store this close event in the versioning graph */
-  versioned_close(tcp->pid, openpath, tcp->opened_file_modes[closefd]);
+  // store this close event in the versioning graph
+  versioned_close(tcp->executable_name, openpath, tcp->opened_file_modes[closefd]);
 
   // log to stderr if verbose
   if (Cde_verbose_mode) {
