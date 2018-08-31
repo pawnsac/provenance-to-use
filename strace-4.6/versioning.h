@@ -23,12 +23,9 @@ typedef enum {
   SUCCESS_FILE_VERSION_OPENED,
   SUCCESS_FILE_VERSION_CLOSED,
   SUCCESS_PROCESS_SPAWNED,
-  FILE_MODIFIED,
-  FILE_NOT_MODIFIED,
-  FILE_NOT_EXIST,
-  PROCESS_MODIFIED,
-  PROCESS_NOT_MODIFIED,
-  PROCESS_NOT_EXIST,
+  FILE_OR_PROCESS_MODIFIED,
+  FILE_OR_PROCESS_NOT_MODIFIED,
+  FILE_OR_PROCESS_NOT_EXIST,
   ERR_VERSIONING_ALREADY_INITIALIZED,
   ERR_VERSIONING_NOT_INITIALIZED,
   ERR_PROCESS_ALREADY_EXIST,
@@ -58,32 +55,29 @@ VersionAction clear_versioning ();
 struct versioned_prov_graph* get_versioning_graph ();
 
 // provenance-version a process-opens-file operation
-VersionAction versioned_open (int pid, char* filename_abspath, OpenType otype);
+VersionAction versioned_open (char* executable_abspath, char* filename_abspath, OpenType otype);
 
 // provenance-version a process-closes-file operation
 // WARNING: assuming process only does one READ-open / WRITE-open / RW-open per file
-VersionAction versioned_close (int pid, char* filename_abspath, OpenType otype);
+VersionAction versioned_close (char* executable_abspath, char* filename_abspath, OpenType otype);
 
 // provenance-version a process-spawns-another-process operation
-VersionAction versioned_spawn (int parent_pid, int child_pid);
+VersionAction versioned_spawn (char* parent_executable_abspath, char* child_executable_abspath);
 
 // provenance-version a process-opens-file operation and log to stdout
-VersionAction log_versioned_open (char proc, char* filename_abspath, OpenType otype);
+VersionAction log_versioned_open (char* executable_abspath, char* filename_abspath, OpenType otype);
 
 // provenance-version a process-closes-file operation and log to stdout
-VersionAction log_versioned_close (char proc, char* filename_abspath, OpenType otype);
+VersionAction log_versioned_close (char* executable_abspath, char* filename_abspath, OpenType otype);
 
 // provenance-version a process-closes-file operation and log to stdout
-VersionAction log_versioned_spawn (char parent_proc, char child_proc);
+VersionAction log_versioned_spawn (char* parent_executable_abspath, char* child_executable_abspath);
 
 // print each versioning graph edge to stdout
 void log_versioned_edges ();
 
-// query versioning graph to see if file modified since last prog run
-VersionAction is_file_modified (char* filename_abspath);
-
-// query versioning graph to see if process modified since last prog run
-VersionAction is_process_modified (int pid);
+// query versioning graph to see if file or process modified since last prog run
+VersionAction is_file_or_process_modified (char* filename_or_executable_abspath);
 
 // allow this header to be included from c++ source file
 #ifdef __cplusplus

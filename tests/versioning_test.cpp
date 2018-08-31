@@ -79,8 +79,7 @@ TEST_CASE("versioned_open") {
   VersionAction act;
   struct versioned_prov_graph* graph = NULL;
 
-  int pid1 = 1111;
-  char pid1_label[] = "1111";
+  char pid1[] = "1111";
   char pid1_keystr[] = "11111";
   struct node_entry* pid1_node = NULL;
   char file1[] = "file1";
@@ -108,7 +107,7 @@ TEST_CASE("versioned_open") {
 
     graph = get_versioning_graph();
 
-    pid1_node = retrieve_latest_versioned_node(graph, pid1_label, PROCESS_NODE);
+    pid1_node = retrieve_latest_versioned_node(graph, pid1, PROCESS_NODE);
     file1_node = retrieve_latest_versioned_node(graph, file1, FILE_NODE);
 
     CHECK(HASH_CNT(hh, graph->node_table) == 2);
@@ -138,7 +137,7 @@ TEST_CASE("versioned_open") {
 
     graph = get_versioning_graph();
 
-    pid1_node = retrieve_latest_versioned_node(graph, pid1_label, PROCESS_NODE);
+    pid1_node = retrieve_latest_versioned_node(graph, pid1, PROCESS_NODE);
     file1_node = retrieve_latest_versioned_node(graph, file1, FILE_NODE);
 
     CHECK(HASH_CNT(hh, graph->node_table) == 2);
@@ -175,8 +174,7 @@ TEST_CASE("versioned_close") {
   VersionAction act;
   struct versioned_prov_graph* graph = NULL;
 
-  int pid1 = 1111;
-  char pid1_label[] = "1111";
+  char pid1[] = "1111";
   char pid1_keystr[] = "11111";
   struct node_entry* pid1_node = NULL;
   char file1[] = "file1";
@@ -206,7 +204,7 @@ TEST_CASE("versioned_close") {
 
     CHECK(HASH_CNT(hh, graph->node_table) == 2);
 
-    pid1_node = retrieve_latest_versioned_node(graph, pid1_label, PROCESS_NODE);
+    pid1_node = retrieve_latest_versioned_node(graph, pid1, PROCESS_NODE);
     file1_node = retrieve_latest_versioned_node(graph, file1, FILE_NODE);
 
     found_node = NULL;
@@ -234,7 +232,7 @@ TEST_CASE("versioned_close") {
 
     CHECK(HASH_CNT(hh, graph->node_table) == 2);
 
-    pid1_node = retrieve_latest_versioned_node(graph, pid1_label, PROCESS_NODE);
+    pid1_node = retrieve_latest_versioned_node(graph, pid1, PROCESS_NODE);
     file1_node = retrieve_latest_versioned_node(graph, file1, FILE_NODE);
 
     found_node = NULL;
@@ -267,7 +265,7 @@ TEST_CASE("versioned_close") {
 
     CHECK(HASH_CNT(hh, graph->node_table) == 2);
 
-    pid1_node = retrieve_latest_versioned_node(graph, pid1_label, PROCESS_NODE);
+    pid1_node = retrieve_latest_versioned_node(graph, pid1, PROCESS_NODE);
     file1_node = retrieve_latest_versioned_node(graph, file1, FILE_NODE);
 
     found_node = NULL;
@@ -304,12 +302,10 @@ TEST_CASE("versioned_spawn") {
   VersionAction act;
   struct versioned_prov_graph* graph = NULL;
 
-  int pid1 = 1111;
-  char pid1_label[] = "1111";
+  char pid1[] = "1111";
   char pid1_keystr[] = "11111";
   struct node_entry* pid1_node = NULL;
-  int pid2 = 2222;
-  char pid2_label[] = "2222";
+  char pid2[] = "2222";
   char pid2_keystr[] = "22221";
   struct node_entry* pid2_node = NULL;
 
@@ -333,8 +329,8 @@ TEST_CASE("versioned_spawn") {
 
     CHECK(HASH_CNT(hh, graph->node_table) == 2);
 
-    pid1_node = retrieve_latest_versioned_node(graph, pid1_label, PROCESS_NODE);
-    pid2_node = retrieve_latest_versioned_node(graph, pid2_label, PROCESS_NODE);
+    pid1_node = retrieve_latest_versioned_node(graph, pid1, PROCESS_NODE);
+    pid2_node = retrieve_latest_versioned_node(graph, pid2, PROCESS_NODE);
 
     found_node = NULL;
     HASH_FIND(hh, graph->node_table, pid1_keystr, strlen(pid1_keystr), found_node);
@@ -358,14 +354,13 @@ TEST_CASE("versioned_spawn") {
 
 }
 
-TEST_CASE("is_modified") {
+TEST_CASE("is_file_or_process_modified") {
 
   VersionAction act;
   struct versioned_prov_graph* graph = NULL;
 
-  int process_p = 1;
-  char process_p_label[]  = "1";
-  int process_q = 2;
+  char process_p[]  = "P";
+  char process_q[]  = "Q";
 
   char file_a[]  = "A";
   char file_b[]  = "B";
@@ -377,7 +372,7 @@ TEST_CASE("is_modified") {
 
   SUBCASE("attempt is_file_modified with uninitialized graph") {
     clear_versioning();
-    act = is_file_modified(file_a);
+    act = is_file_or_process_modified(file_a);
 
     CHECK(act == ERR_VERSIONING_NOT_INITIALIZED);
   }
@@ -385,41 +380,41 @@ TEST_CASE("is_modified") {
   SUBCASE("is_modified for nonexistent file/process") {
     graph = get_versioning_graph();
 
-    act = is_file_modified(file_b);
+    act = is_file_or_process_modified(file_b);
 
-    CHECK(act == FILE_NOT_EXIST);
+    CHECK(act == FILE_OR_PROCESS_NOT_EXIST);
 
-    act = is_process_modified(process_q);
+    act = is_file_or_process_modified(process_q);
 
-    CHECK(act == PROCESS_NOT_EXIST);
+    CHECK(act == FILE_OR_PROCESS_NOT_EXIST);
   }
 
   SUBCASE("two nodes: unmodified file/process") {
     graph = get_versioning_graph();
 
-    act = is_file_modified(file_a);
+    act = is_file_or_process_modified(file_a);
 
-    CHECK(act == FILE_NOT_MODIFIED);
+    CHECK(act == FILE_OR_PROCESS_NOT_MODIFIED);
 
-    act = is_process_modified(process_p);
+    act = is_file_or_process_modified(process_p);
 
-    CHECK(act == PROCESS_NOT_MODIFIED);
+    CHECK(act == FILE_OR_PROCESS_NOT_MODIFIED);
   }
 
   SUBCASE("two nodes: modified file/process") {
     graph = get_versioning_graph();
     struct node_entry* file_a_node = get_node_entry_by_version(graph, file_a, 1);
     file_a_node->modflag = MODIFIED;
-    struct node_entry* process_p_node = get_node_entry_by_version(graph, process_p_label, 1);
+    struct node_entry* process_p_node = get_node_entry_by_version(graph, process_p, 1);
     process_p_node->modflag = MODIFIED;
 
-    act = is_file_modified(file_a);
+    act = is_file_or_process_modified(file_a);
 
-    CHECK(act == FILE_MODIFIED);
+    CHECK(act == FILE_OR_PROCESS_MODIFIED);
 
-    act = is_process_modified(process_p);
+    act = is_file_or_process_modified(process_p);
 
-    CHECK(act == PROCESS_MODIFIED);
+    CHECK(act == FILE_OR_PROCESS_MODIFIED);
   }
 
   clear_versioning();
@@ -429,10 +424,10 @@ TEST_CASE("is_modified") {
 TEST_CASE("end-to-end tests"
           * doctest::skip(true)) {
 
-  char process_p = 'P';
-  char process_q = 'Q';
-  char process_r = 'R';
-  char process_s = 'S';
+  char process_p[] = "P";
+  char process_q[] = "Q";
+  char process_r[] = "R";
+  char process_s[] = "S";
 
   char file_a[]  = "A";
   char file_b[]  = "B";
