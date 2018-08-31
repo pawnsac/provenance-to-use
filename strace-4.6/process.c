@@ -52,6 +52,29 @@
 #include <sys/user.h>
 #include <sys/syscall.h>
 #include <signal.h>
+
+/*******************************************************************************
+* USER INCLUDES
+*******************************************************************************/
+
+#include "provenance.h"
+
+/*******************************************************************************
+* EXTERNALLY-DEFINED FUNCTIONS
+*******************************************************************************/
+
+// pgbovine
+extern void CDE_begin_execve(struct tcb* tcp);
+extern void CDE_end_execve(struct tcb* tcp);
+extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
+
+// quanpt
+extern void rm_pid_prov(pid_t pid);
+
+/*******************************************************************************
+ * IMPLEMENTATION
+ ******************************************************************************/
+
 #ifdef SUNOS4
 #include <machine/reg.h>
 #endif /* SUNOS4 */
@@ -125,29 +148,6 @@
 
 #ifdef HAVE_PRCTL
 # include <sys/prctl.h>
-
-/*******************************************************************************
- * USER INCLUDES
- ******************************************************************************/
-
-#include "provenance.h"
-#include "versioning.h"   // versioned_spawn()
-
-/*******************************************************************************
- * EXTERNALLY-DEFINED FUNCTIONS
- ******************************************************************************/
-
-// pgbovine
-extern void CDE_begin_execve(struct tcb* tcp);
-extern void CDE_end_execve(struct tcb* tcp);
-extern void CDE_init_tcb_dir_fields(struct tcb* tcp);
-
-/*******************************************************************************
- * IMPLEMENTATION
- ******************************************************************************/
-
-// quanpt
-extern void rm_pid_prov(pid_t pid);
 
 static const struct xlat prctl_options[] = {
 #ifdef PR_MAXPROCS
@@ -887,7 +887,6 @@ handle_new_child(struct tcb *tcp, int pid, int bpt)
 
   CDE_init_tcb_dir_fields(tcpchild); // pgbovine - do it AFTER you init parent
   print_spawn_prov(tcpchild); // quanpt
-  versioned_spawn(tcp->pid, pid);
 
 	tcp->nchildren++;
 	if (tcpchild->flags & TCB_SUSPENDED) {
