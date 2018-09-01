@@ -421,8 +421,7 @@ TEST_CASE("is_file_or_process_modified") {
 
 }
 
-TEST_CASE("end-to-end tests"
-          * doctest::skip(true)) {
+  TEST_CASE("full-graph tests") {
 
   char process_p[] = "P";
   char process_q[] = "Q";
@@ -436,145 +435,352 @@ TEST_CASE("end-to-end tests"
   char file_e[]  = "E";
   char file_f[]  = "F";
 
+  struct edge_entry* found_edge = NULL;
+
+  char edge_p1_to_p2_keystr[] = "P1P2";
+  char edge_p1_to_q1_keystr[] = "P1Q1";
+  char edge_p1_to_r1_keystr[] = "P1R1";
+  char edge_p1_to_s1_keystr[] = "P1S1";
+  char edge_p1_to_b1_keystr[] = "P1B1";
+  char edge_p1_to_b2_keystr[] = "P1B2";
+  char edge_q1_to_r1_keystr[] = "Q1R1";
+  char edge_q1_to_a1_keystr[] = "Q1A1";
+  char edge_q1_to_d1_keystr[] = "Q1D1";
+  char edge_r1_to_d1_keystr[] = "R1D1";
+  char edge_r1_to_f1_keystr[] = "R1F1";
+  char edge_s1_to_b1_keystr[] = "S1B1";
+  char edge_a1_to_p1_keystr[] = "A1P1";
+  char edge_a1_to_p2_keystr[] = "A1P2";
+  char edge_a1_to_r1_keystr[] = "A1R1";
+  char edge_b1_to_b2_keystr[] = "B1B2";
+  char edge_b1_to_q1_keystr[] = "B1Q1";
+  char edge_b1_to_r1_keystr[] = "B1R1";
+  char edge_b2_to_r1_keystr[] = "B2R1";
+  char edge_c1_to_q1_keystr[] = "C1Q1";
+  char edge_e1_to_r1_keystr[] = "E1R1";
+  char edge_e1_to_s1_keystr[] = "E1S1";
+
   init_versioning();
 
-  SUBCASE("end-to-end test 1") {
+  SUBCASE("end-to-end test 1a: write then read, same process") {
 
-    printf("\nPROGRAM ACTIONS:\n\n");
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_close(process_p, file_b, WRITE_ONLY);
+    versioned_open(process_p, file_a, READ_ONLY);
+    versioned_close(process_p, file_a, READ_ONLY);
 
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_close(process_p, file_b, WRITE_ONLY);
-    log_versioned_open(process_p, file_a, READ_ONLY);
-    log_versioned_close(process_p, file_a, READ_ONLY);
+    struct versioned_prov_graph* graph = get_versioning_graph();
 
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b1_keystr, strlen(edge_p1_to_b1_keystr), found_edge);
 
-    log_versioned_edges();
+    CHECK(found_edge);
 
-  }
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_p2_keystr, strlen(edge_p1_to_p2_keystr), found_edge);
 
-  SUBCASE("end-to-end test 1b") {
+    CHECK(found_edge);
 
-    printf("\nPROGRAM ACTIONS:\n\n");
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_a1_to_p2_keystr, strlen(edge_a1_to_p2_keystr), found_edge);
 
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_close(process_p, file_b, WRITE_ONLY);
-    log_versioned_open(process_q, file_b, READ_ONLY);
-    log_versioned_close(process_q, file_b, READ_ONLY);
+    CHECK(found_edge);
 
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
-
-    log_versioned_edges();
+    CHECK(HASH_CNT(hh, graph->edge_table) == 3);
 
   }
 
-  SUBCASE("end-to-end test 1b") {
+  SUBCASE("end-to-end test 1b: write then read, different processes") {
 
-    printf("\nPROGRAM ACTIONS:\n\n");
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_close(process_p, file_b, WRITE_ONLY);
+    versioned_open(process_q, file_b, READ_ONLY);
+    versioned_close(process_q, file_b, READ_ONLY);
 
-    log_versioned_open(process_q, file_b, READ_ONLY);
-    log_versioned_close(process_q, file_b, READ_ONLY);
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_close(process_p, file_b, WRITE_ONLY);
+    struct versioned_prov_graph* graph = get_versioning_graph();
 
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b1_keystr, strlen(edge_p1_to_b1_keystr), found_edge);
 
-    log_versioned_edges();
+    CHECK(found_edge);
 
-  }
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_q1_keystr, strlen(edge_b1_to_q1_keystr), found_edge);
 
-  SUBCASE("end-to-end test 1c") {
+    CHECK(found_edge);
 
-    printf("\nPROGRAM ACTIONS:\n\n");
-
-    log_versioned_open(process_p, file_a, READ_ONLY);
-    log_versioned_close(process_p, file_a, READ_ONLY);
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_close(process_p, file_b, WRITE_ONLY);
-
-    log_versioned_spawn(process_p, process_q);
-    log_versioned_open(process_q, file_c, READ_ONLY);
-    log_versioned_close(process_q, file_c, READ_ONLY);
-    log_versioned_open(process_q, file_b, READ_ONLY);
-    log_versioned_close(process_q, file_b, READ_ONLY);
-
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_close(process_p, file_b, WRITE_ONLY);
-    log_versioned_spawn(process_p, process_r);
-    log_versioned_open(process_r, file_e, READ_ONLY);
-    log_versioned_close(process_r, file_e, READ_ONLY);
-    log_versioned_open(process_r, file_b, READ_ONLY);
-    log_versioned_close(process_r, file_b, READ_ONLY);
-
-    log_versioned_open(process_q, file_d, WRITE_ONLY);
-    log_versioned_close(process_q, file_d, WRITE_ONLY);
-    log_versioned_open(process_r, file_f, WRITE_ONLY);
-    log_versioned_close(process_r, file_f, WRITE_ONLY);
-
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
-
-    log_versioned_edges();
+    CHECK(HASH_CNT(hh, graph->edge_table) == 2);
 
   }
 
-  SUBCASE("end-to-end test 2") {
+  SUBCASE("end-to-end test 1c: read then write, different processes") {
 
-    printf("\nPROGRAM ACTIONS:\n\n");
+    versioned_open(process_q, file_b, READ_ONLY);
+    versioned_close(process_q, file_b, READ_ONLY);
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_close(process_p, file_b, WRITE_ONLY);
 
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_open(process_q, file_b, READ_ONLY);
-    log_versioned_open(process_q, file_a, WRITE_ONLY);
-    log_versioned_open(process_p, file_a, READ_ONLY);
+    struct versioned_prov_graph* graph = get_versioning_graph();
 
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_q1_keystr, strlen(edge_b1_to_q1_keystr), found_edge);
 
-    log_versioned_edges();
+    CHECK(found_edge);
 
-  }
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_b2_keystr, strlen(edge_b1_to_b2_keystr), found_edge);
 
-  SUBCASE("end-to-end test 3") {
+    CHECK(found_edge);
 
-    printf("\nPROGRAM ACTIONS:\n\n");
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b2_keystr, strlen(edge_p1_to_b2_keystr), found_edge);
 
-    log_versioned_open(process_p, file_b, WRITE_ONLY);
-    log_versioned_close(process_p, file_b, WRITE_ONLY);
-    log_versioned_open(process_q, file_b, READ_ONLY);
-    log_versioned_close(process_q, file_b, READ_ONLY);
-    log_versioned_open(process_q, file_a, WRITE_ONLY);
-    log_versioned_close(process_q, file_a, WRITE_ONLY);
-    log_versioned_open(process_p, file_a, READ_ONLY);
+    CHECK(found_edge);
 
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
-
-    log_versioned_edges();
+    CHECK(HASH_CNT(hh, graph->edge_table) == 3);
 
   }
 
-  SUBCASE("end-to-end test 4") {
+  SUBCASE("end-to-end test 1d: duplicate vers graph paper experiment") {
 
-    printf("\nPROGRAM ACTIONS:\n\n");
+    versioned_open(process_p, file_a, READ_ONLY);
+    versioned_close(process_p, file_a, READ_ONLY);
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_close(process_p, file_b, WRITE_ONLY);
 
-    log_versioned_spawn(process_p, process_q);
-    log_versioned_open(process_q, file_c, READ_ONLY);
-    log_versioned_spawn(process_q, process_r);
-    log_versioned_open(process_q, file_a, WRITE_ONLY);
-    log_versioned_close(process_q, file_c, READ_ONLY);
-    log_versioned_close(process_q, file_a, READ_ONLY);
-    log_versioned_open(process_r, file_a, READ_ONLY);
-    log_versioned_close(process_r, file_a, READ_ONLY);
-    log_versioned_spawn(process_p, process_s);
-    log_versioned_open(process_s, file_e, READ_ONLY);
-    log_versioned_close(process_s, file_e, READ_ONLY);
-    log_versioned_open(process_s, file_b, WRITE_ONLY);
-    log_versioned_open(process_r, file_b, READ_ONLY);
-    log_versioned_open(process_r, file_d, WRITE_ONLY);
-    log_versioned_close(process_r, file_d, WRITE_ONLY);
-    log_versioned_close(process_r, file_b, READ_ONLY);
-    log_versioned_close(process_s, file_b, WRITE_ONLY);
+    versioned_spawn(process_p, process_q);
+    versioned_open(process_q, file_c, READ_ONLY);
+    versioned_close(process_q, file_c, READ_ONLY);
+    versioned_open(process_q, file_b, READ_ONLY);
+    versioned_close(process_q, file_b, READ_ONLY);
 
-    printf("\nVERSIONING GRAPH EDGES PRODUCED:\n\n");
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_close(process_p, file_b, WRITE_ONLY);
+    versioned_spawn(process_p, process_r);
+    versioned_open(process_r, file_e, READ_ONLY);
+    versioned_close(process_r, file_e, READ_ONLY);
+    versioned_open(process_r, file_b, READ_ONLY);
+    versioned_close(process_r, file_b, READ_ONLY);
 
-    log_versioned_edges();
+    versioned_open(process_q, file_d, WRITE_ONLY);
+    versioned_close(process_q, file_d, WRITE_ONLY);
+    versioned_open(process_r, file_f, WRITE_ONLY);
+    versioned_close(process_r, file_f, WRITE_ONLY);
+
+    struct versioned_prov_graph* graph = get_versioning_graph();
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_a1_to_p1_keystr, strlen(edge_a1_to_p1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b1_keystr, strlen(edge_p1_to_b1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_q1_keystr, strlen(edge_p1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_c1_to_q1_keystr, strlen(edge_c1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_q1_keystr, strlen(edge_b1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_b2_keystr, strlen(edge_b1_to_b2_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b2_keystr, strlen(edge_p1_to_b2_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_r1_keystr, strlen(edge_p1_to_r1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_e1_to_r1_keystr, strlen(edge_e1_to_r1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b2_to_r1_keystr, strlen(edge_b2_to_r1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_q1_to_d1_keystr, strlen(edge_q1_to_d1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_r1_to_f1_keystr, strlen(edge_r1_to_f1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    CHECK(HASH_CNT(hh, graph->edge_table) == 12);
+
+  }
+
+  SUBCASE("end-to-end test 2a: interlaced multiprocess read/write withoutj closes") {
+
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_open(process_q, file_b, READ_ONLY);
+    versioned_open(process_q, file_a, WRITE_ONLY);
+    versioned_open(process_p, file_a, READ_ONLY);
+
+    struct versioned_prov_graph* graph = get_versioning_graph();
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b1_keystr, strlen(edge_p1_to_b1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_q1_keystr, strlen(edge_b1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_q1_to_a1_keystr, strlen(edge_q1_to_a1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_a1_to_p1_keystr, strlen(edge_a1_to_p1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    CHECK(HASH_CNT(hh, graph->edge_table) == 4);
+
+  }
+
+  SUBCASE("end-to-end test 3a: sequential write-read-write chain") {
+
+    versioned_open(process_p, file_b, WRITE_ONLY);
+    versioned_close(process_p, file_b, WRITE_ONLY);
+    versioned_open(process_q, file_b, READ_ONLY);
+    versioned_close(process_q, file_b, READ_ONLY);
+    versioned_open(process_q, file_a, WRITE_ONLY);
+    versioned_close(process_q, file_a, WRITE_ONLY);
+    versioned_open(process_p, file_a, READ_ONLY);
+    versioned_close(process_p, file_a, READ_ONLY);
+
+    struct versioned_prov_graph* graph = get_versioning_graph();
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_b1_keystr, strlen(edge_p1_to_b1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_q1_keystr, strlen(edge_b1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_q1_to_a1_keystr, strlen(edge_q1_to_a1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_p2_keystr, strlen(edge_p1_to_p2_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_a1_to_p2_keystr, strlen(edge_a1_to_p2_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    CHECK(HASH_CNT(hh, graph->edge_table) == 5);
+
+  }
+
+  SUBCASE("end-to-end test 4a: interlaced and chained read/write") {
+
+    versioned_spawn(process_p, process_q);
+    versioned_open(process_q, file_c, READ_ONLY);
+    versioned_spawn(process_q, process_r);
+    versioned_open(process_q, file_a, WRITE_ONLY);
+    versioned_close(process_q, file_c, READ_ONLY);
+    versioned_close(process_q, file_a, WRITE_ONLY);
+    versioned_open(process_r, file_a, READ_ONLY);
+    versioned_close(process_r, file_a, READ_ONLY);
+    versioned_spawn(process_p, process_s);
+    versioned_open(process_s, file_e, READ_ONLY);
+    versioned_close(process_s, file_e, READ_ONLY);
+    versioned_open(process_s, file_b, WRITE_ONLY);
+    versioned_open(process_r, file_b, READ_ONLY);
+    versioned_open(process_r, file_d, WRITE_ONLY);
+    versioned_close(process_r, file_d, WRITE_ONLY);
+    versioned_close(process_r, file_b, READ_ONLY);
+    versioned_close(process_s, file_b, WRITE_ONLY);
+
+    struct versioned_prov_graph* graph = get_versioning_graph();
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_q1_keystr, strlen(edge_p1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_c1_to_q1_keystr, strlen(edge_c1_to_q1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_q1_to_r1_keystr, strlen(edge_q1_to_r1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_q1_to_a1_keystr, strlen(edge_q1_to_a1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_a1_to_r1_keystr, strlen(edge_a1_to_r1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_p1_to_s1_keystr, strlen(edge_p1_to_s1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_e1_to_s1_keystr, strlen(edge_e1_to_s1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_s1_to_b1_keystr, strlen(edge_s1_to_b1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_b1_to_r1_keystr, strlen(edge_b1_to_r1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    found_edge = NULL;
+    HASH_FIND(hh, graph->edge_table, edge_r1_to_d1_keystr, strlen(edge_r1_to_d1_keystr), found_edge);
+
+    CHECK(found_edge);
+
+    CHECK(HASH_CNT(hh, graph->edge_table) == 10);
 
   }
 
