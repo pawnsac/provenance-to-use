@@ -513,7 +513,7 @@ void create_mirror_file(char* filename_abspath, char* src_prefix, char* dst_pref
       // EEXIST means the file already exists, which isn't
       // really a hard link failure ...
       if ((link(src_path, dst_path) != 0) && (errno != EEXIST)) {
-        copy_file(src_path, dst_path, 0);
+        okapi_copy_file(src_path, dst_path, 0);
       }
     }
     else if (S_ISDIR(src_path_stat.st_mode)) { // directory or symlink to directory
@@ -770,7 +770,7 @@ void create_mirror_symlink_and_target(char* filename_abspath, char* src_prefix, 
       create_mirror_dirs(symlink_dst_original_path_suffix, src_prefix, dst_prefix, 1);
 
       if ((link(symlink_target_abspath, symlink_dst_abspath) != 0) && (errno != EEXIST)) {
-        copy_file(symlink_target_abspath, symlink_dst_abspath, 0);
+        okapi_copy_file(symlink_target_abspath, symlink_dst_abspath, 0);
       }
     }
     else if (S_ISDIR(symlink_target_stat.st_mode)) { // symlink to directory
@@ -799,7 +799,7 @@ done:
 // permissions as src_filename.  Otherwise, dst_filename will have
 // its permissions set to perms.
 // note that this WILL follow symlinks
-void copy_file(char* src_filename, char* dst_filename, int perms) {
+void okapi_copy_file(char* src_filename, char* dst_filename, int perms) {
   int inF;
   int outF;
   int bytes;

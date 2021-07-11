@@ -228,6 +228,10 @@ ptrace_restart(int op, struct tcb *tcp, int sig)
 		msg = "CONT";
 	if (op == PTRACE_DETACH)
 		msg = "DETACH";
+#ifdef PTRACE_LISTEN
+	if (op == PTRACE_LISTEN)
+		msg = "LISTEN";
+#endif
 	fprintf(stderr, "strace: ptrace(PTRACE_%s,1,%d): %s\n",
 			msg, sig, strerror(err));
 	return -1;

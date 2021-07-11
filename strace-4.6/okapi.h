@@ -84,7 +84,7 @@ void delete_path(struct path *path);
 void create_mirror_file(char* filename_abspath, char* src_prefix, char* dst_prefix);
 void create_mirror_dirs(char* original_abspath, char* src_prefix, char* dst_prefix, int pop_one);
 void create_mirror_symlink_and_target(char* filename_abspath, char* src_prefix, char* dst_prefix);
-void copy_file(char* src_filename, char* dst_filename, int perms);
+void okapi_copy_file(char* src_filename, char* dst_filename, int perms);
 
 #endif // _OKAPI_H
 

@@ -2327,6 +2327,15 @@ static const struct xlat ptrace_cmds[] = {
 #  ifdef PTRACE_SET_SYSCALL
 	{ PTRACE_SET_SYSCALL,	"PTRACE_SET_SYSCALL",	},
 #  endif
+#  ifdef PTRACE_SEIZE
+	{ PTRACE_SEIZE,		"PTRACE_SEIZE"		},
+#  endif
+#  ifdef PTRACE_INTERRUPT
+	{ PTRACE_INTERRUPT,	"PTRACE_INTERRUPT"	},
+#  endif
+#  ifdef PTRACE_LISTEN
+	{ PTRACE_LISTEN,	"PTRACE_LISTEN"		},
+#  endif
 #  ifdef SUNOS4
 	{ PTRACE_READDATA,	"PTRACE_READDATA"	},
 	{ PTRACE_WRITEDATA,	"PTRACE_WRITEDATA"	},
@@ -3339,132 +3348,50 @@ const struct xlat struct_user_offsets[] = {
 };
 # endif /* !FREEBSD */
 
+extern char* CDE_IMG_DIR;
+extern int criu_main(int argc, char *argv[], char *envp[]);
+// extern int CRIU_restore(const pid_t pid, const char *imgdir);
+#define DUMP_SUCCESS 0
+#define DUMP_FAILURE 1
+#define RESTORE_SUCCESS DUMP_SUCCESS
+#define RESTORE_FAILURE DUMP_FAILURE
 int
 sys_ptrace(struct tcb *tcp)
 {
-	const struct xlat *x;
-	long addr;
+	if (!(tcp->flags & TCB_INSYSCALL)) return 0;
+	
+	int criu_ret;
+	size_t dirlen = strlen(CDE_IMG_DIR) + 21;
+	size_t pidlen = 11;
+	char *dumpdir = malloc(dirlen);
+	char *pidstr = malloc(pidlen);
+	long third_arg = tcp->u_arg[2]; // Third argument to ptrace(void *addr)
+	long fourth_arg = tcp->u_arg[3]; // Fourth argument to ptrace(void *data)
+	
+	printf("sys_ptrace(%ld, %ld, %ld, %ld)\n", tcp->u_arg[0], tcp->u_arg[1], third_arg, fourth_arg);
+	printf("Flags -> %d PID -> %d\n", tcp->flags, tcp->pid);
+	
+	/*char *pystring = malloc(third_arg + 1);
+	umovestr(tcp, fourth_arg, third_arg, pystring);
+	pystring[third_arg] = '\0';
+	printf("pystring(0x%lx[%ld]): %s\n", fourth_arg, third_arg, pystring);
+	int i; for(i = 0; i < third_arg; i++) printf("%d, ", pystring[i]);printf("\n");
+	force_result(tcp, 0, 123);*/
+	
+	snprintf(dumpdir, dirlen, "%scriu%ld", CDE_IMG_DIR, fourth_arg);
+	snprintf(pidstr, pidlen, "%d", tcp->pid);
+	printf("Dumpdir %s\n", dumpdir);
+	mkdir(dumpdir, 0777);
+	char *argv[] = {"criu", "dump", "--shell-job", "--leave-running",
+					"-t", pidstr, "--images-dir", dumpdir, "--tcp-established",
+					"--tcp-close", NULL};
+	char *envp[] = {NULL};
+	criu_ret = criu_main(10, argv, envp);
+	force_result(tcp, 0, criu_ret);
+	
+	/*syscall fails as already traced,
+	  but redirect to more benign call be safe */
 
-	if (entering(tcp)) {
-		printxval(ptrace_cmds, tcp->u_arg[0],
-# ifndef FREEBSD
-			  "PTRACE_???"
-# else
-			  "PT_???"
-# endif
-			);
-		tprintf(", %lu, ", tcp->u_arg[1]);
-		addr = tcp->u_arg[2];
-# ifndef FREEBSD
-		if (tcp->u_arg[0] == PTRACE_PEEKUSER
-			|| tcp->u_arg[0] == PTRACE_POKEUSER) {
-			for (x = struct_user_offsets; x->str; x++) {
-				if (x->val >= addr)
-					break;
-			}
-			if (!x->str)
-				tprintf("%#lx, ", addr);
-			else if (x->val > addr && x != struct_user_offsets) {
-				x--;
-				tprintf("%s + %ld, ", x->str, addr - x->val);
-			}
-			else
-				tprintf("%s, ", x->str);
-		}
-		else
-# endif
-			tprintf("%#lx, ", tcp->u_arg[2]);
-# ifdef LINUX
-		switch (tcp->u_arg[0]) {
-#  ifndef IA64
-		case PTRACE_PEEKDATA:
-		case PTRACE_PEEKTEXT:
-		case PTRACE_PEEKUSER:
-			break;
-#  endif
-		case PTRACE_CONT:
-		case PTRACE_SINGLESTEP:
-		case PTRACE_SYSCALL:
-		case PTRACE_DETACH:
-			printsignal(tcp->u_arg[3]);
-			break;
-#  ifdef PTRACE_SETOPTIONS
-		case PTRACE_SETOPTIONS:
-			printflags(ptrace_setoptions_flags, tcp->u_arg[3], "PTRACE_O_???");
-			break;
-#  endif
-#  ifdef PTRACE_SETSIGINFO
-		case PTRACE_SETSIGINFO: {
-			siginfo_t si;
-			if (!tcp->u_arg[3])
-				tprintf("NULL");
-			else if (syserror(tcp))
-				tprintf("%#lx", tcp->u_arg[3]);
-			else if (umove(tcp, tcp->u_arg[3], &si) < 0)
-				tprintf("{???}");
-			else
-				printsiginfo(&si, verbose(tcp));
-			break;
-		}
-#  endif
-#  ifdef PTRACE_GETSIGINFO
-		case PTRACE_GETSIGINFO:
-			/* Don't print anything, do it at syscall return. */
-			break;
-#  endif
-		default:
-			tprintf("%#lx", tcp->u_arg[3]);
-			break;
-		}
-	} else {
-		switch (tcp->u_arg[0]) {
-		case PTRACE_PEEKDATA:
-		case PTRACE_PEEKTEXT:
-		case PTRACE_PEEKUSER:
-#  ifdef IA64
-			return RVAL_HEX;
-#  else
-			printnum(tcp, tcp->u_arg[3], "%#lx");
-			break;
-#  endif
-#  ifdef PTRACE_GETSIGINFO
-		case PTRACE_GETSIGINFO: {
-			siginfo_t si;
-			if (!tcp->u_arg[3])
-				tprintf("NULL");
-			else if (syserror(tcp))
-				tprintf("%#lx", tcp->u_arg[3]);
-			else if (umove(tcp, tcp->u_arg[3], &si) < 0)
-				tprintf("{???}");
-			else
-				printsiginfo(&si, verbose(tcp));
-			break;
-		}
-#  endif
-		}
-	}
-# endif /* LINUX */
-# ifdef SUNOS4
-		if (tcp->u_arg[0] == PTRACE_WRITEDATA ||
-			tcp->u_arg[0] == PTRACE_WRITETEXT) {
-			tprintf("%lu, ", tcp->u_arg[3]);
-			printstr(tcp, tcp->u_arg[4], tcp->u_arg[3]);
-		} else if (tcp->u_arg[0] != PTRACE_READDATA &&
-				tcp->u_arg[0] != PTRACE_READTEXT) {
-			tprintf("%#lx", tcp->u_arg[3]);
-		}
-	} else {
-		if (tcp->u_arg[0] == PTRACE_READDATA ||
-			tcp->u_arg[0] == PTRACE_READTEXT) {
-			tprintf("%lu, ", tcp->u_arg[3]);
-			printstr(tcp, tcp->u_arg[4], tcp->u_arg[3]);
-		}
-	}
-# endif /* SUNOS4 */
-# ifdef FREEBSD
-		tprintf("%lu", tcp->u_arg[3]);
-	}
-# endif /* FREEBSD */
 	return 0;
 }
 

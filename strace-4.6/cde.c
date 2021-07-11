@@ -38,6 +38,7 @@
 #include <sys/param.h>   // P2001: MAXPATHLEN
 #include <fcntl.h>       // P2001: AT_FDCWD, O_RDONLY, open()
 #include <stdio.h>       // ISOC: fopen(), fclose(), getline() [P2008]
+#include <string.h>
 
 /*******************************************************************************
  * USER INCLUDES
@@ -50,7 +51,8 @@
 #include "syslimits.h"   // max_open_files()
 #include "strutils.h"    // str_rstrip(), str_startswith(), str_endswith()
 #include "shellutils.h"  // malloc_quoted_arg_str()
-
+// #include "memoize.h"     // AKY adds for checkpoint/restore functionality
+extern int CRIU_dump(const pid_t pid, const char *imgdir);
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
  ******************************************************************************/
@@ -67,6 +69,8 @@ char Cde_verbose_mode = 0;    // print cde activity to stdout (-v option)
 char Cde_exec_mode = 0;       // false if auditing, true if running captured app
 char Cde_app_dir[MAXPATHLEN]; // abs path to cde app dir (contains cde-root)
 
+char Cde_restore_mode = 0;
+
 /*******************************************************************************
  * PRIVATE CONSTANTS / VARIABLES
  ******************************************************************************/
@@ -78,6 +82,7 @@ const size_t shared_page_size = MAXPATHLEN * 4; // shared mem page size
 static char cde_cderoot_dir[MAXPATHLEN]; // abs path to cde-root dir (root of captured app)
 static pthread_mutex_t mut_findelf = PTHREAD_MUTEX_INITIALIZER; // quanpt: make find_ELF_program_interpreter threadsafe
 static bool local_network_settings = true; // use local hostnames/etc during audit/exec
+
 
 /*******************************************************************************
  * PRIVATE MACROS / FUNCTIONS
@@ -196,14 +201,17 @@ void use_local_network_settings (bool new_setting) {
  ******************************************************************************/
 
 
-char* CDE_ROOT_NAME = NULL;
+char* CDE_ROOT_NAME   = NULL;
+char* CDE_IMGDIR_NAME = "images";
 // only valid if !Cde_exec_mode
 char* CDE_PACKAGE_DIR = NULL;
-char* CDE_ROOT_DIR = NULL;
+char* CDE_ROOT_DIR    = NULL;
+char* CDE_IMG_DIR     = 0;
 char CDE_proc_self_exe[MAXPATHLEN];
 
 char CDE_block_net_access = 0; // -n option
 
+static uint img_counter = 1;
 // only relevant if Cde_exec_mode = 1
 char CDE_exec_streaming_mode = 0; // -s option
 
@@ -1089,6 +1097,7 @@ sys_utime(filename, ...)
 sys_readlink(path, ...)
 
  */
+
 void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
   //char* filename = strcpy_from_child(tcp, tcp->u_arg[0]);
 
@@ -1118,7 +1127,6 @@ void CDE_begin_standard_fileop(struct tcb* tcp, const char* syscall_name) {
     // (Note that filename can sometimes be a JUNKY STRING due to weird race
     //  conditions when strace is tracing complex multi-process applications)
       copy_file_into_cde_root(filename, tcp->current_dir);
-
     }
   }
 
@@ -3130,12 +3138,16 @@ void CDE_init(char** argv, int optind) {
     // make this an absolute path!
     CDE_PACKAGE_DIR = canonicalize_path(CDE_PACKAGE_DIR, cde_starting_pwd);
     strcpy(Cde_app_dir, CDE_PACKAGE_DIR);
+
     CDE_ROOT_DIR = format("%s/%s", CDE_PACKAGE_DIR, CDE_ROOT_NAME);
+    CDE_IMG_DIR  = format("%s/%s/", CDE_PACKAGE_DIR, CDE_IMGDIR_NAME);
+    
     assert(IS_ABSPATH(CDE_ROOT_DIR));
+    assert(IS_ABSPATH(CDE_IMG_DIR));
 
     mkdir(CDE_PACKAGE_DIR, 0777);
-    mkdir(CDE_ROOT_DIR, 0777);
-
+    mkdir(CDE_ROOT_DIR,    0777);
+    mkdir(CDE_IMG_DIR,     0777);
 
     // if we can't even create CDE_ROOT_DIR, then abort with a failure
     struct stat cde_rootdir_stat;
@@ -3272,7 +3284,7 @@ void CDE_init(char** argv, int optind) {
     // use /proc/self/exe since argv[0] might be simply 'cde'
     // (if the cde binary is in $PATH and we're invoking it only by its name)
     char* fn = format("%s/cde-exec", CDE_PACKAGE_DIR);
-    copy_file((char*)"/proc/self/exe", fn, 0777);
+    okapi_copy_file((char*)"/proc/self/exe", fn, 0777);
     free(fn);
 
     CDE_create_convenience_scripts(argv, optind);
@@ -3313,7 +3325,7 @@ void CDE_init(char** argv, int optind) {
 
     // copy /proc/self/environ to capture the FULL set of environment vars
     char* fullenviron_fn = format("%s/cde.full-environment.%s", CDE_PACKAGE_DIR, CDE_ROOT_NAME);
-    copy_file((char*)"/proc/self/environ", fullenviron_fn, 0666);
+    okapi_copy_file((char*)"/proc/self/environ", fullenviron_fn, 0666);
     free(fullenviron_fn);
   }
 
@@ -3517,7 +3529,7 @@ static void CDE_init_options() {
     // if found, copy it into the package
     if (f) {
       char* fn = format("%s/cde.options", CDE_PACKAGE_DIR);
-      copy_file((char*)"cde.options", fn, 0666);
+      okapi_copy_file((char*)"cde.options", fn, 0666);
       unlink("cde.options");
       free(fn);
     }
@@ -3886,6 +3898,38 @@ void CDE_begin_socket_bind_or_connect(struct tcb *tcp) {
       memcpy_to_child(tcp->pid, (char*)addr, (char*)&s, sizeof(s));
     }
   }
+}
+
+int CDE_memoize_process_state(pid_t pid) {
+
+  int    rc     = 0;  
+  size_t dlen   = strlen(CDE_IMG_DIR) + 10 + 1;  //10 should be enough for max uint -- yes, perhaps a scarry assumption  
+  char  *newdir = malloc(dlen);
+  if (!newdir) {
+    fprintf(stderr, "can't malloc for memoization work\n");
+    return -1;
+  }
+
+  if (snprintf(newdir, dlen, "%s%u", CDE_IMG_DIR, img_counter++) > dlen) {
+    fprintf(stderr, "max memoized states(%u) have been reached\n", --img_counter);
+    rc = -1;
+    goto out;
+  }
+
+  rc = mkdir(newdir, 0770);
+  if (rc) {
+    perror("memoize mkdir : ");
+    goto out;
+  }
+
+  /*rc = CRIU_dump(pid, newdir);
+  if (rc) {
+    fprintf(stderr, "CRIU_dump failed with rc = %d\n", rc);
+  }*/
+
+ out:
+  free(newdir);
+  return rc;
 }
 
 // =======================================================================

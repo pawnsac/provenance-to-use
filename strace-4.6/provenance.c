@@ -303,6 +303,10 @@ void init_prov () {
       prov_logfile = fopen(path, "w");
     }
 
+    // AKY adds O_CLOEXEC flag to prov_logfile bc we don't want to leak prov_logfile to checkpointed processes
+    int plf_fd = fileno(prov_logfile);
+    fcntl(plf_fd, F_SETFD, fcntl(plf_fd, F_GETFD) | FD_CLOEXEC);
+    
     struct passwd *pw = getpwuid(getuid()); // don't free this pointer
     FILE *fp;
     char uname[PATH_MAX];

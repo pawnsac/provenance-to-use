@@ -144,6 +144,12 @@ static int iflag = 0, interactive = 0, pflag_seen = 0, rflag = 0, tflag = 0;
  */
 static bool daemonized_tracer = 0;
 
+#ifdef USE_SEIZE
+# define use_seize 1
+#else
+# define use_seize 0
+#endif
+
 /* Sometimes we want to print only succeeding syscalls. */
 int not_failing_only = 0;
 
@@ -244,6 +250,23 @@ foobar()
 #else
 # define strace_vforked 1
 # define fork()         vfork()
+#endif
+
+#ifdef USE_SEIZE
+static int
+ptrace_attach_or_seize(int pid)
+{
+	int r;
+	if (!use_seize)
+		return ptrace(PTRACE_ATTACH, pid, 0, 0);
+	r = ptrace(PTRACE_SEIZE, pid, 0, 0);
+	if (r)
+		return r;
+	r = ptrace(PTRACE_INTERRUPT, pid, 0, 0);
+	return r;
+}
+#else
+# define ptrace_attach_or_seize(pid) ptrace(PTRACE_ATTACH, (pid), 0, 0)
 #endif
 
 static int
@@ -466,7 +489,7 @@ startup_attach(void)
 					if (tid <= 0)
 						continue;
 					++ntid;
-					if (ptrace(PTRACE_ATTACH, tid, (char *) 1, 0) < 0)
+					if (ptrace_attach_or_seize(tid) < 0)
 						++nerr;
 					else if (tid != tcbtab[tcbi]->pid) {
 						tcp = alloctcb(tid);
@@ -500,7 +523,7 @@ startup_attach(void)
 			} /* if (opendir worked) */
 		} /* if (-f) */
 # endif
-		if (ptrace(PTRACE_ATTACH, tcp->pid, (char *) 1, 0) < 0) {
+		if (ptrace_attach_or_seize(tcp->pid) < 0) {
 			perror("attach: ptrace(PTRACE_ATTACH, ...)");
 			droptcb(tcp);
 			continue;
@@ -650,8 +673,8 @@ startup_child (char **argv)
 		if (outf!=stderr)
 			close(fileno (outf));
 
-		if (!daemonized_tracer) {
-			if (ptrace(PTRACE_TRACEME, 0, (char *) 1, 0) < 0) {
+		if (!daemonized_tracer && !use_seize) {
+			if (ptrace(PTRACE_TRACEME, 0L, 0L, 0L) < 0) {
 				perror("strace: ptrace(PTRACE_TRACEME, ...)");
 				exit(1);
 			}
@@ -741,10 +764,47 @@ fprintf(stderr, "%s %d\n", pathname, cde_exec_from_outside_cderoot);
 	}
 
 	/* We are the tracer.  */
-	tcp = alloctcb(daemonized_tracer ? getppid() : pid);
-  CDE_init_tcb_dir_fields(tcp); // pgbovine
+	if (!daemonized_tracer) {
+		if (!use_seize) {
+			/* child did PTRACE_TRACEME, nothing to do in parent */
+		} else {
+			if (!strace_vforked) {
+				/* Wait until child stopped itself */
+				int status;
+				while (waitpid(pid, &status, WSTOPPED) < 0) {
+					if (errno == EINTR)
+						continue;
+					perror("waitpid");
+					_exit(1);
+				}
+				if (!WIFSTOPPED(status) || WSTOPSIG(status) != SIGSTOP) {
+					kill(pid, SIGKILL);
+					perror("Unexpected wait status");
+					_exit(1);
+				}
+			}
+			/* Else: vforked case, we have no way to sync.
+			 * Just attach to it as soon as possible.
+			 * This means that we may miss a few first syscalls...
+			 */
 
-	if (daemonized_tracer) {
+			if (ptrace_attach_or_seize(pid)) {
+				kill(pid, SIGKILL);
+				perror("Can't attach to child");
+				_exit(1);
+			}
+			if (!strace_vforked)
+				kill(pid, SIGCONT);
+		}
+		tcp = alloctcb(pid);
+		CDE_init_tcb_dir_fields(tcp); // pgbovine
+		tcp->flags |= TCB_ATTACHED | TCB_STARTUP;
+		newoutf(tcp);
+	}
+	else {
+		/* The tracee is our parent: */
+		pid = getppid();
+		tcp = alloctcb(pid);
 		/* We want subsequent startup_attach() to attach to it.  */
 		tcp->flags |= TCB_ATTACHED;
 	}
@@ -2161,6 +2221,7 @@ trace()
 	int pid;
 	int wait_errno;
 	int status;
+	int stopped;
 	struct tcb *tcp;
 #ifdef LINUX
 	struct rusage ru;
@@ -2650,6 +2711,7 @@ int main (int argc, char *argv[]) {
 
   // pgbovine - if program name is 'cde-exec', then activate Cde_exec_mode
   Cde_exec_mode = (strcmp(basename(progname), "cde-exec") == 0 || strcmp(basename(progname), "ptu-exec") == 0);
+  Cde_restore_mode = (strcmp(basename(progname), "ptu-restore") == 0);
 
 	/* Allocate the initial tcbtab.  */
 	tcbtabsize = argc;	/* Surely enough for all -p args.  */
@@ -2872,7 +2934,7 @@ int main (int argc, char *argv[]) {
 	//  ignore for now: getsockopt,setsockopt,getpeername,socketpair,bind,getsockname,sockatmark,isfdtype
 	#define SYSCALL_1ST "trace=open,execve,stat,stat64,lstat,lstat64,oldstat,oldlstat,link,symlink,unlink" \
 			",rename,access,creat,chmod,chown,chown32,lchown,lchown32,readlink,utime,truncate,truncate64" \
-			",chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,utimes,openat" \
+			",chdir,fchdir,mkdir,rmdir,getcwd,mknod,bind,utimes,openat,ptrace" \
 			",faccessat,fstatat64,fchownat,fchmodat,futimesat,mknodat,linkat,symlinkat,renameat,readlinkat" \
 			",mkdirat,unlinkat,setxattr,lsetxattr,getxattr,lgetxattr,listxattr,llistxattr,removexattr,lremovexattr" \
 			",connect,accept,listen,close" \
@@ -2999,8 +3061,21 @@ int main (int argc, char *argv[]) {
 	   installed below as they are inherited into the spawned process.
 	   Also we do not need to be protected by them as during interruption
 	   in the STARTUP_CHILD mode we kill the spawned process anyway.  */
-	if (!pflag_seen)
+	if (!pflag_seen && !Cde_restore_mode)
 		startup_child(&argv[optind]);
+	else if (Cde_restore_mode) {
+		char *criu_argv[] = {"criu", "restore", "--shell-job", "--leave-running",
+						"--images-dir", strdup(argv[optind]), "--tcp-established",
+						"--tcp-close", NULL};
+		char *envp[] = {NULL};
+		int pid = criu_main(8, criu_argv, envp);
+		tcp = alloctcb(pid);
+		CDE_init_tcb_dir_fields(tcp); // pgbovine
+		tcp->flags |= TCB_ATTACHED | TCB_STARTUP;
+		newoutf(tcp);
+		// ptrace(PTRACE_CONT, pid, 0, 0);
+		printf("pid=%d\n", pid);
+	}
 
 	sigemptyset(&empty_set);
 	sigemptyset(&blocked_set);

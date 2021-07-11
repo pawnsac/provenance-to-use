@@ -317,6 +317,8 @@ struct tcb *tcp;
 int
 sys_nanosleep(struct tcb *tcp)
 {
+	fprintf(stderr, "sys_nanosleep\n");
+
 	if (entering(tcp)) {
 		print_timespec(tcp, tcp->u_arg[0]);
 		tprintf(", ");

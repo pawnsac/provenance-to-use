@@ -29,20 +29,52 @@ set(ptu_main_source strace-4.6/strace.c)
 ################################################################################
 
 add_library(ptu_lib ${ptu_sources})
-
+add_library(criu_lib     STATIC IMPORTED)
+add_library(criu_imglib  STATIC IMPORTED)
+add_library(compel_lib   STATIC IMPORTED)
+add_library(criu_archlib STATIC IMPORTED)
+add_library(soccr        STATIC IMPORTED)
+set_property(TARGET criu_lib
+  PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/criu/criu/built-in.o)
+set_property(TARGET criu_imglib
+  PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/criu/images/built-in.o)
+set_property(TARGET compel_lib
+  PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/criu/compel/libcompel.a)
+set_property(TARGET criu_archlib
+  PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/criu/criu/arch/x86/crtools.built-in.o)
+set_property(TARGET soccr
+  PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/criu/soccr/libsoccr.a)
 ################################################################################
 # EXTERNAL LIBS
 ################################################################################
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+find_package(Threads  REQUIRED)
+find_library(netlink  nl-3)
+find_library(dl       dl)
+find_library(protobuf protobuf-c)
+find_library(net      net)
+find_library(gnutls      gnutls)
+
+set(BSDLIB /usr/lib/x86_64-linux-gnu/libbsd.so)
+set(NFTLIB /usr/lib/x86_64-linux-gnu/libnftables.so)
+################################################################################
+# BUILD CRIU FROM CRIU SUPPLIED MAKEFILES
+################################################################################
+
+add_custom_target(criu ALL make || true WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/criu) 
 
 ################################################################################
 # MAIN PROJECT EXECUTABLE / LINKED LIBS
 ################################################################################
 
 add_executable(ptu ${ptu_main_source})
-target_link_libraries(ptu PRIVATE ptu_lib PRIVATE Threads::Threads)
+target_link_libraries(ptu PRIVATE ptu_lib PRIVATE Threads::Threads
+  PRIVATE criu_lib PRIVATE criu_imglib PRIVATE compel_lib PRIVATE criu_archlib
+  PRIVATE ${netlink} PRIVATE soccr PRIVATE ${dl} PRIVATE ${protobuf}
+  PRIVATE ${net}
+  PRIVATE ${gnutls} PRIVATE ${BSDLIB} PRIVATE ${NFTLIB})
+add_dependencies(ptu criu)
 
 ################################################################################
 # ARCHITECTURE CHECKS / DEFS
@@ -72,7 +104,7 @@ endif()
 
 # warnings: enable most warnings for ptu
 if(${CMAKE_C_COMPILER_ID} MATCHES "GNU")
-  add_definitions(-Wall -Wno-unused -Wno-unused-result -Wno-nonnull)
+  add_definitions(-g -Wall -Wno-unused -Wno-unused-result -Wno-nonnull)
 endif()
 
 ################################################################################
@@ -90,6 +122,12 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("readelf-mini/include")
 include_directories("strace-4.6/linux/x86_64")
 include_directories("strace-4.6/linux")
+include_directories("criu/")
+include_directories("criu/compel/include/uapi")
+# NOTE:  next include is architecture dependent -- Need a way to handle this if arch is not x86
+# include_directories("criu/criu/arch/x86/include")
+# include_directories("criu/criu/include")
+include_directories("criu/include")
 
 # use cmake built-in modules to check availability
 # --> checks make defs used by config.h.in to produce config.h
@@ -271,6 +309,8 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 check_variable_exists("sys_siglist" HAVE_DECL_SYS_SIGLIST)
 
 check_variable_exists("_sys_siglist" HAVE_DECL__SYS_SIGLIST)
+set(CMAKE_EXTRA_INCLUDE_FILES "fcntl.h")
+check_variable_exists("AT_FDCWD" HAVE_AT_FDCWD)
 
 # check function availability
 

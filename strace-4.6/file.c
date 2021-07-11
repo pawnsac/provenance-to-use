@@ -477,13 +477,14 @@ int sys_open (struct tcb* tcp) {
 
 #ifdef LINUX
 int sys_openat (struct tcb* tcp) {
-  // modified by pgbovine
+  // modified by pgbovine and AKY
+  int ret = 0;
   if (entering(tcp)) {
     CDE_begin_at_fileop(tcp, "sys_openat");
   } else {
     print_open_prov(tcp, "sys_openat");
   }
-  return 0;
+  return ret;
 }
 #endif
 

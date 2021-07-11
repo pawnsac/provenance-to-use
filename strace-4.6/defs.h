@@ -349,7 +349,25 @@ extern int mp_ioctl (int f, int c, void *a, int s);
 # if !HAVE_DECL_PTRACE_EVENT_CLONE
 #  define PTRACE_EVENT_CLONE	3
 # endif
+
+/* Experimental code using PTRACE_SEIZE can be enabled here.
+ * This needs Linux kernel 3.4.x or later to work.
+ */
+#define USE_SEIZE 1
+
+#ifdef USE_SEIZE
+# undef PTRACE_SEIZE
+# define PTRACE_SEIZE		0x4206
+# undef PTRACE_INTERRUPT
+# define PTRACE_INTERRUPT	0x4207
+# undef PTRACE_LISTEN
+# define PTRACE_LISTEN		0x4208
+# undef PTRACE_EVENT_STOP
+# define PTRACE_EVENT_STOP	128
+#endif
+
 #endif /* LINUX */
+
 
 
 // for the 'ignore_process' option - pgbovine

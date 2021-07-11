@@ -21,6 +21,9 @@ extern char Cde_verbose_mode;    // print cde activity to stdout (-v option)
 extern char Cde_exec_mode;       // false if auditing, true if running captured app
 extern char Cde_app_dir[];       // abs path to cde app dir (contains cde-root)
 
+extern char Cde_restore_mode;
+extern int criu_main(int argc, char *argv[], char *envp[]);
+
 /*******************************************************************************
  * PUBLIC MACROS / FUNCTIONS
  ******************************************************************************/
