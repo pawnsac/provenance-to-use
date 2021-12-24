@@ -3361,36 +3361,43 @@ sys_ptrace(struct tcb *tcp)
 	if (!(tcp->flags & TCB_INSYSCALL)) return 0;
 	
 	int criu_ret;
-	size_t dirlen = strlen(CDE_IMG_DIR) + 21;
-	size_t pidlen = 11;
-	char *dumpdir = malloc(dirlen);
-	char *pidstr = malloc(pidlen);
+	long first_arg = tcp->u_arg[0]; // First argument to ptrace
 	long third_arg = tcp->u_arg[2]; // Third argument to ptrace(void *addr)
 	long fourth_arg = tcp->u_arg[3]; // Fourth argument to ptrace(void *data)
-	
-	printf("sys_ptrace(%ld, %ld, %ld, %ld)\n", tcp->u_arg[0], tcp->u_arg[1], third_arg, fourth_arg);
-	printf("Flags -> %d PID -> %d\n", tcp->flags, tcp->pid);
-	
-	/*char *pystring = malloc(third_arg + 1);
-	umovestr(tcp, fourth_arg, third_arg, pystring);
-	pystring[third_arg] = '\0';
-	printf("pystring(0x%lx[%ld]): %s\n", fourth_arg, third_arg, pystring);
-	int i; for(i = 0; i < third_arg; i++) printf("%d, ", pystring[i]);printf("\n");
-	force_result(tcp, 0, 123);*/
-	
-	snprintf(dumpdir, dirlen, "%scriu%ld", CDE_IMG_DIR, fourth_arg);
-	snprintf(pidstr, pidlen, "%d", tcp->pid);
-	printf("Dumpdir %s\n", dumpdir);
-	mkdir(dumpdir, 0777);
-	char *argv[] = {"criu", "dump", "--shell-job", "--leave-running",
-					"-t", pidstr, "--images-dir", dumpdir, "--tcp-established",
-					"--tcp-close", NULL};
-	char *envp[] = {NULL};
-	criu_ret = criu_main(10, argv, envp);
-	force_result(tcp, 0, criu_ret);
-	
-	/*syscall fails as already traced,
-	  but redirect to more benign call be safe */
+
+	if (first_arg == -1) {
+		size_t dirlen = strlen(CDE_IMG_DIR) + 21;
+		size_t pidlen = 11;
+		char *dumpdir = malloc(dirlen);
+		char *pidstr = malloc(pidlen);
+		printf("sys_ptrace(%ld, %ld, %ld, %ld)\n", tcp->u_arg[0], tcp->u_arg[1], third_arg, fourth_arg);
+		printf("Flags -> %d PID -> %d\n", tcp->flags, tcp->pid);
+		
+		/*char *pystring = malloc(third_arg + 1);
+		umovestr(tcp, fourth_arg, third_arg, pystring);
+		pystring[third_arg] = '\0';
+		printf("pystring(0x%lx[%ld]): %s\n", fourth_arg, third_arg, pystring);
+		int i; for(i = 0; i < third_arg; i++) printf("%d, ", pystring[i]);printf("\n");
+		force_result(tcp, 0, 123);*/
+		
+		snprintf(dumpdir, dirlen, "%scriu%ld", CDE_IMG_DIR, fourth_arg);
+		snprintf(pidstr, pidlen, "%d", tcp->pid);
+		printf("Dumpdir %s\n", dumpdir);
+		mkdir(dumpdir, 0777);
+		char *argv[] = {"criu", "dump", "--shell-job", "--leave-running",
+						"-t", pidstr, "--images-dir", dumpdir, "--tcp-established",
+						"--tcp-close", NULL};
+		char *envp[] = {NULL};
+		criu_ret = criu_main(10, argv, envp);
+		force_result(tcp, 0, criu_ret);
+		
+		/*syscall fails as already traced,
+		  but redirect to more benign call be safe */
+	}
+	else if (first_arg == -2) {
+		print_ptrace_prov(tcp);
+		force_result(tcp, 0, 0);
+	}
 
 	return 0;
 }

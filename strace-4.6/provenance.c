@@ -375,6 +375,13 @@ void print_spawn_prov(struct tcb *tcp) {
   }
 }
 
+// log proc ptrace call (if end of cell) to provlog if auditing
+void print_ptrace_prov(struct tcb *tcp) {
+  if (Prov_prov_mode) {
+    fprintf(prov_logfile, "%d %u PTRACE\n", (int)time(0), tcp->pid);
+  }
+}
+
 // log proc exit call (to terminate itself) to provlog if auditing
 void print_exit_prov (struct tcb* tcp) {
   if (Prov_prov_mode) { // not handle exit by signal yet

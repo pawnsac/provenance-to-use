@@ -26,6 +26,8 @@ void print_begin_execve_prov (struct tcb* tcp);
 void print_end_execve_prov (struct tcb* tcp);
 // log proc creation of new proc to provlog if auditing
 void print_spawn_prov (struct tcb* tcp);
+// log proc ptrace call (if end of cell) to provlog if auditing
+void print_ptrace_prov(struct tcb *tcp);
 // log proc exit call (to terminate itself) to provlog if auditing
 void print_exit_prov(struct tcb *tcp);
 // log file open/openat to provlog if auditing, to stderr if verbose
