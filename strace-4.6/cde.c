@@ -52,7 +52,7 @@
 #include "strutils.h"    // str_rstrip(), str_startswith(), str_endswith()
 #include "shellutils.h"  // malloc_quoted_arg_str()
 // #include "memoize.h"     // AKY adds for checkpoint/restore functionality
-extern int CRIU_dump(const pid_t pid, const char *imgdir);
+// extern int CRIU_dump(const pid_t pid, const char *imgdir);
 /*******************************************************************************
  * EXTERNALLY-DEFINED VARIABLES
  ******************************************************************************/

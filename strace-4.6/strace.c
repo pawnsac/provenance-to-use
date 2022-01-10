@@ -3063,7 +3063,7 @@ int main (int argc, char *argv[]) {
 	   in the STARTUP_CHILD mode we kill the spawned process anyway.  */
 	if (!pflag_seen && !Cde_restore_mode)
 		startup_child(&argv[optind]);
-	else if (Cde_restore_mode) {
+	/*else if (Cde_restore_mode) {
 		char *criu_argv[] = {"criu", "restore", "--shell-job", "--leave-running",
 						"--images-dir", strdup(argv[optind]), "--tcp-established",
 						"--tcp-close", NULL};
@@ -3075,7 +3075,7 @@ int main (int argc, char *argv[]) {
 		newoutf(tcp);
 		// ptrace(PTRACE_CONT, pid, 0, 0);
 		printf("pid=%d\n", pid);
-	}
+	}*/
 
 	sigemptyset(&empty_set);
 	sigemptyset(&blocked_set);

@@ -3349,7 +3349,7 @@ const struct xlat struct_user_offsets[] = {
 # endif /* !FREEBSD */
 
 extern char* CDE_IMG_DIR;
-extern int criu_main(int argc, char *argv[], char *envp[]);
+// extern int criu_main(int argc, char *argv[], char *envp[]);
 // extern int CRIU_restore(const pid_t pid, const char *imgdir);
 #define DUMP_SUCCESS 0
 #define DUMP_FAILURE 1
@@ -3365,7 +3365,7 @@ sys_ptrace(struct tcb *tcp)
 	long third_arg = tcp->u_arg[2]; // Third argument to ptrace(void *addr)
 	long fourth_arg = tcp->u_arg[3]; // Fourth argument to ptrace(void *data)
 
-	if (first_arg == -1) {
+	/*if (first_arg == -1) {
 		size_t dirlen = strlen(CDE_IMG_DIR) + 21;
 		size_t pidlen = 11;
 		char *dumpdir = malloc(dirlen);
@@ -3373,12 +3373,12 @@ sys_ptrace(struct tcb *tcp)
 		printf("sys_ptrace(%ld, %ld, %ld, %ld)\n", tcp->u_arg[0], tcp->u_arg[1], third_arg, fourth_arg);
 		printf("Flags -> %d PID -> %d\n", tcp->flags, tcp->pid);
 		
-		/*char *pystring = malloc(third_arg + 1);
+		/ *char *pystring = malloc(third_arg + 1);
 		umovestr(tcp, fourth_arg, third_arg, pystring);
 		pystring[third_arg] = '\0';
 		printf("pystring(0x%lx[%ld]): %s\n", fourth_arg, third_arg, pystring);
 		int i; for(i = 0; i < third_arg; i++) printf("%d, ", pystring[i]);printf("\n");
-		force_result(tcp, 0, 123);*/
+		force_result(tcp, 0, 123);* /
 		
 		snprintf(dumpdir, dirlen, "%scriu%ld", CDE_IMG_DIR, fourth_arg);
 		snprintf(pidstr, pidlen, "%d", tcp->pid);
@@ -3391,10 +3391,11 @@ sys_ptrace(struct tcb *tcp)
 		criu_ret = criu_main(10, argv, envp);
 		force_result(tcp, 0, criu_ret);
 		
-		/*syscall fails as already traced,
-		  but redirect to more benign call be safe */
+		/ *syscall fails as already traced,
+		  but redirect to more benign call be safe * /
 	}
-	else if (first_arg == -2) {
+	else if (first_arg == -2) { */
+	if (first_arg == -2) {
 		print_ptrace_prov(tcp);
 		force_result(tcp, 0, 0);
 	}
