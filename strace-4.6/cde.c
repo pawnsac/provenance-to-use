@@ -1152,10 +1152,16 @@ void CDE_begin_at_fileop(struct tcb* tcp, const char* syscall_name) {
   }
 
   if (!IS_ABSPATH(filename) && tcp->u_arg[0] != AT_FDCWD) {
-    fprintf(stderr,
-            "CDE WARNING (unsupported operation): %s '%s' is a relative path and dirfd != AT_FDCWD\n",
-            syscall_name, filename);
-    goto done; // punt early!
+      // raza - the following two statements are commented out
+      // to remove the error for relative file names
+      // in ptu execution mode (in sciunit repeat).
+      // all tests are passing after commenting them out
+      // todo: revisit and possibly remove if solution doesn't work
+
+//    fprintf(stderr,
+//            "CDE WARNING (unsupported operation): %s '%s' is a relative path and dirfd != AT_FDCWD\n",
+//            syscall_name, filename);
+//    goto done; // punt early!
   }
 
   if (Cde_exec_mode) {
