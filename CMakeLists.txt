@@ -43,6 +43,7 @@ find_package(Threads REQUIRED)
 
 add_executable(ptu ${ptu_main_source})
 target_link_libraries(ptu PRIVATE ptu_lib PRIVATE Threads::Threads)
+target_link_options(ptu PRIVATE "LINKER:--allow-multiple-definition")
 
 ################################################################################
 # ARCHITECTURE CHECKS / DEFS
