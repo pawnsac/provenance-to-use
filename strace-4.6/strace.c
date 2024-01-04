@@ -2515,6 +2515,7 @@ Process %d attached (waiting for parent)\n",
 void
 tprintf(const char *fmt, ...)
 {
+	#ifdef DEBUG
 	va_list args;
 
 	va_start(args, fmt);
@@ -2528,6 +2529,8 @@ tprintf(const char *fmt, ...)
 			curcol += n;
 	}
 	va_end(args);
+	#endif
+
 	return;
 }
 
