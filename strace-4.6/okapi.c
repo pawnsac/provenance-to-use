@@ -436,6 +436,36 @@ char* format(const char *format, ...) {
   return ptr;
 }
 
+/* If file is python cache file, copy its Python source file also */
+void copy_pycache_python_source(char* filename_abspath, char* src_prefix, char* dst_prefix) {
+
+  if(endswith(filename_abspath, ".pyc"))
+  {
+    struct path* p = new_path_from_abspath(filename_abspath);
+
+    if(strcmp(get_path_component(p, p->depth - 1), "__pycache__") == 0)
+    {
+      char *python_cache_file_name = get_path_component(p, p->depth);
+      char *pch = strstr(python_cache_file_name,".cpython-");
+      if (pch != NULL)
+      {
+        *pch = '\0'; /* Remove .cpython- and everything after it from file name */
+        
+        char* python_source_file_path = path2str(p, p->depth - 2);
+        char* python_source_file_name = format("%s%s", get_path_component(p, p->depth), ".py");
+        char* src_path = format("%s%s%s", python_source_file_path, "/", python_source_file_name);
+        char* dst_path = format("%s%s", dst_prefix, src_path);
+
+        copy_file(src_path, dst_path, 0);
+
+        free(python_source_file_path);
+        free(python_source_file_name);
+        free(src_path);
+        free(dst_path);
+      }
+    }
+  }
+}
 
 // emulate the functionality of:
 // "cp $src_prefix/$filename_abspath $dst_prefix/$filename_abspath",
@@ -514,6 +544,7 @@ void create_mirror_file(char* filename_abspath, char* src_prefix, char* dst_pref
       // really a hard link failure ...
       if ((link(src_path, dst_path) != 0) && (errno != EEXIST)) {
         copy_file(src_path, dst_path, 0);
+        copy_pycache_python_source(filename_abspath, src_prefix, dst_prefix);
       }
     }
     else if (S_ISDIR(src_path_stat.st_mode)) { // directory or symlink to directory
