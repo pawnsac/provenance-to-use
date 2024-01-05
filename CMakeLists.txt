@@ -76,6 +76,8 @@ if(${CMAKE_C_COMPILER_ID} MATCHES "GNU")
   add_definitions(-Wall -Wno-unused -Wno-unused-result -Wno-nonnull)
 endif()
 
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
+
 ################################################################################
 # SOURCE CONFIG
 ################################################################################
