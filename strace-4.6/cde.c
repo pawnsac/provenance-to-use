@@ -3217,6 +3217,8 @@ void CDE_init(char** argv, int optind) {
       fputs("ignore_prefix=/tmp/\n", f);
       fputs("ignore_exact=/tmp\n", f);
 
+
+
       fputs("\n# un-comment the entries below if you think they might help your app:\n", f);
       fputs("#ignore_exact=/etc/ld.so.cache\n", f);
       fputs("#ignore_exact=/etc/ld.so.preload\n", f);
@@ -3224,6 +3226,8 @@ void CDE_init(char** argv, int optind) {
 
       fputs("\n# Ignore .Xauthority to allow X Windows programs to work\n", f);
       fputs("ignore_substr=.Xauthority\n", f);
+
+      fputs("/home/fried-liver/Desktop/depaul/provenance-to-use\n", f);
 
       if (local_network_settings) {
         fputs("ignore_exact=/etc/resolv.conf\n", f);
