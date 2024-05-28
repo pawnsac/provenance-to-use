@@ -563,6 +563,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
 
 
   for (i = 0; i < ignore_exact_paths_ind; i++) {
+      printf("Ignoring exact path: %s\n", ignore_exact_paths[i]);
     if (strcmp(filename, ignore_exact_paths[i]) == 0) {
       return 1;
     }
@@ -3218,7 +3219,6 @@ void CDE_init(char** argv, int optind) {
 
       fputs("\n# Ignore .Xauthority to allow X Windows programs to work\n", f);
       fputs("ignore_substr=.Xauthority\n", f);
-      fputs("/home/fried-liver/Desktop/depaul/provenance-to-use\n", f);
 
       if (local_network_settings) {
         fputs("ignore_exact=/etc/resolv.conf\n", f);
