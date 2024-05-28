@@ -3218,6 +3218,7 @@ void CDE_init(char** argv, int optind) {
 
       fputs("\n# Ignore .Xauthority to allow X Windows programs to work\n", f);
       fputs("ignore_substr=.Xauthority\n", f);
+      fputs("/home/fried-liver/Desktop/depaul/provenance-to-use\n", f);
 
       if (local_network_settings) {
         fputs("ignore_exact=/etc/resolv.conf\n", f);
