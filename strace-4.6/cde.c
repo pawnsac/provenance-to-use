@@ -563,7 +563,7 @@ static int ignore_path(char* filename, struct tcb* tcp) {
 
 
   for (i = 0; i < ignore_exact_paths_ind; i++) {
-      printf("Ignoring exact path: %s\n", ignore_exact_paths[i]);
+      // printf("Ignoring exact path: %s\n", ignore_exact_paths[i]);
     if (strcmp(filename, ignore_exact_paths[i]) == 0) {
       return 1;
     }
