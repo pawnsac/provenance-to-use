@@ -440,8 +440,7 @@ char* format(const char *format, ...) {
 void copy_pycache_python_source(char* filename_abspath, char* src_prefix, char* dst_prefix) {
 
   if(endswith(filename_abspath, ".pyc"))
-  { 
-
+  {
     struct path* p = new_path_from_abspath(filename_abspath);
 
     if(strcmp(get_path_component(p, p->depth - 1), "__pycache__") == 0)
@@ -543,9 +542,9 @@ void create_mirror_file(char* filename_abspath, char* src_prefix, char* dst_pref
       //
       // EEXIST means the file already exists, which isn't
       // really a hard link failure ...
-      copy_pycache_python_source(filename_abspath, src_prefix, dst_prefix);
       if ((link(src_path, dst_path) != 0) && (errno != EEXIST)) {
         copy_file(src_path, dst_path, 0);
+        copy_pycache_python_source(filename_abspath, src_prefix, dst_prefix);
       }
     }
     else if (S_ISDIR(src_path_stat.st_mode)) { // directory or symlink to directory
