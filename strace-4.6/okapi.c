@@ -440,7 +440,9 @@ char* format(const char *format, ...) {
 void copy_pycache_python_source(char* filename_abspath, char* src_prefix, char* dst_prefix) {
 
   if(endswith(filename_abspath, ".pyc"))
-  {
+  { 
+printf("entering func: %s\n", filename_abspath);
+
     struct path* p = new_path_from_abspath(filename_abspath);
 
     if(strcmp(get_path_component(p, p->depth - 1), "__pycache__") == 0)
@@ -455,6 +457,7 @@ void copy_pycache_python_source(char* filename_abspath, char* src_prefix, char* 
         char* python_source_file_name = format("%s%s", get_path_component(p, p->depth), ".py");
         char* src_path = format("%s%s%s", python_source_file_path, "/", python_source_file_name);
         char* dst_path = format("%s%s", dst_prefix, src_path);
+        printf("copying, src: %s dest: %s\n", src_path,dst_path);
 
         copy_file(src_path, dst_path, 0);
 
