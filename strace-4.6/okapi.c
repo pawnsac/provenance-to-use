@@ -441,7 +441,6 @@ void copy_pycache_python_source(char* filename_abspath, char* src_prefix, char* 
 
   if(endswith(filename_abspath, ".pyc"))
   { 
-printf("entering func: %s\n", filename_abspath);
 
     struct path* p = new_path_from_abspath(filename_abspath);
 
@@ -457,7 +456,6 @@ printf("entering func: %s\n", filename_abspath);
         char* python_source_file_name = format("%s%s", get_path_component(p, p->depth), ".py");
         char* src_path = format("%s%s%s", python_source_file_path, "/", python_source_file_name);
         char* dst_path = format("%s%s", dst_prefix, src_path);
-        printf("copying, src: %s dest: %s\n", src_path,dst_path);
 
         copy_file(src_path, dst_path, 0);
 
@@ -548,7 +546,6 @@ void create_mirror_file(char* filename_abspath, char* src_prefix, char* dst_pref
       copy_pycache_python_source(filename_abspath, src_prefix, dst_prefix);
       if ((link(src_path, dst_path) != 0) && (errno != EEXIST)) {
         copy_file(src_path, dst_path, 0);
-        copy_pycache_python_source(filename_abspath, src_prefix, dst_prefix);
       }
     }
     else if (S_ISDIR(src_path_stat.st_mode)) { // directory or symlink to directory
